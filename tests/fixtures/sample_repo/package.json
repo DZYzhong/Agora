@@ -1,0 +1,1 @@
+{"name": "payment-service", "dependencies": {"fastify": "^4.0.0"}}
