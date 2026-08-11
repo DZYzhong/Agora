@@ -1,7 +1,10 @@
 from collections.abc import Generator
 from functools import lru_cache
+import os
+from pathlib import Path
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -11,13 +14,30 @@ from packages.storage.opensearch.fake import FakeKeywordIndex
 from packages.storage.qdrant.fake import FakeVectorIndex
 
 
+DEFAULT_DATABASE_URL = "sqlite+pysqlite:///.agora/agora.db"
+
+
+def create_app_engine(database_url: str) -> Engine:
+    if database_url.startswith("sqlite") and database_url != "sqlite+pysqlite:///:memory:":
+        database_path = database_url.rsplit("///", 1)[-1]
+        if database_path and database_path != ":memory:":
+            Path(database_path).parent.mkdir(parents=True, exist_ok=True)
+
+    if database_url == "sqlite+pysqlite:///:memory:":
+        return create_engine(
+            database_url,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+
+    connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
+    return create_engine(database_url, connect_args=connect_args)
+
+
 @lru_cache
 def get_engine():
-    engine = create_engine(
-        "sqlite+pysqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    database_url = os.environ.get("AGORA_DATABASE_URL", DEFAULT_DATABASE_URL)
+    engine = create_app_engine(database_url)
     Base.metadata.create_all(engine)
     return engine
 

@@ -1,4 +1,5 @@
 .worktrees/
+.agora/
 .env
 .venv/
 __pycache__/

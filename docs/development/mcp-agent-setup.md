@@ -6,14 +6,14 @@ Start Agora API first:
 
 ```bash
 cd /Users/daniel/Documents/Agora/.worktrees/agora-p0
-.venv/bin/uvicorn apps.api.main:app --reload --port 8000
+.venv/bin/uvicorn apps.api.main:app --reload --port 8011
 ```
 
 MCP server command:
 
 ```bash
 cd /Users/daniel/Documents/Agora/.worktrees/agora-p0
-AGORA_API_URL=http://127.0.0.1:8000 .venv/bin/python -m apps.mcp.server
+AGORA_API_URL=http://127.0.0.1:8011 .venv/bin/python -m apps.mcp.server
 ```
 
 MCP client configuration:
@@ -24,10 +24,12 @@ MCP client configuration:
   "command": "/Users/daniel/Documents/Agora/.worktrees/agora-p0/.venv/bin/python",
   "args": ["-m", "apps.mcp.server"],
   "env": {
-    "AGORA_API_URL": "http://127.0.0.1:8000"
+    "AGORA_API_URL": "http://127.0.0.1:8011"
   }
 }
 ```
+
+The local API persists data in `.agora/agora.db` by default. Override it with `AGORA_DATABASE_URL` when needed.
 
 Harness-oriented tools:
 

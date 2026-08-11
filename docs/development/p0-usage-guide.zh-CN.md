@@ -12,13 +12,13 @@
 
 ```bash
 cd /Users/daniel/Documents/Agora/.worktrees/agora-p0
-.venv/bin/uvicorn apps.api.main:app --reload --port 8000
+.venv/bin/uvicorn apps.api.main:app --reload --port 8011
 ```
 
 验证：
 
 ```bash
-curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8011/health
 ```
 
 预期返回：
@@ -33,7 +33,7 @@ curl http://127.0.0.1:8000/health
 
 ```bash
 cd /Users/daniel/Documents/Agora/.worktrees/agora-p0/apps/web
-NEXT_PUBLIC_AGORA_API_URL=http://127.0.0.1:8000 npm run dev -- -p 3000
+NEXT_PUBLIC_AGORA_API_URL=http://127.0.0.1:8011 npm run dev -- -p 3000
 ```
 
 浏览器打开：
@@ -79,7 +79,7 @@ MCP Server 命令：
 
 ```bash
 cd /Users/daniel/Documents/Agora/.worktrees/agora-p0
-AGORA_API_URL=http://127.0.0.1:8000 .venv/bin/python -m apps.mcp.server
+AGORA_API_URL=http://127.0.0.1:8011 .venv/bin/python -m apps.mcp.server
 ```
 
 在支持 MCP 的 AI 工具里新增一个 server，配置含义如下：
@@ -90,7 +90,7 @@ AGORA_API_URL=http://127.0.0.1:8000 .venv/bin/python -m apps.mcp.server
   "command": "/Users/daniel/Documents/Agora/.worktrees/agora-p0/.venv/bin/python",
   "args": ["-m", "apps.mcp.server"],
   "env": {
-    "AGORA_API_URL": "http://127.0.0.1:8000"
+    "AGORA_API_URL": "http://127.0.0.1:8011"
   }
 }
 ```
@@ -100,6 +100,13 @@ AGORA_API_URL=http://127.0.0.1:8000 .venv/bin/python -m apps.mcp.server
 - `command`：Python 解释器路径。
 - `args`：启动 Agora MCP server 的模块参数。
 - `env.AGORA_API_URL`：Agora API 地址。
+- `AGORA_DATABASE_URL`：可选数据库地址；默认是 `sqlite+pysqlite:///.agora/agora.db`。
+
+本地重置数据：
+
+```bash
+rm .agora/agora.db
+```
 
 ## 6. Agent 默认使用规则
 
@@ -162,7 +169,7 @@ http://127.0.0.1:3000/projects/{project_id}/writebacks
 P0 当前 Web 可以查看回写。接受回写暂时通过 API：
 
 ```bash
-curl -X POST http://127.0.0.1:8000/projects/{project_id}/writebacks/{writeback_id}/accept
+curl -X POST http://127.0.0.1:8011/projects/{project_id}/writebacks/{writeback_id}/accept
 ```
 
 接受后，这条内容会变成项目资产，并进入 Agora 检索索引。后续 Agent 再问相关问题时，就能读到这次沉淀的知识。
@@ -188,7 +195,7 @@ P0 已经可以验证团队 AI 项目知识闭环，但还不是生产级 SaaS�
 
 - Git 初始化优先使用本地仓库路径；如果路径不存在，P0 可以使用项目第一个 Git remote 自动 clone。
 - P0 还没有做远程 Git 凭证托管、定时 pull、分支选择。
-- 数据库默认是本地内存 SQLite，服务重启后数据会丢。
+- 数据库默认是本地文件 SQLite：`.agora/agora.db`，服务重启后项目和资产会保留。
 - 索引当前使用 Fake Qdrant/OpenSearch 实现，适合验证流程，不适合生产检索规模。
 - Web 是必要管理页，不是完整产品后台。
 - 权限、组织隔离、审计、部署运维还没有进入 P0。
