@@ -20,16 +20,21 @@ class FakeKeywordIndex:
         self._assets.append((asset_id, asset))
 
     def list_assets(self, *, org_id: str, project_id: str, limit: int = 20) -> list[KeywordSearchResult]:
+        project_assets = [
+            (asset_id, asset)
+            for asset_id, asset in self._assets
+            if asset.org_id == org_id and asset.project_id == project_id
+        ]
+        project_assets = sorted(project_assets, key=lambda item: 0 if item[1].type == "project_overview" else 1)
         results = [
             KeywordSearchResult(
                 asset_id=asset_id,
                 title=asset.title,
                 content=asset.content,
                 source_uri=asset.source_uri,
-                score=0.1,
+                score=1.0 if asset.type == "project_overview" else 0.1,
             )
-            for asset_id, asset in self._assets
-            if asset.org_id == org_id and asset.project_id == project_id
+            for asset_id, asset in project_assets
         ]
         return results[:limit]
 

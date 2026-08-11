@@ -12,3 +12,5 @@ def test_initialize_project_from_local_repo_creates_assets():
 
     assert result.asset_count > 0
     assert "src/refund" in result.modules
+    assert result.assets[0].type == "project_overview"
+    assert result.assets[0].title == "Project Overview"

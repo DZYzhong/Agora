@@ -136,10 +136,10 @@ git commit -m "feat: persist Agora local database"
 - Modify: `apps/workers/workflows/initialize_project.py`
 - Create: `tests/unit/knowledge/test_project_overview.py`
 
-- [ ] Generate a concise overview from modules, dependency files, source paths, and test paths.
-- [ ] Store overview as a `project_overview` asset.
-- [ ] Prefer overview in broad query fallback.
-- [ ] Commit.
+- [x] Generate a concise overview from modules, dependency files, source paths, and test paths.
+- [x] Store overview as a `project_overview` asset.
+- [x] Prefer overview in broad query fallback.
+- [x] Commit.
 
 ### Task 6: Web Context Tester
 

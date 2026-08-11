@@ -4,6 +4,7 @@ from pathlib import Path
 from packages.domain.schemas import AssetCreate
 from apps.workers.activities.git_sync import analyze_local_repo
 from apps.workers.activities.normalize_assets import normalize_repository_assets
+from packages.knowledge.project_overview import generate_project_overview_asset
 
 
 @dataclass(frozen=True)
@@ -21,7 +22,12 @@ def initialize_project_from_local_repo(
     repo_path: Path,
 ) -> InitializeProjectResult:
     analysis = analyze_local_repo(repo_path)
-    assets = normalize_repository_assets(
+    overview_asset = generate_project_overview_asset(
+        org_id=org_id,
+        project_id=project_id,
+        analysis=analysis,
+    )
+    assets = [overview_asset] + normalize_repository_assets(
         org_id=org_id,
         project_id=project_id,
         repo_path=repo_path,

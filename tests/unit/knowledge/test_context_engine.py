@@ -72,3 +72,42 @@ def test_context_engine_falls_back_to_project_overview_for_broad_queries():
     assert "No relevant project context found" not in context.summary
     assert context.source_refs
     assert "pom.xml" in context.summary
+
+
+def test_context_engine_prefers_project_overview_for_broad_fallback():
+    keyword = FakeKeywordIndex()
+    vector = FakeVectorIndex()
+    keyword.index_asset(
+        "file_1",
+        AssetCreate(
+            org_id="org_1",
+            project_id="proj_1",
+            type="code_file",
+            source="git",
+            source_uri="src/refund/service.py",
+            title="service.py",
+            content="RefundService retries failed refunds.",
+        ),
+    )
+    keyword.index_asset(
+        "overview_1",
+        AssetCreate(
+            org_id="org_1",
+            project_id="proj_1",
+            type="project_overview",
+            source="agora",
+            source_uri="agora://project-overview",
+            title="Project Overview",
+            content="Project overview with modules, dependencies, source paths, and tests.",
+        ),
+    )
+    engine = ContextEngine(keyword_index=keyword, vector_index=vector)
+
+    context = engine.plan_context(
+        org_id="org_1",
+        project_id="proj_1",
+        intent="analysis",
+        query="介绍一下这个项目",
+    )
+
+    assert context.source_refs[0]["title"] == "Project Overview"
