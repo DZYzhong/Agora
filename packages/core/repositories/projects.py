@@ -38,7 +38,7 @@ class ProjectRepository:
         return list(self.session.scalars(select(ProjectModel)).all())
 
     def find_by_git_remote(self, repo_remote: str) -> ProjectModel | None:
-        for project in self.list():
+        for project in reversed(self.list()):
             if repo_remote in (project.git_remotes or []):
                 return project
         return None

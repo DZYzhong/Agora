@@ -49,6 +49,34 @@ class FakeSkillRun:
     id: str = field(default_factory=lambda: uuid4().hex)
 
 
+@dataclass
+class FakeWriteback:
+    org_id: str
+    project_id: str
+    type: str
+    title: str
+    content: str
+    session_id: str | None = None
+    asset_refs: list[str] = field(default_factory=list)
+    status: str = "draft"
+    id: str = field(default_factory=lambda: uuid4().hex)
+    accepted_asset_id: str | None = None
+
+
+@dataclass
+class FakeAsset:
+    org_id: str
+    project_id: str
+    type: str
+    source: str
+    source_uri: str
+    title: str
+    content: str
+    summary: str | None = None
+    metadata: dict = field(default_factory=dict)
+    id: str = field(default_factory=lambda: uuid4().hex)
+
+
 class FakeCore:
     def __init__(self):
         self.projects: list[FakeProject] = []
@@ -56,6 +84,8 @@ class FakeCore:
         self.events: list[dict] = []
         self.skills: list[FakeSkill] = []
         self.skill_runs: list[FakeSkillRun] = []
+        self.writebacks: list[FakeWriteback] = []
+        self.assets: list[FakeAsset] = []
 
     def create_project(self, **kwargs):
         project = FakeProject(**kwargs)
@@ -89,6 +119,25 @@ class FakeCore:
         run = FakeSkillRun(**kwargs)
         self.skill_runs.append(run)
         return run
+
+    def create_writeback(self, **kwargs):
+        writeback = FakeWriteback(**kwargs)
+        self.writebacks.append(writeback)
+        return writeback
+
+    def get_writeback(self, writeback_id: str):
+        return next((writeback for writeback in self.writebacks if writeback.id == writeback_id), None)
+
+    def accept_writeback(self, writeback_id: str, *, accepted_asset_id: str | None = None):
+        writeback = self.get_writeback(writeback_id)
+        writeback.status = "accepted"
+        writeback.accepted_asset_id = accepted_asset_id
+        return writeback
+
+    def create_asset(self, **kwargs):
+        asset = FakeAsset(**kwargs)
+        self.assets.append(asset)
+        return asset
 
 
 class FakeContextEngine:
