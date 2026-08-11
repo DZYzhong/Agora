@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { apiGet } from "../../../lib/api";
-import { initializeProject } from "../actions";
 
 type Project = {
   id: string;
@@ -19,13 +18,12 @@ export default async function ProjectDetailPage({
   const { projectId } = await params;
   const { init_error: initError } = await searchParams;
   const project = await apiGet<Project>(`/projects/${projectId}`);
-  const initializeAction = initializeProject.bind(null, project.id);
 
   return (
     <main className="page">
       <h1>{project.name}</h1>
       <p className="muted">{project.slug}</p>
-      <form className="panel form" action={initializeAction}>
+      <form className="panel form" action={`/projects/${project.id}/initialize`} method="post">
         <h2>Initialize from local repository</h2>
         {initError ? <p className="alert">{initError}</p> : null}
         <label>

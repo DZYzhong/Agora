@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { apiGet } from "../../lib/api";
-import { createProject } from "./actions";
 
 type Project = {
   id: string;
@@ -21,7 +20,7 @@ export default async function ProjectsPage() {
     <main className="page">
       <h1>Projects</h1>
       <p className="muted">Configured Agora project spaces.</p>
-      <form className="panel form" action={createProject}>
+      <form className="panel form" action="/projects/create" method="post">
         <h2>Create project</h2>
         <label>
           Organization
