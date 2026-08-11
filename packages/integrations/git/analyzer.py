@@ -11,6 +11,37 @@ DEPENDENCY_FILES = [
     "Cargo.toml",
 ]
 
+SOURCE_EXTENSIONS = {
+    ".css",
+    ".go",
+    ".java",
+    ".js",
+    ".jsx",
+    ".kt",
+    ".md",
+    ".py",
+    ".rs",
+    ".scss",
+    ".ts",
+    ".tsx",
+    ".vue",
+    ".xml",
+    ".yaml",
+    ".yml",
+}
+
+IGNORED_DIRS = {
+    ".git",
+    ".idea",
+    ".next",
+    ".venv",
+    "build",
+    "dist",
+    "node_modules",
+    "target",
+    "__pycache__",
+}
+
 
 @dataclass(frozen=True)
 class RepositoryAnalysis:
@@ -19,6 +50,7 @@ class RepositoryAnalysis:
     test_paths: list[str]
     dependency_files: list[str]
     readme_path: str | None
+    source_files: list[str]
 
 
 def analyze_repository(repo_path: Path) -> RepositoryAnalysis:
@@ -29,6 +61,7 @@ def analyze_repository(repo_path: Path) -> RepositoryAnalysis:
         test_paths=_find_tests(repo_path),
         dependency_files=_find_dependency_files(repo_path),
         readme_path=_relative(readme, repo_path) if readme else None,
+        source_files=_find_source_files(repo_path),
     )
 
 
@@ -61,18 +94,45 @@ def _find_modules(repo_path: Path) -> list[str]:
 
 
 def _find_tests(repo_path: Path) -> list[str]:
-    tests_dir = repo_path / "tests"
-    if not tests_dir.exists():
-        return []
     return [
-        _relative(path, repo_path)
-        for path in sorted(tests_dir.rglob("*"))
-        if path.is_file()
+        relative_path
+        for relative_path in _find_source_files(repo_path)
+        if _is_test_path(relative_path)
     ]
 
 
 def _find_dependency_files(repo_path: Path) -> list[str]:
     return [name for name in DEPENDENCY_FILES if (repo_path / name).exists()]
+
+
+def _find_source_files(repo_path: Path) -> list[str]:
+    files: list[str] = []
+    for path in sorted(repo_path.rglob("*")):
+        if not path.is_file() or _is_ignored(path, repo_path):
+            continue
+        if path.suffix.lower() in SOURCE_EXTENSIONS:
+            files.append(_relative(path, repo_path))
+    return files
+
+
+def _is_ignored(path: Path, repo_path: Path) -> bool:
+    relative_parts = path.relative_to(repo_path).parts
+    return any(part in IGNORED_DIRS for part in relative_parts)
+
+
+def _is_test_path(relative_path: str) -> bool:
+    path = relative_path.lower()
+    return (
+        path.startswith("tests/")
+        or "/tests/" in path
+        or path.startswith("src/test/")
+        or "/src/test/" in path
+        or path.endswith("_test.py")
+        or path.endswith(".test.ts")
+        or path.endswith(".test.tsx")
+        or path.endswith(".spec.ts")
+        or path.endswith(".spec.tsx")
+    )
 
 
 def _relative(path: Path, root: Path) -> str:

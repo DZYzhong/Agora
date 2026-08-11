@@ -16,6 +16,8 @@ def assets_from_repository_analysis(
     if analysis.readme_path:
         assets.append(_file_asset(org_id, project_id, repo_path, analysis.readme_path, "doc"))
 
+    indexed_paths = {analysis.readme_path} if analysis.readme_path else set()
+
     for module_path in analysis.modules:
         module_dir = repo_path / module_path
         assets.append(
@@ -31,13 +33,15 @@ def assets_from_repository_analysis(
                 metadata={"path": module_path},
             )
         )
-        for file_path in sorted(module_dir.rglob("*")):
-            if file_path.is_file():
-                assets.append(_file_asset(org_id, project_id, repo_path, file_path.relative_to(repo_path).as_posix(), "code_file"))
 
     for dependency_file in analysis.dependency_files:
         if dependency_file != analysis.readme_path:
             assets.append(_file_asset(org_id, project_id, repo_path, dependency_file, "doc", {"kind": "dependency_manifest"}))
+            indexed_paths.add(dependency_file)
+
+    for source_file in analysis.source_files:
+        if source_file not in indexed_paths:
+            assets.append(_file_asset(org_id, project_id, repo_path, source_file, "code_file"))
 
     return assets
 
