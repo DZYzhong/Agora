@@ -28,9 +28,18 @@ export async function createProject(formData: FormData) {
 export async function initializeProject(projectId: string, formData: FormData) {
   const repoPath = String(formData.get("repo_path") ?? "").trim();
 
-  await apiPost(`/projects/${projectId}/initialize-local`, {
-    repo_path: repoPath,
-  });
+  let initError: string | null = null;
+  try {
+    await apiPost(`/projects/${projectId}/initialize-local`, {
+      repo_path: repoPath,
+    });
+  } catch (error) {
+    initError = error instanceof Error ? error.message : "Initialize failed";
+  }
+
+  if (initError) {
+    redirect(`/projects/${projectId}?init_error=${encodeURIComponent(initError)}`);
+  }
 
   revalidatePath(`/projects/${projectId}`);
   revalidatePath(`/projects/${projectId}/assets`);

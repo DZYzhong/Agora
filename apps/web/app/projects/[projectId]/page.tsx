@@ -9,8 +9,15 @@ type Project = {
   git_remotes: string[];
 };
 
-export default async function ProjectDetailPage({ params }: { params: Promise<{ projectId: string }> }) {
+export default async function ProjectDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ init_error?: string }>;
+}) {
   const { projectId } = await params;
+  const { init_error: initError } = await searchParams;
   const project = await apiGet<Project>(`/projects/${projectId}`);
   const initializeAction = initializeProject.bind(null, project.id);
 
@@ -20,6 +27,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       <p className="muted">{project.slug}</p>
       <form className="panel form" action={initializeAction}>
         <h2>Initialize from local repository</h2>
+        {initError ? <p className="alert">{initError}</p> : null}
         <label>
           Repository path
           <input name="repo_path" placeholder="/Users/daniel/Documents/Agora/.worktrees/agora-p0/tests/fixtures/sample_repo" required />
