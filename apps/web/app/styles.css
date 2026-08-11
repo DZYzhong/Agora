@@ -194,6 +194,55 @@ button {
   overflow: hidden;
 }
 
+.context-result {
+  display: grid;
+  gap: 16px;
+}
+
+.context-summary {
+  color: #29313d;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.source-list {
+  background: #ffffff;
+  border: 1px solid #dde1e7;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.source-row {
+  align-items: start;
+  border-top: 1px solid #edf0f4;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.5fr) 120px 80px;
+  padding: 14px 16px;
+}
+
+.source-row:first-child {
+  border-top: 0;
+}
+
+.source-header {
+  background: #f8fafc;
+  color: #5f6b7a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.source-score {
+  color: #29313d;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .asset-row {
   align-items: start;
   border-top: 1px solid #edf0f4;
@@ -255,7 +304,15 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .source-row {
+    grid-template-columns: 1fr;
+  }
+
   .asset-header {
+    display: none;
+  }
+
+  .source-header {
     display: none;
   }
 }

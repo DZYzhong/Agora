@@ -16,6 +16,7 @@ router = APIRouter(prefix="/harness", tags=["harness"])
 
 
 class StartWorkRequest(BaseModel):
+    project_id: str | None = None
     user_message: str
     repo_remote: str | None = None
     agent_type: str

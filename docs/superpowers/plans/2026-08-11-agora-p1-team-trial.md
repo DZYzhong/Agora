@@ -148,10 +148,10 @@ git commit -m "feat: persist Agora local database"
 - Create: `apps/web/app/projects/[projectId]/context/route.ts`
 - Modify: `apps/web/app/projects/[projectId]/page.tsx`
 
-- [ ] Add a simple query form.
-- [ ] Call `/harness/start-work` and `/harness/plan-context`.
-- [ ] Show summary and source refs.
-- [ ] Commit.
+- [x] Add a simple query form.
+- [x] Call `/harness/start-work` and `/harness/plan-context`.
+- [x] Show summary and source refs.
+- [x] Commit.
 
 ## Chunk 4: Writeback Review
 
