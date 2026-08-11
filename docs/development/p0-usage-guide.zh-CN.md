@@ -65,7 +65,11 @@ http://127.0.0.1:3000/projects
 
 点击 `Initialize` 后会跳转到 `Assets` 页面。能看到 `README.md`、模块信息、代码文件等资产，说明 Agora 已经把项目内容沉淀成共享知识资产。
 
-真实项目测试时，把这个路径换成你的项目本地 clone 路径即可。P0 当前使用本地路径初始化，暂时不是在页面里直接 clone 远程 Git。
+真实项目测试时，把这个路径换成你的项目本地 clone 路径即可。
+
+如果这个路径不存在，Agora 会使用项目的第一个 `Git remote` 自动执行 `git clone <git_remote> <repo_path>`，clone 成功后继续分析项目。
+
+如果项目没有填写 `Git remote`，或者当前机器没有仓库访问权限，页面会显示错误原因。
 
 ## 5. AI 工具如何接入 Agora
 
@@ -172,7 +176,8 @@ cd /Users/daniel/Documents/Agora/.worktrees/agora-p0
 
 P0 已经可以验证团队 AI 项目知识闭环，但还不是生产级 SaaS：
 
-- Git 初始化当前使用本地仓库路径，不是远程 Git 凭证托管和自动 clone。
+- Git 初始化优先使用本地仓库路径；如果路径不存在，P0 可以使用项目第一个 Git remote 自动 clone。
+- P0 还没有做远程 Git 凭证托管、定时 pull、分支选择。
 - 数据库默认是本地内存 SQLite，服务重启后数据会丢。
 - 索引当前使用 Fake Qdrant/OpenSearch 实现，适合验证流程，不适合生产检索规模。
 - Web 是必要管理页，不是完整产品后台。

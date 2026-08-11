@@ -1,4 +1,6 @@
 from fastapi.testclient import TestClient
+import shutil
+import subprocess
 
 from apps.api.main import app
 
@@ -67,3 +69,58 @@ def test_api_p0_usable_loop_initializes_assets_plans_context_and_accepts_writeba
         json={"session_id": session_id, "query": "退款失败重试 幂等", "token_budget": 1000},
     ).json()
     assert "幂等" in later_context["summary"]
+
+
+def test_initialize_local_clones_project_remote_when_repo_path_is_missing(tmp_path):
+    source_repo = tmp_path / "source_repo"
+    shutil.copytree("tests/fixtures/sample_repo", source_repo)
+    subprocess.run(["git", "init"], cwd=source_repo, check=True)
+    subprocess.run(["git", "add", "."], cwd=source_repo, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=Agora Test", "-c", "user.email=agora@example.com", "commit", "-m", "fixture"],
+        cwd=source_repo,
+        check=True,
+    )
+
+    target_repo = tmp_path / "cloned_repo"
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_clone",
+            "name": "Payment Clone",
+            "slug": "payment-clone",
+            "git_remotes": [str(source_repo)],
+        },
+    ).json()
+
+    init_response = client.post(
+        f"/projects/{project['id']}/initialize-local",
+        json={"repo_path": str(target_repo)},
+    )
+
+    assert init_response.status_code == 200
+    assert init_response.json()["asset_count"] > 0
+    assert target_repo.exists()
+    assert (target_repo / "README.md").exists()
+
+
+def test_initialize_local_requires_git_remote_when_repo_path_is_missing(tmp_path):
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_no_remote",
+            "name": "No Remote",
+            "slug": "no-remote",
+            "git_remotes": [],
+        },
+    ).json()
+
+    init_response = client.post(
+        f"/projects/{project['id']}/initialize-local",
+        json={"repo_path": str(tmp_path / "missing_repo")},
+    )
+
+    assert init_response.status_code == 400
+    assert "no Git remote" in init_response.json()["detail"]

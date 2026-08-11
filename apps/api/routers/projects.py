@@ -9,6 +9,7 @@ from apps.workers.workflows.initialize_project import initialize_project_from_lo
 from packages.core.repositories.assets import AssetRepository
 from packages.core.repositories.projects import ProjectRepository
 from packages.domain.schemas import ProjectCreate, ProjectRead
+from packages.integrations.git.clone import GitCloneError, clone_repository
 from packages.storage.opensearch.fake import FakeKeywordIndex
 from packages.storage.qdrant.fake import FakeVectorIndex
 
@@ -80,7 +81,15 @@ def initialize_local_project(
 
     repo_path = Path(payload.repo_path)
     if not repo_path.exists():
-        raise HTTPException(status_code=400, detail=f"Repository path does not exist: {payload.repo_path}")
+        if not project.git_remotes:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Repository path does not exist and project has no Git remote to clone: {payload.repo_path}",
+            )
+        try:
+            clone_repository(project.git_remotes[0], repo_path)
+        except GitCloneError as exc:
+            raise HTTPException(status_code=400, detail=f"Git clone failed: {exc}") from exc
 
     result = initialize_project_from_local_repo(org_id=project.org_id, project_id=project.id, repo_path=repo_path)
     asset_repo = AssetRepository(session)
