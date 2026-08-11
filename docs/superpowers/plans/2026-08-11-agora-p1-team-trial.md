@@ -121,11 +121,11 @@ git commit -m "feat: persist Agora local database"
 - Create/modify route handlers as needed.
 - Modify: `apps/web/app/styles.css`
 
-- [ ] Show latest initialization status on project detail.
-- [ ] Link to assets after success.
-- [ ] Show clone/analyze errors in page.
-- [ ] Run `npm run build`.
-- [ ] Commit.
+- [x] Show latest initialization status on project detail.
+- [x] Link to assets after success.
+- [x] Show clone/analyze errors in page.
+- [x] Run `npm run build`.
+- [x] Commit.
 
 ## Chunk 3: Project Overview and Agent Usability
 

@@ -92,6 +92,17 @@ button {
   width: fit-content;
 }
 
+.button-link {
+  background: #171717;
+  border-radius: 6px;
+  color: #ffffff;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 14px;
+  width: fit-content;
+}
+
 .alert {
   background: #fff1f2;
   border: 1px solid #fecdd3;
@@ -99,6 +110,80 @@ button {
   color: #b4232a;
   margin: 0;
   padding: 10px 12px;
+}
+
+.status-panel {
+  display: grid;
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.eyebrow {
+  color: #5f6b7a;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.status-title {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  margin: 0 0 6px;
+}
+
+.status-dot {
+  border-radius: 999px;
+  display: inline-block;
+  height: 10px;
+  width: 10px;
+}
+
+.status-completed {
+  background: #16a34a;
+}
+
+.status-running {
+  background: #2563eb;
+}
+
+.status-failed {
+  background: #dc2626;
+}
+
+.status-empty {
+  background: #94a3b8;
+}
+
+.status-metrics {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin: 0;
+}
+
+.status-metrics div {
+  background: #f8fafc;
+  border: 1px solid #edf0f4;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.status-metrics dt {
+  color: #5f6b7a;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.status-metrics dd {
+  color: #171717;
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .asset-list {
