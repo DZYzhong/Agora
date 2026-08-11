@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { apiGet } from "../../../lib/api";
+import { initializeProject } from "../actions";
 
 type Project = {
   id: string;
@@ -11,11 +12,20 @@ type Project = {
 export default async function ProjectDetailPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const project = await apiGet<Project>(`/projects/${projectId}`);
+  const initializeAction = initializeProject.bind(null, project.id);
 
   return (
     <main className="page">
       <h1>{project.name}</h1>
       <p className="muted">{project.slug}</p>
+      <form className="panel form" action={initializeAction}>
+        <h2>Initialize from local repository</h2>
+        <label>
+          Repository path
+          <input name="repo_path" placeholder="/Users/daniel/Documents/Agora/.worktrees/agora-p0/tests/fixtures/sample_repo" required />
+        </label>
+        <button type="submit">Initialize</button>
+      </form>
       <section className="grid">
         <Link className="panel" href={`/projects/${project.id}/assets`}>
           <h2>Assets</h2>

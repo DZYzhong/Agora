@@ -1,13 +1,38 @@
 # MCP Agent Setup
 
-P0 exposes a Python-level MCP adapter boundary in `apps/mcp/tools.py`.
+P0 exposes a stdio MCP server in `apps/mcp/server.py`.
+
+Start Agora API first:
+
+```bash
+cd /Users/daniel/Documents/Agora/.worktrees/agora-p0
+.venv/bin/uvicorn apps.api.main:app --reload --port 8000
+```
+
+MCP server command:
+
+```bash
+cd /Users/daniel/Documents/Agora/.worktrees/agora-p0
+AGORA_API_URL=http://127.0.0.1:8000 .venv/bin/python -m apps.mcp.server
+```
+
+MCP client configuration:
+
+```json
+{
+  "name": "agora",
+  "command": "/Users/daniel/Documents/Agora/.worktrees/agora-p0/.venv/bin/python",
+  "args": ["-m", "apps.mcp.server"],
+  "env": {
+    "AGORA_API_URL": "http://127.0.0.1:8000"
+  }
+}
+```
 
 Harness-oriented tools:
 
 - `agora_start_work`
 - `agora_plan_context`
-- `agora_fetch_context_ref`
-- `agora_run_skill`
 - `agora_record_event`
 - `agora_prepare_writeback`
 - `agora_close_work`
@@ -35,7 +60,6 @@ Expected tool flow:
 ```text
 agora_start_work
 -> agora_plan_context
--> agora_run_skill
 -> agora_prepare_writeback
 -> agora_close_work
 ```
