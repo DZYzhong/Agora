@@ -25,11 +25,37 @@ class FakeSession:
     id: str = field(default_factory=lambda: uuid4().hex)
 
 
+@dataclass
+class FakeSkill:
+    slug: str
+    status: str
+    id: str = field(default_factory=lambda: uuid4().hex)
+    org_id: str | None = None
+    project_id: str | None = None
+    name: str | None = None
+    definition: dict = field(default_factory=dict)
+
+
+@dataclass
+class FakeSkillRun:
+    org_id: str
+    project_id: str
+    skill_id: str
+    input: dict
+    output: dict
+    session_id: str | None = None
+    warnings: list[str] = field(default_factory=list)
+    status: str = "completed"
+    id: str = field(default_factory=lambda: uuid4().hex)
+
+
 class FakeCore:
     def __init__(self):
         self.projects: list[FakeProject] = []
         self.sessions: list[FakeSession] = []
         self.events: list[dict] = []
+        self.skills: list[FakeSkill] = []
+        self.skill_runs: list[FakeSkillRun] = []
 
     def create_project(self, **kwargs):
         project = FakeProject(**kwargs)
@@ -50,6 +76,19 @@ class FakeCore:
     def record_event(self, **kwargs):
         self.events.append(kwargs)
         return kwargs
+
+    def create_skill(self, **kwargs):
+        skill = FakeSkill(**kwargs)
+        self.skills.append(skill)
+        return skill
+
+    def get_skill_by_slug(self, skill_slug: str):
+        return next((skill for skill in self.skills if skill.slug == skill_slug), None)
+
+    def create_skill_run(self, **kwargs):
+        run = FakeSkillRun(**kwargs)
+        self.skill_runs.append(run)
+        return run
 
 
 class FakeContextEngine:
