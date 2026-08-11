@@ -45,3 +45,6 @@ class AssetRepository:
     def list_by_project(self, project_id: str) -> list[AssetModel]:
         statement = select(AssetModel).where(AssetModel.project_id == project_id)
         return list(self.session.scalars(statement).all())
+
+    def list_all(self) -> list[AssetModel]:
+        return list(self.session.scalars(select(AssetModel)).all())

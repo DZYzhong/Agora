@@ -92,11 +92,11 @@ git commit -m "feat: persist Agora local database"
 - Create: `packages/knowledge/index_rebuilder.py`
 - Create: `tests/integration/api/test_index_rehydration.py`
 
-- [ ] Write a failing test proving assets persisted in DB can be found by `plan_context` after fake indexes are recreated.
-- [ ] Implement `rebuild_indexes_from_assets(session, keyword_index, vector_index)`.
-- [ ] Call it once after engine initialization for local fake indexes.
-- [ ] Run targeted and full tests.
-- [ ] Commit.
+- [x] Write a failing test proving assets persisted in DB can be found by `plan_context` after fake indexes are recreated.
+- [x] Implement `rebuild_indexes_from_assets(session, keyword_index, vector_index)`.
+- [x] Call it once after engine initialization for local fake indexes.
+- [x] Run targeted and full tests.
+- [x] Commit.
 
 ## Chunk 2: Initialization Jobs
 
