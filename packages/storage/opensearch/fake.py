@@ -53,7 +53,7 @@ class FakeKeywordIndex:
                         title=asset.title,
                         content=asset.content,
                         source_uri=asset.source_uri,
-                        score=float(score),
+                        score=float(score) + _asset_score_boost(asset.type),
                     )
                 )
         return sorted(results, key=lambda item: item.score, reverse=True)[:limit]
@@ -71,3 +71,11 @@ def _normalize_terms(text: str) -> str:
     for source, target in replacements.items():
         normalized = normalized.replace(source, target)
     return normalized
+
+
+def _asset_score_boost(asset_type: str) -> float:
+    if asset_type == "writeback":
+        return 2.0
+    if asset_type == "project_overview":
+        return 0.5
+    return 0.0

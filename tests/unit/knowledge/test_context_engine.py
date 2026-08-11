@@ -111,3 +111,40 @@ def test_context_engine_prefers_project_overview_for_broad_fallback():
     )
 
     assert context.source_refs[0]["title"] == "Project Overview"
+
+
+def test_context_engine_prefers_accepted_writeback_over_raw_code_matches():
+    keyword = FakeKeywordIndex()
+    vector = FakeVectorIndex()
+    for index in range(10):
+        code_asset = AssetCreate(
+            org_id="org_1",
+            project_id="proj_1",
+            type="code_file",
+            source="git",
+            source_uri=f"src/KafkaProducer{index}.java",
+            title=f"KafkaProducer{index}.java",
+            content="package com.example; class KafkaProducer { FlinkKafkaProducer.Semantic.NONE; Kafka 输出一致性 }",
+        )
+        keyword.index_asset(f"code_{index}", code_asset)
+        vector.index_asset(f"code_{index}", code_asset)
+    writeback_asset = AssetCreate(
+        org_id="org_1",
+        project_id="proj_1",
+        type="writeback",
+        source="agent",
+        source_uri="writebacks/analysis",
+        title="Kafka consistency analysis",
+        content="端到端一致性不足：多个 Kafka Producer 使用 FlinkKafkaProducer.Semantic.NONE。Kafka 输出仍可能重复或丢失。",
+    )
+    keyword.index_asset("writeback_1", writeback_asset)
+    engine = ContextEngine(keyword_index=keyword, vector_index=vector)
+
+    context = engine.plan_context(
+        org_id="org_1",
+        project_id="proj_1",
+        intent="analysis",
+        query="Kafka 输出一致性 FlinkKafkaProducer Semantic.NONE",
+    )
+
+    assert context.source_refs[0]["asset_id"] == "writeback_1"
