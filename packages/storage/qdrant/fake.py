@@ -41,4 +41,19 @@ class FakeVectorIndex:
 
 
 def _terms(text: str) -> set[str]:
-    return {term for term in text.lower().replace("_", " ").replace("-", " ").split() if term}
+    normalized = _normalize_terms(text)
+    return {term for term in normalized.lower().replace("_", " ").replace("-", " ").split() if term}
+
+
+def _normalize_terms(text: str) -> str:
+    replacements = {
+        "退款": " refund ",
+        "重试": " retry ",
+        "幂等": " idempotency ",
+        "支付": " payment ",
+        "对账": " reconciliation ",
+    }
+    normalized = text
+    for source, target in replacements.items():
+        normalized = normalized.replace(source, target)
+    return normalized

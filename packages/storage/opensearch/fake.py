@@ -20,7 +20,7 @@ class FakeKeywordIndex:
         self._assets.append((asset_id, asset))
 
     def search(self, *, org_id: str, project_id: str, query: str, limit: int = 10) -> list[KeywordSearchResult]:
-        query_lower = query.lower()
+        query_lower = _normalize_terms(query).lower()
         results: list[KeywordSearchResult] = []
         for asset_id, asset in self._assets:
             if asset.org_id != org_id or asset.project_id != project_id:
@@ -38,3 +38,17 @@ class FakeKeywordIndex:
                     )
                 )
         return sorted(results, key=lambda item: item.score, reverse=True)[:limit]
+
+
+def _normalize_terms(text: str) -> str:
+    replacements = {
+        "退款": " refund ",
+        "重试": " retry ",
+        "幂等": " idempotency ",
+        "支付": " payment ",
+        "对账": " reconciliation ",
+    }
+    normalized = text
+    for source, target in replacements.items():
+        normalized = normalized.replace(source, target)
+    return normalized
