@@ -4,6 +4,7 @@ from apps.mcp.tools import AgoraMcpTools
 class FakeHarness:
     def __init__(self):
         self.started = False
+        self.closed_with = None
 
     def start_work(self, **kwargs):
         self.started = True
@@ -20,6 +21,10 @@ class FakeHarness:
             },
         )()
 
+    def close_work(self, **kwargs):
+        self.closed_with = kwargs
+        return {"session_id": kwargs["session_id"], "status": kwargs.get("status", "closed"), "writeback": {"id": "wb_1"}}
+
 
 def test_mcp_start_work_delegates_to_harness():
     fake_harness = FakeHarness()
@@ -33,3 +38,27 @@ def test_mcp_start_work_delegates_to_harness():
 
     assert result["session_id"] == "sess_1"
     assert fake_harness.started
+
+
+def test_mcp_close_work_passes_development_capture_arguments():
+    fake_harness = FakeHarness()
+    tools = AgoraMcpTools(harness=fake_harness)
+
+    result = tools.agora_close_work(
+        session_id="sess_1",
+        status="closed",
+        repo_path="/tmp/repo",
+        agent_summary="完成新功能",
+        test_result="pytest passed",
+    )
+
+    assert result["writeback"]["id"] == "wb_1"
+    assert fake_harness.closed_with == {
+        "session_id": "sess_1",
+        "status": "closed",
+        "repo_path": "/tmp/repo",
+        "base_ref": "HEAD",
+        "head_ref": None,
+        "agent_summary": "完成新功能",
+        "test_result": "pytest passed",
+    }

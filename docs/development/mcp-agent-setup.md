@@ -48,8 +48,8 @@ When the user asks for project analysis, implementation, testing, review, summar
 2. Pass the original user message to agora_start_work. If available, also pass git remote get-url origin as repo_remote.
 3. Call agora_plan_context before proposing implementation. If source_refs are returned, use them as the primary project context.
 4. Run required skills returned by Agora.
-5. Prepare writeback before finishing.
-6. Close the work session when completed or blocked.
+5. When implementation finishes, call agora_close_work with repo_path, agent_summary, and test_result.
+6. If more curated knowledge is needed, call agora_prepare_writeback explicitly before finishing.
 ```
 
 Example user prompt:
@@ -63,6 +63,20 @@ Expected tool flow:
 ```text
 agora_start_work
 -> agora_plan_context
--> agora_prepare_writeback
 -> agora_close_work
 ```
+
+Development memory capture:
+
+```text
+agora_close_work(
+  session_id="<session id>",
+  status="closed",
+  repo_path="<local git repository path>",
+  base_ref="HEAD",
+  agent_summary="Implemented the new feature and updated related tests.",
+  test_result="pytest -v passed"
+)
+```
+
+When `repo_path`, `agent_summary`, or `test_result` is provided, Agora creates a `development_update` writeback draft. The draft must still be reviewed in the Web UI and accepted before it becomes reusable project knowledge.

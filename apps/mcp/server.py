@@ -69,10 +69,15 @@ TOOLS = [
     ),
     _tool(
         "agora_close_work",
-        "Close an Agora work session.",
+        "Close an Agora work session. When repo_path or agent_summary is provided, Agora captures a development_update draft for human review.",
         {
             "session_id": {"type": "string"},
             "status": {"type": "string", "default": "closed"},
+            "repo_path": {"type": "string", "description": "Optional local git repository path used to summarize the development diff."},
+            "base_ref": {"type": "string", "default": "HEAD", "description": "Git base ref for diff capture. Defaults to HEAD versus working tree."},
+            "head_ref": {"type": "string", "description": "Optional git head ref. If omitted, Agora compares base_ref to the working tree."},
+            "agent_summary": {"type": "string", "description": "Agent's concise summary of the completed development work."},
+            "test_result": {"type": "string", "description": "Tests or checks run by the agent."},
         },
         ["session_id"],
     ),
@@ -157,6 +162,11 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
             {
                 "session_id": arguments["session_id"],
                 "status": arguments.get("status", "closed"),
+                "repo_path": arguments.get("repo_path"),
+                "base_ref": arguments.get("base_ref", "HEAD"),
+                "head_ref": arguments.get("head_ref"),
+                "agent_summary": arguments.get("agent_summary"),
+                "test_result": arguments.get("test_result"),
             },
         )
     if name == "agora_search_knowledge":

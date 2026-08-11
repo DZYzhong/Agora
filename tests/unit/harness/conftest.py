@@ -95,6 +95,9 @@ class FakeCore:
     def find_project_by_git_remote(self, repo_remote: str):
         return next((project for project in self.projects if repo_remote in project.git_remotes), None)
 
+    def get_project(self, project_id: str):
+        return next((project for project in self.projects if project.id == project_id), None)
+
     def list_projects(self):
         return self.projects
 

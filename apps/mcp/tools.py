@@ -40,8 +40,28 @@ class AgoraMcpTools:
             )
         )
 
-    def agora_close_work(self, *, session_id: str, status: str = "closed") -> dict:
-        return _object_to_dict(self.harness.close_work(session_id=session_id, status=status))
+    def agora_close_work(
+        self,
+        *,
+        session_id: str,
+        status: str = "closed",
+        repo_path: str | None = None,
+        base_ref: str = "HEAD",
+        head_ref: str | None = None,
+        agent_summary: str | None = None,
+        test_result: str | None = None,
+    ) -> dict:
+        return _object_to_dict(
+            self.harness.close_work(
+                session_id=session_id,
+                status=status,
+                repo_path=repo_path,
+                base_ref=base_ref,
+                head_ref=head_ref,
+                agent_summary=agent_summary,
+                test_result=test_result,
+            )
+        )
 
     def agora_search_knowledge(self, *, session_id: str, query: str, max_results: int = 10) -> dict:
         return {"session_id": session_id, "query": query, "max_results": max_results, "results": []}

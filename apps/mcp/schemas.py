@@ -35,3 +35,8 @@ class PrepareWritebackInput(BaseModel):
 class CloseWorkInput(BaseModel):
     session_id: str
     status: str = "closed"
+    repo_path: str | None = None
+    base_ref: str = "HEAD"
+    head_ref: str | None = None
+    agent_summary: str | None = None
+    test_result: str | None = None

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from packages.harness.context_planner import ContextPlanner
+from packages.harness.development_capture import capture_development_change
 from packages.harness.project_resolver import ProjectResolver
 from packages.harness.session_recorder import SessionRecorder
 from packages.harness.task_resolver import TaskResolver
@@ -69,9 +70,50 @@ class HarnessService:
     def record_event(self, *, session_id: str, event_type: str, payload: dict):
         return self.session_recorder.record_event(session_id=session_id, event_type=event_type, payload=payload)
 
-    def close_work(self, *, session_id: str, status: str = "closed"):
+    def close_work(
+        self,
+        *,
+        session_id: str,
+        status: str = "closed",
+        repo_path: str | None = None,
+        base_ref: str = "HEAD",
+        head_ref: str | None = None,
+        agent_summary: str | None = None,
+        test_result: str | None = None,
+    ):
         session = self.core.get_session(session_id)
         if session is None:
             raise ValueError(f"Session not found: {session_id}")
         session.status = status
-        return {"session_id": session_id, "status": status}
+        writeback = None
+        if repo_path or agent_summary or test_result:
+            change = capture_development_change(
+                repo_path=repo_path,
+                base_ref=base_ref,
+                head_ref=head_ref,
+                agent_summary=agent_summary,
+                test_result=test_result,
+                session_intent=session.intent,
+            )
+            writeback = self.core.create_writeback(
+                org_id=session.org_id,
+                project_id=session.project_id,
+                session_id=session_id,
+                type="development_update",
+                title=change.title,
+                content=change.content,
+                asset_refs=[],
+                status="draft",
+            )
+        result = {"session_id": session_id, "status": status}
+        if writeback is not None:
+            result["writeback"] = {
+                "id": writeback.id,
+                "project_id": writeback.project_id,
+                "session_id": writeback.session_id,
+                "type": writeback.type,
+                "title": writeback.title,
+                "content": writeback.content,
+                "status": writeback.status,
+            }
+        return result

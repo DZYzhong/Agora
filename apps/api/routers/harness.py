@@ -37,6 +37,11 @@ class RecordEventRequest(BaseModel):
 class CloseWorkRequest(BaseModel):
     session_id: str
     status: str = "closed"
+    repo_path: str | None = None
+    base_ref: str = "HEAD"
+    head_ref: str | None = None
+    agent_summary: str | None = None
+    test_result: str | None = None
 
 
 class PrepareWritebackRequest(BaseModel):
@@ -105,7 +110,10 @@ def close_work(
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
-    return _harness(session, keyword_index, vector_index).close_work(**payload.model_dump())
+    try:
+        return _harness(session, keyword_index, vector_index).close_work(**payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/prepare-writeback")
