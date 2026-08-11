@@ -26,7 +26,7 @@ class HarnessService:
         self.context_planner = ContextPlanner(core=core, context_engine=context_engine)
 
     def start_work(self, *, user_message: str, repo_remote: str | None = None, agent_type: str):
-        project_resolution = self.project_resolver.resolve(repo_remote=repo_remote)
+        project_resolution = self.project_resolver.resolve(repo_remote=repo_remote, user_message=user_message)
         if project_resolution.project is None:
             return WorkStartResult(
                 session_id=None,

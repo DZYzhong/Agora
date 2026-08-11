@@ -19,6 +19,20 @@ class FakeKeywordIndex:
     def index_asset(self, asset_id: str, asset: AssetCreate) -> None:
         self._assets.append((asset_id, asset))
 
+    def list_assets(self, *, org_id: str, project_id: str, limit: int = 20) -> list[KeywordSearchResult]:
+        results = [
+            KeywordSearchResult(
+                asset_id=asset_id,
+                title=asset.title,
+                content=asset.content,
+                source_uri=asset.source_uri,
+                score=0.1,
+            )
+            for asset_id, asset in self._assets
+            if asset.org_id == org_id and asset.project_id == project_id
+        ]
+        return results[:limit]
+
     def search(self, *, org_id: str, project_id: str, query: str, limit: int = 10) -> list[KeywordSearchResult]:
         query_lower = _normalize_terms(query).lower()
         results: list[KeywordSearchResult] = []

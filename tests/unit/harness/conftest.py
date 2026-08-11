@@ -95,6 +95,9 @@ class FakeCore:
     def find_project_by_git_remote(self, repo_remote: str):
         return next((project for project in self.projects if repo_remote in project.git_remotes), None)
 
+    def list_projects(self):
+        return self.projects
+
     def create_session(self, **kwargs):
         session = FakeSession(**kwargs)
         self.sessions.append(session)

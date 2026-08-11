@@ -13,6 +13,9 @@ class CoreRuntime:
     def find_project_by_git_remote(self, repo_remote: str):
         return ProjectRepository(self.session).find_by_git_remote(repo_remote)
 
+    def list_projects(self):
+        return ProjectRepository(self.session).list()
+
     def create_session(self, **kwargs):
         return TaskSessionRepository(self.session).create(**kwargs)
 

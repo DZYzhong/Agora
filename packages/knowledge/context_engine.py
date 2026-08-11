@@ -33,6 +33,11 @@ class ContextEngine:
         keyword_results = self.keyword_index.search(org_id=org_id, project_id=project_id, query=query)
         vector_results = self.vector_index.search(org_id=org_id, project_id=project_id, query=query)
         candidates = merge_candidates(keyword_results=keyword_results, vector_results=vector_results)
+        if not candidates and hasattr(self.keyword_index, "list_assets"):
+            candidates = merge_candidates(
+                keyword_results=self.keyword_index.list_assets(org_id=org_id, project_id=project_id),
+                vector_results=[],
+            )
         summary = self._summarize(candidates, token_budget=token_budget)
         return PlannedContextPack(
             id=uuid4().hex,

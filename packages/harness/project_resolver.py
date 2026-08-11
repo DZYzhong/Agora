@@ -11,10 +11,44 @@ class ProjectResolver:
     def __init__(self, core):
         self.core = core
 
-    def resolve(self, *, repo_remote: str | None) -> ProjectResolution:
+    def resolve(self, *, repo_remote: str | None, user_message: str | None = None) -> ProjectResolution:
+        projects = self._list_projects()
+
+        if repo_remote:
+            project = self.core.find_project_by_git_remote(repo_remote)
+            if project is not None:
+                return ProjectResolution(project=project)
+
+            normalized_remote = _normalize_remote(repo_remote)
+            for candidate in reversed(projects):
+                if any(_normalize_remote(remote) == normalized_remote for remote in candidate.git_remotes or []):
+                    return ProjectResolution(project=candidate)
+
+        if user_message:
+            message = user_message.lower()
+            for candidate in reversed(projects):
+                names = [candidate.name.lower(), candidate.slug.lower()]
+                if any(name and name in message for name in names):
+                    return ProjectResolution(project=candidate)
+
         if not repo_remote:
-            return ProjectResolution(project=None, clarification="Repository remote is required to resolve the Agora project.")
-        project = self.core.find_project_by_git_remote(repo_remote)
-        if project is None:
-            return ProjectResolution(project=None, clarification=f"No Agora project is bound to remote {repo_remote}.")
-        return ProjectResolution(project=project)
+            return ProjectResolution(project=None, clarification="Project name, slug, or repository remote is required to resolve the Agora project.")
+        project = None
+        return ProjectResolution(project=project, clarification=f"No Agora project is bound to remote {repo_remote}.")
+
+    def _list_projects(self):
+        if hasattr(self.core, "list_projects"):
+            return self.core.list_projects()
+        return []
+
+
+def _normalize_remote(remote: str) -> str:
+    normalized = remote.strip().lower()
+    if normalized.endswith(".git"):
+        normalized = normalized[:-4]
+    if "://" in normalized:
+        scheme, rest = normalized.split("://", 1)
+        if "@" in rest:
+            rest = rest.split("@", 1)[1]
+        normalized = f"{scheme}://{rest}"
+    return normalized.rstrip("/")

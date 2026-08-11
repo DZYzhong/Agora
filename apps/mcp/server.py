@@ -27,10 +27,10 @@ def _tool(name: str, description: str, properties: dict[str, Any], required: lis
 TOOLS = [
     _tool(
         "agora_start_work",
-        "Start an Agora work session for project-aware AI work.",
+        "Start an Agora work session for project-aware AI work. Use this before local code analysis. The user_message may include the project name or slug; repo_remote is optional fallback.",
         {
-            "user_message": {"type": "string"},
-            "repo_remote": {"type": "string"},
+            "user_message": {"type": "string", "description": "Original user request, including project name/slug when available."},
+            "repo_remote": {"type": "string", "description": "Optional git origin remote. Agora also accepts normalized remotes without username or .git suffix."},
             "agent_type": {"type": "string", "default": "codex"},
         },
         ["user_message", "agent_type"],

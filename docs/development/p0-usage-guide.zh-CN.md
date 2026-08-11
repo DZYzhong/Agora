@@ -109,6 +109,8 @@ AGORA_API_URL=http://127.0.0.1:8000 .venv/bin/python -m apps.mcp.server
 当我进行当前项目的需求分析、代码实现、测试、Review、总结或风险分析时，默认使用 Agora。
 不要每次问我要不要用 Agora。
 先调用 agora_start_work，再调用 agora_plan_context 获取项目上下文。
+agora_start_work 可以通过用户消息里的项目名称/slug 匹配项目；如果当前工具能读取 git origin remote，也可以把 repo_remote 作为兜底传入。
+如果 agora_plan_context 返回 source_refs，必须优先基于这些 Agora 上下文回答。
 完成工作前调用 agora_prepare_writeback，把关键结论、实现总结、测试结果沉淀回 Agora。
 最后调用 agora_close_work 关闭本次工作。
 ```
@@ -125,7 +127,7 @@ AGORA_API_URL=http://127.0.0.1:8000 .venv/bin/python -m apps.mcp.server
 然后在 AI 工具对话框输入：
 
 ```text
-分析一下这个项目里退款失败重试应该怎么做。repo remote 是 git@example.com:payment.git。
+基于 Agora 分析 df-new-bigdata 项目的核心模块、主要业务流程和潜在风险。
 ```
 
 预期 Agent 调用流程：
@@ -138,6 +140,14 @@ agora_close_work
 ```
 
 如果 Agent 正常调用 Agora，它应该能读到 `README.md`、退款模块、代码文件等项目上下文，而不是只靠当前聊天窗口内容回答。
+
+如果 AI 工具运行在项目仓库目录里，也可以直接说：
+
+```text
+基于 Agora 分析这个项目的核心模块、主要业务流程和潜在风险。
+```
+
+Agent 应先获取当前仓库的 `git remote get-url origin`，再调用 Agora；如果没法读取 remote，也应至少把用户消息传给 `agora_start_work`，让 Agora 按项目名/slug 解析。
 
 ## 8. 查看 Agent 回写结果
 

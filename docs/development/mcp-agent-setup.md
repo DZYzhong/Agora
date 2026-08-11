@@ -43,16 +43,17 @@ Recommended agent rule:
 ```text
 When the user asks for project analysis, implementation, testing, review, summary, or risk work:
 1. Call agora_start_work unless the user explicitly asks not to use Agora.
-2. Call agora_plan_context before proposing implementation.
-3. Run required skills returned by Agora.
-4. Prepare writeback before finishing.
-5. Close the work session when completed or blocked.
+2. Pass the original user message to agora_start_work. If available, also pass git remote get-url origin as repo_remote.
+3. Call agora_plan_context before proposing implementation. If source_refs are returned, use them as the primary project context.
+4. Run required skills returned by Agora.
+5. Prepare writeback before finishing.
+6. Close the work session when completed or blocked.
 ```
 
 Example user prompt:
 
 ```text
-帮我分析退款失败重试怎么做
+基于 Agora 分析 df-new-bigdata 项目的核心模块、主要业务流程和潜在风险。
 ```
 
 Expected tool flow:
