@@ -6,6 +6,7 @@ type Writeback = {
   title: string;
   content: string;
   status: string;
+  accepted_asset_id: string | null;
 };
 
 export default async function WritebacksPage({ params }: { params: Promise<{ projectId: string }> }) {
@@ -27,6 +28,17 @@ export default async function WritebacksPage({ params }: { params: Promise<{ pro
             <h2>{writeback.title}</h2>
             <p className="muted">{writeback.type} / {writeback.status}</p>
             <p>{writeback.content}</p>
+            {writeback.accepted_asset_id ? <p className="asset-uri">Accepted asset: {writeback.accepted_asset_id}</p> : null}
+            {writeback.status === "draft" ? (
+              <div className="actions">
+                <form action={`/projects/${projectId}/writebacks/${writeback.id}/accept`} method="post">
+                  <button type="submit">Accept</button>
+                </form>
+                <form action={`/projects/${projectId}/writebacks/${writeback.id}/reject`} method="post">
+                  <button className="secondary-button" type="submit">Reject</button>
+                </form>
+              </div>
+            ) : null}
           </div>
         ))}
         {writebacks.length === 0 ? (

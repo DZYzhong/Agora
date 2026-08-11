@@ -92,6 +92,18 @@ button {
   width: fit-content;
 }
 
+.secondary-button {
+  background: #eef2f7;
+  color: #29313d;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
 .button-link {
   background: #171717;
   border-radius: 6px;

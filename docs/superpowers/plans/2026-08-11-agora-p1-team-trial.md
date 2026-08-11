@@ -161,10 +161,10 @@ git commit -m "feat: persist Agora local database"
 - Modify: `apps/web/app/projects/[projectId]/writebacks/page.tsx`
 - Add route handlers for accept/reject.
 
-- [ ] Add accept/reject buttons.
-- [ ] Show accepted asset id.
-- [ ] Verify accepted writeback becomes searchable.
-- [ ] Commit.
+- [x] Add accept/reject buttons.
+- [x] Show accepted asset id.
+- [x] Verify accepted writeback becomes searchable.
+- [x] Commit.
 
 ## Verification
 

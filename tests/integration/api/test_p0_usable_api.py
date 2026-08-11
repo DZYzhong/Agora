@@ -63,6 +63,12 @@ def test_api_p0_usable_loop_initializes_assets_plans_context_and_accepts_writeba
     accept_response = client.post(f"/projects/{project['id']}/writebacks/{writeback_id}/accept")
     assert accept_response.status_code == 200
     assert accept_response.json()["status"] == "accepted"
+    accepted_asset_id = accept_response.json()["accepted_asset_id"]
+
+    writebacks_response = client.get(f"/projects/{project['id']}/writebacks")
+    assert writebacks_response.status_code == 200
+    accepted_writeback = next(writeback for writeback in writebacks_response.json() if writeback["id"] == writeback_id)
+    assert accepted_writeback["accepted_asset_id"] == accepted_asset_id
 
     later_context = client.post(
         "/harness/plan-context",

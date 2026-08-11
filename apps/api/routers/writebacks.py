@@ -22,6 +22,7 @@ def list_writebacks(project_id: str, session: Session = Depends(get_db_session))
             "title": writeback.title,
             "content": writeback.content,
             "status": writeback.status,
+            "accepted_asset_id": writeback.accepted_asset_id,
         }
         for writeback in writebacks
     ]
