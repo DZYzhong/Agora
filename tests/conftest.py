@@ -4,6 +4,21 @@ from uuid import uuid4
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def isolate_agora_api_runtime(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGORA_DATABASE_URL", f"sqlite+pysqlite:///{tmp_path / 'agora-test.db'}")
+
+    from apps.api import dependencies
+
+    dependencies.get_engine.cache_clear()
+    dependencies.get_keyword_index.cache_clear()
+    dependencies.get_vector_index.cache_clear()
+    yield
+    dependencies.get_engine.cache_clear()
+    dependencies.get_keyword_index.cache_clear()
+    dependencies.get_vector_index.cache_clear()
+
+
 @dataclass
 class FakeAsset:
     org_id: str
