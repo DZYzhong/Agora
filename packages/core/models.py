@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from packages.core.database import Base
@@ -50,6 +50,24 @@ class AssetModel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     project: Mapped[ProjectModel] = relationship(back_populates="assets")
+
+
+class ProjectInitializationJobModel(Base):
+    __tablename__ = "project_initialization_jobs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    org_id: Mapped[str] = mapped_column(String, index=True)
+    project_id: Mapped[str] = mapped_column(String, index=True)
+    repo_path: Mapped[str] = mapped_column(Text)
+    git_remote: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String, default="running", index=True)
+    asset_count: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    warnings: Mapped[list[str]] = mapped_column(JSON, default=list)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=utc_now)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
 
 class ContextPackModel(Base):

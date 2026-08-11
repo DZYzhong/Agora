@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from apps.api.dependencies import get_db_session, get_keyword_index, get_vector_index
 from apps.workers.workflows.initialize_project import initialize_project_from_local_repo
 from packages.core.repositories.assets import AssetRepository
+from packages.core.repositories.initialization_jobs import InitializationJobRepository
 from packages.core.repositories.projects import ProjectRepository
 from packages.domain.schemas import ProjectCreate, ProjectRead
 from packages.integrations.git.clone import GitCloneError, clone_repository
@@ -18,6 +19,24 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 class InitializeLocalProjectRequest(BaseModel):
     repo_path: str
+
+
+def _serialize_initialization_job(job) -> dict:
+    return {
+        "id": job.id,
+        "org_id": job.org_id,
+        "project_id": job.project_id,
+        "repo_path": job.repo_path,
+        "git_remote": job.git_remote,
+        "status": job.status,
+        "asset_count": job.asset_count,
+        "error": job.error,
+        "warnings": job.warnings,
+        "started_at": job.started_at,
+        "completed_at": job.completed_at,
+        "created_at": job.created_at,
+        "updated_at": job.updated_at,
+    }
 
 
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
@@ -79,30 +98,63 @@ def initialize_local_project(
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    job_repo = InitializationJobRepository(session)
     repo_path = Path(payload.repo_path)
+    git_remote = project.git_remotes[0] if project.git_remotes else None
+    job = job_repo.create(
+        org_id=project.org_id,
+        project_id=project.id,
+        repo_path=payload.repo_path,
+        git_remote=git_remote,
+    )
+
     if not repo_path.exists():
         if not project.git_remotes:
+            error = f"Repository path does not exist and project has no Git remote to clone: {payload.repo_path}"
+            job_repo.mark_failed(job, error=error)
             raise HTTPException(
                 status_code=400,
-                detail=f"Repository path does not exist and project has no Git remote to clone: {payload.repo_path}",
+                detail=error,
             )
         try:
-            clone_repository(project.git_remotes[0], repo_path)
+            clone_repository(git_remote, repo_path)
         except GitCloneError as exc:
-            raise HTTPException(status_code=400, detail=f"Git clone failed: {exc}") from exc
+            error = f"Git clone failed: {exc}"
+            job_repo.mark_failed(job, error=error)
+            raise HTTPException(status_code=400, detail=error) from exc
 
-    result = initialize_project_from_local_repo(org_id=project.org_id, project_id=project.id, repo_path=repo_path)
-    asset_repo = AssetRepository(session)
-    stored_assets = []
-    for asset in result.assets:
-        stored = asset_repo.create(**asset.model_dump())
-        keyword_index.index_asset(stored.id, asset)
-        vector_index.index_asset(stored.id, asset)
-        stored_assets.append(stored)
+    try:
+        result = initialize_project_from_local_repo(org_id=project.org_id, project_id=project.id, repo_path=repo_path)
+        asset_repo = AssetRepository(session)
+        stored_assets = []
+        for asset in result.assets:
+            stored = asset_repo.create(**asset.model_dump())
+            keyword_index.index_asset(stored.id, asset)
+            vector_index.index_asset(stored.id, asset)
+            stored_assets.append(stored)
+        job_repo.mark_completed(job, asset_count=len(stored_assets), warnings=result.warnings)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        error = f"Project initialization failed: {exc}"
+        job_repo.mark_failed(job, error=error)
+        raise HTTPException(status_code=500, detail=error) from exc
 
     return {
         "project_id": project.id,
+        "job_id": job.id,
+        "status": job.status,
         "asset_count": len(stored_assets),
         "modules": result.modules,
         "warnings": result.warnings,
     }
+
+
+@router.get("/{project_id}/initialization-jobs")
+def list_initialization_jobs(project_id: str, session: Session = Depends(get_db_session)):
+    project = ProjectRepository(session).get(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    jobs = InitializationJobRepository(session).list_by_project(project_id)
+    return [_serialize_initialization_job(job) for job in jobs]

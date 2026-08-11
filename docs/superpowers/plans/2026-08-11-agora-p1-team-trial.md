@@ -108,11 +108,11 @@ git commit -m "feat: persist Agora local database"
 - Modify: `apps/api/routers/projects.py`
 - Create: `tests/integration/api/test_initialization_jobs.py`
 
-- [ ] Add `ProjectInitializationJobModel` with status, repo_path, git_remote, asset_count, error, timestamps.
-- [ ] Make initialize API create and update a job.
-- [ ] Return `job_id` and status from initialize endpoint.
-- [ ] Add `GET /projects/{project_id}/initialization-jobs`.
-- [ ] Commit.
+- [x] Add `ProjectInitializationJobModel` with status, repo_path, git_remote, asset_count, error, timestamps.
+- [x] Make initialize API create and update a job.
+- [x] Return `job_id` and status from initialize endpoint.
+- [x] Add `GET /projects/{project_id}/initialization-jobs`.
+- [x] Commit.
 
 ### Task 4: Web Initialization Status
 
