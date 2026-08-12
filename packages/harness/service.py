@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from packages.core.models import utc_now
 from packages.harness.context_planner import ContextPlanner
 from packages.harness.development_capture import capture_development_change
 from packages.harness.project_resolver import ProjectResolver
@@ -85,6 +86,7 @@ class HarnessService:
         if session is None:
             raise ValueError(f"Session not found: {session_id}")
         session.status = status
+        session.closed_at = utc_now()
         writeback = None
         if repo_path or agent_summary or test_result:
             change = capture_development_change(
@@ -104,6 +106,11 @@ class HarnessService:
                 content=change.content,
                 asset_refs=[],
                 status="draft",
+            )
+            self.session_recorder.record_event(
+                session_id=session_id,
+                event_type="development_update_captured",
+                payload={"writeback_id": writeback.id, "writeback_type": "development_update"},
             )
         result = {"session_id": session_id, "status": status}
         if writeback is not None:

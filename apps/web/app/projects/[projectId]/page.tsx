@@ -25,10 +25,10 @@ export default async function ProjectDetailPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ init_error?: string }>;
+  searchParams: Promise<{ init_error?: string; capture_error?: string }>;
 }) {
   const { projectId } = await params;
-  const { init_error: initError } = await searchParams;
+  const { init_error: initError, capture_error: captureError } = await searchParams;
   const project = await apiGet<Project>(`/projects/${projectId}`);
   let initializationJobs: InitializationJob[] = [];
   try {
@@ -94,6 +94,24 @@ export default async function ProjectDetailPage({
           <input name="repo_path" placeholder="/Users/daniel/Documents/Agora/.worktrees/agora-p0/tests/fixtures/sample_repo" required />
         </label>
         <button type="submit">Initialize</button>
+      </form>
+      <form className="panel form" action={`/projects/${project.id}/development-capture`} method="post">
+        <h2>Capture development update</h2>
+        <p className="muted">Simulate the agent finishing a development task and submitting a reviewable Agora draft.</p>
+        {captureError ? <p className="alert">{captureError}</p> : null}
+        <label>
+          Repository path
+          <input name="repo_path" placeholder="/Users/daniel/Documents/project-repo" />
+        </label>
+        <label>
+          Agent summary
+          <input name="agent_summary" placeholder="Implemented B001 alert filtering and updated tests." required />
+        </label>
+        <label>
+          Test result
+          <input name="test_result" placeholder="mvn test passed" />
+        </label>
+        <button type="submit">Capture draft</button>
       </form>
       <section className="grid">
         <Link className="panel" href={`/projects/${project.id}/assets`}>

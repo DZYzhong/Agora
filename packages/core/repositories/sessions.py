@@ -19,7 +19,7 @@ class TaskSessionRepository:
         return self.session.get(TaskSessionModel, session_id)
 
     def list_by_project(self, project_id: str) -> list[TaskSessionModel]:
-        statement = select(TaskSessionModel).where(TaskSessionModel.project_id == project_id)
+        statement = select(TaskSessionModel).where(TaskSessionModel.project_id == project_id).order_by(TaskSessionModel.created_at.desc())
         return list(self.session.scalars(statement).all())
 
     def record_event(self, *, session_id: str, event_type: str, payload: dict) -> SessionEventModel:
@@ -28,3 +28,7 @@ class TaskSessionRepository:
         self.session.commit()
         self.session.refresh(event)
         return event
+
+    def list_events(self, session_id: str) -> list[SessionEventModel]:
+        statement = select(SessionEventModel).where(SessionEventModel.session_id == session_id).order_by(SessionEventModel.created_at.asc())
+        return list(self.session.scalars(statement).all())

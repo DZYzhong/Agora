@@ -25,6 +25,12 @@ class CoreRuntime:
     def get_session(self, session_id: str):
         return TaskSessionRepository(self.session).get(session_id)
 
+    def list_sessions_by_project(self, project_id: str):
+        return TaskSessionRepository(self.session).list_by_project(project_id)
+
+    def list_session_events(self, session_id: str):
+        return TaskSessionRepository(self.session).list_events(session_id)
+
     def record_event(self, **kwargs):
         return TaskSessionRepository(self.session).record_event(**kwargs)
 

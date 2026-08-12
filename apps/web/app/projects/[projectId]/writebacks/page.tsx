@@ -25,9 +25,14 @@ export default async function WritebacksPage({ params }: { params: Promise<{ pro
       <section className="grid">
         {writebacks.map((writeback) => (
           <div className="panel" key={writeback.id}>
-            <h2>{writeback.title}</h2>
-            <p className="muted">{writeback.type} / {writeback.status}</p>
-            <p>{writeback.content}</p>
+            <div className="session-header">
+              <div>
+                <p className="eyebrow">{writeback.type === "development_update" ? "Development update" : writeback.type}</p>
+                <h2>{writeback.title}</h2>
+              </div>
+              <span className="asset-type">{writeback.status}</span>
+            </div>
+            <pre className="writeback-content">{writeback.content}</pre>
             {writeback.accepted_asset_id ? <p className="asset-uri">Accepted asset: {writeback.accepted_asset_id}</p> : null}
             {writeback.status === "draft" ? (
               <div className="actions">

@@ -119,3 +119,10 @@ def test_close_work_endpoint_can_prepare_development_update_from_repo_diff(tmp_p
     assert body["writeback"]["status"] == "draft"
     assert body["writeback"]["type"] == "development_update"
     assert "src/risk.py" in body["writeback"]["content"]
+
+    sessions = client.get(f"/projects/{project['id']}/sessions").json()
+    assert sessions[0]["id"] == start["session_id"]
+    assert sessions[0]["status"] == "closed"
+    assert sessions[0]["closed_at"]
+    assert sessions[0]["events"][0]["event_type"] == "development_update_captured"
+    assert sessions[0]["events"][0]["payload"]["writeback_id"] == body["writeback"]["id"]
