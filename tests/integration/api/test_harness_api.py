@@ -126,3 +126,26 @@ def test_close_work_endpoint_can_prepare_development_update_from_repo_diff(tmp_p
     assert sessions[0]["closed_at"]
     assert sessions[0]["events"][0]["event_type"] == "development_update_captured"
     assert sessions[0]["events"][0]["payload"]["writeback_id"] == body["writeback"]["id"]
+
+    accept_response = client.post(f"/projects/{project['id']}/writebacks/{body['writeback']['id']}/accept")
+    assert accept_response.status_code == 200
+
+    later_start = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "查询风险策略变更沉淀",
+            "agent_type": "codex",
+        },
+    ).json()
+    context = client.post(
+        "/harness/plan-context",
+        json={
+            "session_id": later_start["session_id"],
+            "query": "调整风险策略 src/risk.py pytest passed",
+            "token_budget": 1200,
+        },
+    ).json()
+
+    assert context["source_refs"][0]["source_uri"] == f"writebacks/{body['writeback']['id']}"
+    assert "调整风险策略" in context["summary"]
