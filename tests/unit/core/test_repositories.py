@@ -28,6 +28,19 @@ def test_project_repository_creates_project():
     assert project.git_remotes == ["git@example.com:payment.git"]
 
 
+def test_project_repository_archives_projects_and_hides_them_from_default_list():
+    session = make_session()
+    repo = ProjectRepository(session)
+    active = repo.create(org_id="org_1", name="Active", slug="active")
+    archived = repo.create(org_id="org_1", name="Archived", slug="archived")
+
+    repo.archive(archived.id)
+
+    assert repo.get(archived.id).status == "archived"
+    assert [project.id for project in repo.list()] == [active.id]
+    assert [project.id for project in repo.list(include_archived=True)] == [active.id, archived.id]
+
+
 def test_asset_repository_creates_asset():
     session = make_session()
     project = ProjectRepository(session).create(org_id="org_1", name="Payment", slug="payment")

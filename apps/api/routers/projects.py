@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -50,12 +50,13 @@ def create_project(payload: ProjectCreate, session: Session = Depends(get_db_ses
         description=project.description,
         git_remotes=project.git_remotes,
         default_branch=project.default_branch,
+        status=project.status,
     )
 
 
 @router.get("", response_model=list[ProjectRead])
-def list_projects(session: Session = Depends(get_db_session)):
-    projects = ProjectRepository(session).list()
+def list_projects(include_archived: bool = Query(default=False), session: Session = Depends(get_db_session)):
+    projects = ProjectRepository(session).list(include_archived=include_archived)
     return [
         ProjectRead(
             id=project.id,
@@ -65,6 +66,7 @@ def list_projects(session: Session = Depends(get_db_session)):
             description=project.description,
             git_remotes=project.git_remotes,
             default_branch=project.default_branch,
+            status=project.status,
         )
         for project in projects
     ]
@@ -83,6 +85,25 @@ def get_project(project_id: str, session: Session = Depends(get_db_session)):
         description=project.description,
         git_remotes=project.git_remotes,
         default_branch=project.default_branch,
+        status=project.status,
+    )
+
+
+@router.post("/{project_id}/archive", response_model=ProjectRead)
+def archive_project(project_id: str, session: Session = Depends(get_db_session)):
+    try:
+        project = ProjectRepository(session).archive(project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return ProjectRead(
+        id=project.id,
+        org_id=project.org_id,
+        name=project.name,
+        slug=project.slug,
+        description=project.description,
+        git_remotes=project.git_remotes,
+        default_branch=project.default_branch,
+        status=project.status,
     )
 
 

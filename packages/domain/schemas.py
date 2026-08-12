@@ -14,6 +14,7 @@ class ProjectCreate(BaseModel):
 
 class ProjectRead(ProjectCreate):
     id: str
+    status: str = "active"
 
 
 class AssetCreate(BaseModel):

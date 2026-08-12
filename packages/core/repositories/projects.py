@@ -34,8 +34,20 @@ class ProjectRepository:
     def get(self, project_id: str) -> ProjectModel | None:
         return self.session.get(ProjectModel, project_id)
 
-    def list(self) -> list[ProjectModel]:
-        return list(self.session.scalars(select(ProjectModel)).all())
+    def list(self, *, include_archived: bool = False) -> list[ProjectModel]:
+        statement = select(ProjectModel)
+        if not include_archived:
+            statement = statement.where(ProjectModel.status != "archived")
+        return list(self.session.scalars(statement).all())
+
+    def archive(self, project_id: str) -> ProjectModel:
+        project = self.session.get(ProjectModel, project_id)
+        if project is None:
+            raise ValueError(f"Project not found: {project_id}")
+        project.status = "archived"
+        self.session.commit()
+        self.session.refresh(project)
+        return project
 
     def find_by_git_remote(self, repo_remote: str) -> ProjectModel | None:
         for project in reversed(self.list()):

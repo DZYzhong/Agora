@@ -123,6 +123,15 @@ button {
   width: fit-content;
 }
 
+.secondary-link {
+  background: #eef2f7;
+  color: #29313d;
+}
+
+.inline-form {
+  margin-top: 14px;
+}
+
 .alert {
   background: #fff1f2;
   border: 1px solid #fecdd3;
