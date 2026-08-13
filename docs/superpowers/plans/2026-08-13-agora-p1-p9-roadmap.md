@@ -503,6 +503,51 @@ Commit:
 
 - `feat: add session audit workspace`
 
+### 2026-08-13: P5 Structured Development Closeout Audit
+
+Scope:
+
+- `close-work` now returns a structured `development_update` alongside the existing Markdown writeback.
+- Structured closeout data includes summary, changed files, tests, risks, and follow-ups.
+- `development_update_captured` session events now persist the structured closeout payload.
+- Session audit API responses now include `development_updates` and a `development_updates` audit counter.
+- The session audit detail page now has a first-class Development updates section before lower-level context, skill run, writeback, and timeline details.
+- Black-box fixtures for this and future P5 work use China-oriented software R&D team scenarios, not manufacturing data.
+
+Files changed:
+
+- Modified: `packages/harness/development_capture.py`
+- Modified: `packages/harness/service.py`
+- Modified: `apps/api/routers/sessions.py`
+- Modified: `apps/web/app/projects/[projectId]/sessions/[sessionId]/page.tsx`
+- Modified: `apps/web/app/styles.css`
+- Modified: `tests/integration/api/test_harness_api.py`
+- Modified: `tests/integration/api/test_sessions_api.py`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p5-session-audit.md`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_close_work_endpoint_can_prepare_development_update_from_repo_diff -v
+# 1 passed
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py tests/integration/api/test_sessions_api.py -v
+# 6 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Open a closed work session generated from a software R&D fixture.
+- Expected: the Session audit page shows Development updates with summary, changed files, tests, risks, follow-ups, writeback state, and the linked writeback ID.
+- Expected: lower sections still show context packs, skill runs, writebacks, and timeline events.
+
+Commit:
+
+- `feat: structure development closeout audit`
+
 ### 2026-08-13: Roadmap Reconstructed
 
 Scope:

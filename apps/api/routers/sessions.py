@@ -51,7 +51,9 @@ def _serialize_session_audit(runtime: CoreRuntime, task_session) -> dict:
         "context_packs": len(context_packs),
         "skill_runs": len(skill_runs),
         "writebacks": len(writebacks),
+        "development_updates": len([event for event in events if event.event_type == "development_update_captured"]),
     }
+    writebacks_by_id = {writeback.id: writeback for writeback in writebacks}
     return {
         "id": task_session.id,
         "project_id": task_session.project_id,
@@ -62,6 +64,11 @@ def _serialize_session_audit(runtime: CoreRuntime, task_session) -> dict:
         "created_at": task_session.created_at,
         "closed_at": task_session.closed_at,
         "audit_counts": audit_counts,
+        "development_updates": [
+            _serialize_development_update(event, writebacks_by_id)
+            for event in events
+            if event.event_type == "development_update_captured"
+        ],
         "context_packs": [
             {
                 "id": context_pack.id,
@@ -108,6 +115,25 @@ def _serialize_session_audit(runtime: CoreRuntime, task_session) -> dict:
             }
             for event in events
         ],
+    }
+
+
+def _serialize_development_update(event, writebacks_by_id: dict) -> dict:
+    payload = event.payload or {}
+    writeback_id = payload.get("writeback_id")
+    structured = payload.get("development_update") or {}
+    writeback = writebacks_by_id.get(writeback_id)
+    return {
+        "writeback_id": writeback_id,
+        "writeback_type": payload.get("writeback_type"),
+        "writeback_status": writeback.status if writeback is not None else None,
+        "accepted_asset_id": writeback.accepted_asset_id if writeback is not None else None,
+        "summary": structured.get("summary", ""),
+        "changed_files": structured.get("changed_files", []),
+        "tests": structured.get("tests", []),
+        "risks": structured.get("risks", []),
+        "follow_ups": structured.get("follow_ups", []),
+        "created_at": event.created_at,
     }
 
 

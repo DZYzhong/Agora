@@ -7,6 +7,7 @@ import subprocess
 class DevelopmentChangeSummary:
     title: str
     content: str
+    structured: dict
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,7 @@ def capture_development_change(
     sections: list[str] = []
     title_seed = agent_summary or session_intent or "开发变更"
     title = _title_from_summary(title_seed)
+    changed_files: list[ChangedFile] = []
 
     if agent_summary:
         sections.append(f"## 功能变更\n{agent_summary.strip()}")
@@ -44,14 +46,29 @@ def capture_development_change(
     elif repo_path:
         sections.append("## 测试结果\nAgent 未提供测试结果，请审核时确认是否已完成必要验证。")
 
+    risks = _risk_items(changed_files) if repo_path else []
     if repo_path:
-        sections.append(_format_risks(changed_files if "changed_files" in locals() else []))
+        sections.append("## 风险与注意事项\n" + "\n".join(f"- {risk}" for risk in risks))
 
     if not sections:
         sections.append("## 功能变更\n本次会话已关闭，但 Agent 未提供变更摘要或仓库 diff。")
 
-    sections.append("## 审核建议\n请确认以上变更描述、影响文件和测试结果准确后再 Accept 入库。")
-    return DevelopmentChangeSummary(title=title, content="\n\n".join(sections))
+    follow_ups = ["请确认以上变更描述、影响文件和测试结果准确后再 Accept 入库。"]
+    sections.append("## 审核建议\n" + "\n".join(f"- {item}" for item in follow_ups))
+    return DevelopmentChangeSummary(
+        title=title,
+        content="\n\n".join(sections),
+        structured={
+            "summary": (agent_summary or f"本次开发任务：{session_intent}" if session_intent else "本次会话已关闭，但 Agent 未提供变更摘要。").strip(),
+            "changed_files": [
+                {"path": file.path, "status": file.status, "category": file.category}
+                for file in changed_files
+            ],
+            "tests": _parse_test_result(test_result),
+            "risks": risks,
+            "follow_ups": follow_ups,
+        },
+    )
 
 
 def _collect_git_diff(repo_path: Path, *, base_ref: str, head_ref: str | None) -> tuple[list[ChangedFile], str]:
@@ -122,15 +139,33 @@ def _format_changed_files(files: list[ChangedFile]) -> str:
 
 
 def _format_risks(files: list[ChangedFile]) -> str:
+    return "## 风险与注意事项\n" + "\n".join(f"- {risk}" for risk in _risk_items(files))
+
+
+def _risk_items(files: list[ChangedFile]) -> list[str]:
     risks = []
     categories = {file.category for file in files}
     if "配置" in categories:
-        risks.append("- 配置文件发生变化，请确认环境差异、密钥、连接地址和默认值不会影响生产。")
+        risks.append("配置文件发生变化，请确认环境差异、密钥、连接地址和默认值不会影响生产。")
     if "源码" in categories and "测试" not in categories:
-        risks.append("- 源码发生变化但未检测到测试文件变更，请确认已有测试或补充回归测试。")
+        risks.append("源码发生变化但未检测到测试文件变更，请确认已有测试或补充回归测试。")
     if not risks:
-        risks.append("- 未识别到明显结构性风险，仍需审核业务语义和测试充分性。")
-    return "## 风险与注意事项\n" + "\n".join(risks)
+        risks.append("未识别到明显结构性风险，仍需审核业务语义和测试充分性。")
+    return risks
+
+
+def _parse_test_result(test_result: str | None) -> list[dict]:
+    if not test_result:
+        return []
+    raw = test_result.strip()
+    lowered = raw.lower()
+    status = "passed" if "pass" in lowered or "通过" in raw else "failed" if "fail" in lowered or "失败" in raw else "unknown"
+    command = raw
+    for separator in (" - ", "：", ":"):
+        if separator in raw:
+            command = raw.split(separator, 1)[0].strip()
+            break
+    return [{"command": command, "status": status, "raw": raw}]
 
 
 def _category(path: str) -> str:

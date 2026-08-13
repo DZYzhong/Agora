@@ -15,7 +15,28 @@ type SessionAudit = {
     context_packs: number;
     skill_runs: number;
     writebacks: number;
+    development_updates: number;
   };
+  development_updates: Array<{
+    writeback_id: string;
+    writeback_type: string | null;
+    writeback_status: string | null;
+    accepted_asset_id: string | null;
+    summary: string;
+    changed_files: Array<{
+      path: string;
+      status: string;
+      category: string;
+    }>;
+    tests: Array<{
+      command: string;
+      status: string;
+      raw: string;
+    }>;
+    risks: string[];
+    follow_ups: string[];
+    created_at: string;
+  }>;
   context_packs: Array<{
     id: string;
     level: string;
@@ -132,7 +153,83 @@ export default async function SessionAuditPage({
             <dt>Events</dt>
             <dd>{audit.audit_counts.events}</dd>
           </div>
+          <div>
+            <dt>Dev updates</dt>
+            <dd>{audit.audit_counts.development_updates}</dd>
+          </div>
         </dl>
+      </section>
+
+      <section className="panel">
+        <h2>Development updates</h2>
+        {audit.development_updates.length ? (
+          <div className="event-list">
+            {audit.development_updates.map((update) => (
+              <article className="event-row" key={`${update.writeback_id}-${update.created_at}`}>
+                <div className="session-header">
+                  <div>
+                    <strong>{update.summary}</strong>
+                    <p className="asset-uri">
+                      {update.writeback_type ?? "development_update"} · {update.writeback_status ?? "unknown"}
+                    </p>
+                  </div>
+                  {update.accepted_asset_id ? <span className="asset-type">accepted</span> : <span className="asset-type">draft</span>}
+                </div>
+                {update.changed_files.length ? (
+                  <div className="audit-grid">
+                    <section>
+                      <p className="eyebrow">Changed files</p>
+                      <ul className="compact-list">
+                        {update.changed_files.map((file) => (
+                          <li key={`${update.writeback_id}-${file.path}`}>
+                            <code>{file.path}</code>
+                            <span>{file.category} · {file.status}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                    <section>
+                      <p className="eyebrow">Tests</p>
+                      {update.tests.length ? (
+                        <ul className="compact-list">
+                          {update.tests.map((test) => (
+                            <li key={`${update.writeback_id}-${test.raw}`}>
+                              <code>{test.command}</code>
+                              <span>{test.status}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="muted">No tests recorded.</p>
+                      )}
+                    </section>
+                  </div>
+                ) : null}
+                <div className="audit-grid">
+                  <section>
+                    <p className="eyebrow">Risks</p>
+                    <ul className="compact-list">
+                      {update.risks.map((risk) => (
+                        <li key={`${update.writeback_id}-${risk}`}>{risk}</li>
+                      ))}
+                    </ul>
+                  </section>
+                  <section>
+                    <p className="eyebrow">Follow-ups</p>
+                    <ul className="compact-list">
+                      {update.follow_ups.map((followUp) => (
+                        <li key={`${update.writeback_id}-${followUp}`}>{followUp}</li>
+                      ))}
+                    </ul>
+                  </section>
+                </div>
+                {update.writeback_id ? <p className="asset-uri">Writeback: {update.writeback_id}</p> : null}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">No structured development updates recorded.</p>
+        )}
       </section>
 
       <section className="panel">

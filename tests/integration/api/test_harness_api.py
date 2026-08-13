@@ -84,6 +84,9 @@ def test_close_work_endpoint_can_prepare_development_update_from_repo_diff(tmp_p
     _run_git(repo_path, "add", ".")
     _run_git(repo_path, "commit", "-m", "initial")
     source.write_text("RISK = 'new'\n", encoding="utf-8")
+    test_file = repo_path / "tests" / "test_risk.py"
+    test_file.parent.mkdir()
+    test_file.write_text("def test_risk_policy():\n    assert True\n", encoding="utf-8")
 
     project = client.post(
         "/projects",
@@ -109,8 +112,8 @@ def test_close_work_endpoint_can_prepare_development_update_from_repo_diff(tmp_p
             "session_id": start["session_id"],
             "status": "closed",
             "repo_path": str(repo_path),
-            "agent_summary": "调整风险策略",
-            "test_result": "pytest passed",
+            "agent_summary": "修复迭代缺陷 AG-128：调整发布风险策略，补充回归测试。",
+            "test_result": "pytest tests/test_risk.py - passed",
         },
     )
 
@@ -119,6 +122,16 @@ def test_close_work_endpoint_can_prepare_development_update_from_repo_diff(tmp_p
     assert body["writeback"]["status"] == "draft"
     assert body["writeback"]["type"] == "development_update"
     assert "src/risk.py" in body["writeback"]["content"]
+    assert body["development_update"]["summary"] == "修复迭代缺陷 AG-128：调整发布风险策略，补充回归测试。"
+    assert body["development_update"]["changed_files"] == [
+        {"path": "src/risk.py", "status": "修改", "category": "源码"},
+        {"path": "tests/test_risk.py", "status": "新增", "category": "测试"},
+    ]
+    assert body["development_update"]["tests"] == [
+        {"command": "pytest tests/test_risk.py", "status": "passed", "raw": "pytest tests/test_risk.py - passed"}
+    ]
+    assert body["development_update"]["risks"] == ["未识别到明显结构性风险，仍需审核业务语义和测试充分性。"]
+    assert body["development_update"]["follow_ups"] == ["请确认以上变更描述、影响文件和测试结果准确后再 Accept 入库。"]
 
     sessions = client.get(f"/projects/{project['id']}/sessions").json()
     assert sessions[0]["id"] == start["session_id"]
@@ -126,6 +139,10 @@ def test_close_work_endpoint_can_prepare_development_update_from_repo_diff(tmp_p
     assert sessions[0]["closed_at"]
     assert sessions[0]["events"][0]["event_type"] == "development_update_captured"
     assert sessions[0]["events"][0]["payload"]["writeback_id"] == body["writeback"]["id"]
+    detail = client.get(f"/projects/{project['id']}/sessions/{start['session_id']}").json()
+    assert detail["development_updates"][0]["writeback_id"] == body["writeback"]["id"]
+    assert detail["development_updates"][0]["summary"] == body["development_update"]["summary"]
+    assert detail["development_updates"][0]["tests"][0]["status"] == "passed"
 
     accept_response = client.post(f"/projects/{project['id']}/writebacks/{body['writeback']['id']}/accept")
     assert accept_response.status_code == 200
@@ -148,7 +165,7 @@ def test_close_work_endpoint_can_prepare_development_update_from_repo_diff(tmp_p
     ).json()
 
     assert context["source_refs"][0]["source_uri"] == f"writebacks/{body['writeback']['id']}"
-    assert "调整风险策略" in context["summary"]
+    assert "调整发布风险策略" in context["summary"]
 
 
 def test_fetch_context_ref_returns_traceable_asset_content(tmp_path):

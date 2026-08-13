@@ -142,7 +142,11 @@ class HarnessService:
             self.session_recorder.record_event(
                 session_id=session_id,
                 event_type="development_update_captured",
-                payload={"writeback_id": writeback.id, "writeback_type": "development_update"},
+                payload={
+                    "writeback_id": writeback.id,
+                    "writeback_type": "development_update",
+                    "development_update": change.structured,
+                },
             )
         result = {"session_id": session_id, "status": status}
         if writeback is not None:
@@ -155,4 +159,5 @@ class HarnessService:
                 "content": writeback.content,
                 "status": writeback.status,
             }
+            result["development_update"] = change.structured
         return result

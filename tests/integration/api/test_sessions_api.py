@@ -91,6 +91,7 @@ def test_session_audit_list_filters_and_detail_payload(tmp_path):
         "context_packs": 1,
         "skill_runs": 1,
         "writebacks": 1,
+        "development_updates": 0,
     }
 
     closed_filter = client.get(f"/projects/{project['id']}/sessions?status=closed").json()

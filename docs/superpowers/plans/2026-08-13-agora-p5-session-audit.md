@@ -109,3 +109,44 @@ Create a project with multiple sessions, context planning, a skill run, and writ
 - [x] **Step 3: Update roadmap**
 
 Record implementation scope, tests, commit, and black-box validation path.
+
+## Chunk 4: Structured Development Closeout Audit
+
+### Task 6: Structured Close-work Capture
+
+**Files:**
+- Modify: `packages/harness/development_capture.py`
+- Modify: `packages/harness/service.py`
+- Modify: `apps/api/routers/sessions.py`
+- Modify: `tests/integration/api/test_harness_api.py`
+
+- [x] **Step 1: Write failing close-work audit test**
+
+Assert that `close-work` returns a structured development update with summary, changed files, tests, risks, follow-ups, and that the session detail API exposes it.
+
+- [x] **Step 2: Add structured capture model**
+
+Extend development capture so the Markdown writeback remains intact while structured metadata is available for API/Web audit.
+
+- [x] **Step 3: Store structured payload on close-work event**
+
+Record structured development update data in the `development_update_captured` session event payload.
+
+### Task 7: Development Update Audit UI
+
+**Files:**
+- Modify: `apps/api/routers/sessions.py`
+- Modify: `apps/web/app/projects/[projectId]/sessions/[sessionId]/page.tsx`
+- Modify: `apps/web/app/styles.css`
+
+- [x] **Step 1: Expose development updates in session detail**
+
+Add a `development_updates` section to session audit responses, derived from close-work event payloads and linked writebacks.
+
+- [x] **Step 2: Render development updates in Web**
+
+Show summary, changed files, tests, risks, follow-ups, and accepted asset state as a first-class section on the session audit page.
+
+- [x] **Step 3: Run verification**
+
+Run targeted tests, full pytest, and Web build.

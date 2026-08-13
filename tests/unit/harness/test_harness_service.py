@@ -85,10 +85,16 @@ def test_close_work_can_capture_development_update_from_git_diff(tmp_path, fake_
     assert "实现支付状态流转" in fake_core.writebacks[0].content
     assert "src/payment.py" in fake_core.writebacks[0].content
     assert "pytest tests/payment - passed" in fake_core.writebacks[0].content
-    assert fake_core.events[-1] == {
-        "session_id": start.session_id,
-        "event_type": "development_update_captured",
-        "payload": {"writeback_id": fake_core.writebacks[0].id, "writeback_type": "development_update"},
+    event = fake_core.events[-1]
+    assert event["session_id"] == start.session_id
+    assert event["event_type"] == "development_update_captured"
+    assert event["payload"]["writeback_id"] == fake_core.writebacks[0].id
+    assert event["payload"]["writeback_type"] == "development_update"
+    assert event["payload"]["development_update"]["summary"] == "实现支付状态流转"
+    assert event["payload"]["development_update"]["changed_files"][0] == {
+        "path": "src/payment.py",
+        "status": "修改",
+        "category": "源码",
     }
 
 
