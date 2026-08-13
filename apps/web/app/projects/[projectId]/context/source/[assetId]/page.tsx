@@ -15,10 +15,15 @@ export default async function ContextSourcePage({
   searchParams,
 }: {
   params: Promise<{ projectId: string; assetId: string }>;
-  searchParams: Promise<{ session_id?: string }>;
+  searchParams: Promise<{ session_id?: string; chunk_id?: string; start_line?: string; end_line?: string }>;
 }) {
   const { assetId } = await params;
-  const { session_id: sessionId } = await searchParams;
+  const {
+    session_id: sessionId,
+    chunk_id: chunkId,
+    start_line: startLine,
+    end_line: endLine,
+  } = await searchParams;
   let source: SourceRef | null = null;
   let error: string | null = null;
 
@@ -47,6 +52,12 @@ export default async function ContextSourcePage({
             <h2>{source.title}</h2>
             <p className="muted">{source.source_uri}</p>
             <p className="muted">{source.asset_id}</p>
+            {chunkId ? (
+              <p className="source-meta">
+                Opened from {chunkId}
+                {startLine && endLine ? ` · lines ${startLine}-${endLine}` : ""}
+              </p>
+            ) : null}
             {source.truncated ? <p className="alert">Content truncated by token budget.</p> : null}
           </div>
           <div className="panel">

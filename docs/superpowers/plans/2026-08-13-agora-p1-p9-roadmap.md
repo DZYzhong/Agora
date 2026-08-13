@@ -715,3 +715,47 @@ Black-box validation:
 - User confirmed this flow passed.
 - Querying `refund idempotency` in the prepared chunk fixture showed the matching later paragraph.
 - The source row displayed a later `chunk:<n>` value and matching later line range instead of always using `chunk:0`.
+
+### 2026-08-13: P3 Context Levels and Chunk Facts
+
+Scope:
+
+- Added semantic ContextPack levels: `overview`, `module`, `source`, `memory`, and `empty`.
+- Updated key facts to reference stable chunk IDs instead of raw asset IDs.
+- Context Tester now displays Context level and Key facts.
+- `View source` links now carry `chunk_id`, `start_line`, and `end_line` to the source detail page.
+- Context Source detail page displays which chunk/line range opened the full source.
+
+Files changed:
+
+- Modified: `packages/knowledge/context_engine.py`
+- Modified: `tests/unit/knowledge/test_context_engine.py`
+- Modified: `apps/web/app/projects/[projectId]/context/page.tsx`
+- Modified: `apps/web/app/projects/[projectId]/context/source/[assetId]/page.tsx`
+- Modified: `apps/web/app/styles.css`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/unit/knowledge/test_context_engine.py -v
+# 6 passed
+
+.venv/bin/pytest -q
+# 54 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Open Context Tester for a project and run a query.
+- Expected: Session panel shows `Context level: ...`.
+- Expected: Key facts panel appears and each fact references a chunk ID.
+- Expected: Source rows still show preview, chunk ID, line range, asset type, retrieval source, and score.
+- Click `View source`.
+- Expected: Source detail page shows `Opened from <chunk_id> · lines <start>-<end>` above the full content.
+
+Commit:
+
+- Pending.

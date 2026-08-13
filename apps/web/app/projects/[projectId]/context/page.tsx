@@ -15,7 +15,12 @@ type StartWorkResponse = {
 
 type ContextResponse = {
   id: string;
+  level: string;
   summary: string;
+  key_facts: Array<{
+    fact: string;
+    source_refs: string[];
+  }>;
   source_refs: Array<{
     asset_id: string;
     asset_type: string;
@@ -90,11 +95,25 @@ export default async function ContextTesterPage({
             <p className="eyebrow">Session</p>
             <h2>{session?.intent ?? "analysis"}</h2>
             <p className="muted">{session?.session_id}</p>
+            <p className="source-meta">Context level: {context.level}</p>
           </div>
           <div className="panel">
             <p className="eyebrow">Summary</p>
             <pre className="context-summary">{context.summary}</pre>
           </div>
+          {context.key_facts.length ? (
+            <div className="panel">
+              <p className="eyebrow">Key facts</p>
+              <ul className="fact-list">
+                {context.key_facts.map((fact) => (
+                  <li key={`${fact.fact}-${fact.source_refs.join("-")}`}>
+                    <span>{fact.fact}</span>
+                    <code>{fact.source_refs.join(", ")}</code>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <section className="source-list" aria-label="Context source references">
             <div className="source-row source-header">
               <span>Source</span>
@@ -113,7 +132,7 @@ export default async function ContextTesterPage({
                   {session?.session_id ? (
                     <Link
                       className="source-link"
-                      href={`/projects/${project.id}/context/source/${source.asset_id}?session_id=${encodeURIComponent(session.session_id)}`}
+                      href={`/projects/${project.id}/context/source/${source.asset_id}?session_id=${encodeURIComponent(session.session_id)}&chunk_id=${encodeURIComponent(source.chunk_id)}&start_line=${source.source_span.start_line}&end_line=${source.source_span.end_line}`}
                     >
                       View source
                     </Link>

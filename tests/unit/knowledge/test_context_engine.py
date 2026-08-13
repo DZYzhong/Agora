@@ -29,6 +29,7 @@ def test_context_engine_generates_traceable_context_pack():
     )
 
     assert context.summary
+    assert context.level == "module"
     assert context.source_refs[0]["asset_id"] == "asset_1"
     assert "refund" in context.summary.lower()
     assert context.source_refs[0]["preview"] == "Refund retry must be idempotent and capped."
@@ -39,6 +40,7 @@ def test_context_engine_generates_traceable_context_pack():
         "start_char": 0,
         "end_char": len(asset.content),
     }
+    assert context.key_facts[0]["source_refs"] == ["asset_1:chunk:0"]
 
 
 def test_context_engine_falls_back_to_project_overview_for_broad_queries():
@@ -119,6 +121,7 @@ def test_context_engine_prefers_project_overview_for_broad_fallback():
     )
 
     assert context.source_refs[0]["title"] == "Project Overview"
+    assert context.level == "overview"
 
 
 def test_context_engine_prefers_accepted_writeback_over_raw_code_matches():
@@ -156,6 +159,7 @@ def test_context_engine_prefers_accepted_writeback_over_raw_code_matches():
     )
 
     assert context.source_refs[0]["asset_id"] == "writeback_1"
+    assert context.level == "memory"
 
 
 def test_context_engine_boosts_sources_by_intent():

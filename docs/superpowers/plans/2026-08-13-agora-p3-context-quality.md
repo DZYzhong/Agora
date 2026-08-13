@@ -286,11 +286,57 @@ cd apps/web && npm run build
 
 Expected: PASS.
 
+### Task 8: Context Levels and Chunk Facts
+
+**Files:**
+- Modify: `packages/knowledge/context_engine.py`
+- Modify: `tests/unit/knowledge/test_context_engine.py`
+- Modify: `apps/web/app/projects/[projectId]/context/page.tsx`
+- Modify: `apps/web/app/projects/[projectId]/context/source/[assetId]/page.tsx`
+- Modify: `apps/web/app/styles.css`
+
+- [x] **Step 1: Write failing level/key-fact tests**
+
+Assert ContextPack `level` reflects the top source type and key facts reference chunk IDs.
+
+- [x] **Step 2: Run tests to verify failure**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/unit/knowledge/test_context_engine.py -v
+```
+
+Expected: FAIL because ContextPack level is fixed and key facts still reference raw asset IDs.
+
+- [x] **Step 3: Implement semantic levels and chunk facts**
+
+Infer `overview`, `module`, `source`, `memory`, or `empty` from ranked candidates and build key facts from source ref previews/chunk IDs.
+
+- [x] **Step 4: Expose level and key facts in Web**
+
+Show Context level and Key facts on Context Tester.
+
+- [x] **Step 5: Carry chunk/span into source detail links**
+
+Add `chunk_id`, `start_line`, and `end_line` query params to `View source` links and display them on the source detail page.
+
+- [x] **Step 6: Run tests and build**
+
+Run:
+
+```bash
+.venv/bin/pytest -q
+cd apps/web && npm run build
+```
+
+Expected: PASS.
+
 ---
 
 ## Chunk 2: Verification and Roadmap Log
 
-### Task 8: Final Verification
+### Task 9: Final Verification
 
 **Files:**
 - Modify: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`

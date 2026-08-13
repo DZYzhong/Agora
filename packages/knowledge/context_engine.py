@@ -47,18 +47,19 @@ class ContextEngine:
             )
         candidates = _rank_by_intent(candidates, intent=intent)
         summary = self._summarize(candidates, token_budget=token_budget)
+        source_refs = [_source_ref(candidate, query=query) for candidate in candidates]
         return PlannedContextPack(
             id=uuid4().hex,
             org_id=org_id,
             project_id=project_id,
-            level="L1",
+            level=_context_level(candidates),
             intent=intent,
             summary=summary,
-            key_facts=[{"fact": _first_sentence(candidate.content), "source_refs": [candidate.asset_id]} for candidate in candidates[:3]],
-            source_refs=[
-                _source_ref(candidate, query=query)
-                for candidate in candidates
+            key_facts=[
+                {"fact": source_ref["preview"], "source_refs": [source_ref["chunk_id"]]}
+                for source_ref in source_refs[:3]
             ],
+            source_refs=source_refs,
         )
 
     def _summarize(self, candidates: list[SearchCandidate], *, token_budget: int) -> str:
@@ -160,6 +161,19 @@ def _rank_by_intent(candidates: list[SearchCandidate], *, intent: str) -> list[S
         key=lambda candidate: (candidate.score + _intent_boost(normalized_intent, candidate.asset_type)),
         reverse=True,
     )
+
+
+def _context_level(candidates: list[SearchCandidate]) -> str:
+    if not candidates:
+        return "empty"
+    first_type = candidates[0].asset_type
+    if first_type == "project_overview":
+        return "overview"
+    if first_type == "writeback":
+        return "memory"
+    if first_type == "code_file":
+        return "source"
+    return "module"
 
 
 def _intent_boost(intent: str, asset_type: str) -> float:

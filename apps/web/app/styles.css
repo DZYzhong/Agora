@@ -291,6 +291,38 @@ button {
   white-space: pre-wrap;
 }
 
+.fact-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fact-list li {
+  border-top: 1px solid #edf0f4;
+  display: grid;
+  gap: 6px;
+  padding-top: 10px;
+}
+
+.fact-list li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.fact-list span {
+  color: #29313d;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.fact-list code {
+  color: #718096;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .source-list {
   background: #ffffff;
   border: 1px solid #dde1e7;
