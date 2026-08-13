@@ -215,11 +215,48 @@ cd apps/web && npm run build
 
 Expected: PASS.
 
+### Task 6: Prune Stale Repository Assets
+
+**Files:**
+- Modify: `apps/api/routers/projects.py`
+- Modify: `packages/core/repositories/assets.py`
+- Test: `tests/integration/api/test_initialization_jobs.py`
+
+- [x] **Step 1: Write failing stale asset test**
+
+Add a test that initializes a temporary repository, deletes one source file, re-initializes the same project, and asserts the deleted file no longer appears in project assets.
+
+- [x] **Step 2: Run test to verify failure**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_initialization_jobs.py::test_reinitialize_prunes_git_assets_removed_from_repository -v
+```
+
+Expected: FAIL because stale git assets are not pruned.
+
+- [x] **Step 3: Implement pruning**
+
+Add `AssetRepository.prune_project_sources(project_id, managed_source_uris)`. After successful upsert during initialization, delete initialization-managed assets whose source URI is no longer present.
+
+- [x] **Step 4: Run targeted and full tests**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_initialization_jobs.py::test_reinitialize_prunes_git_assets_removed_from_repository -v
+.venv/bin/pytest -q
+cd apps/web && npm run build
+```
+
+Expected: PASS.
+
 ---
 
 ## Chunk 3: Verification and Roadmap Log
 
-### Task 6: Final Verification and Roadmap Update
+### Task 7: Final Verification and Roadmap Update
 
 **Files:**
 - Modify: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`

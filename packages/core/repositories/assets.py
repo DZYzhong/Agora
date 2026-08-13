@@ -96,3 +96,21 @@ class AssetRepository:
         self.session.commit()
         self.session.refresh(asset)
         return asset
+
+    def prune_project_sources(self, *, project_id: str, managed_source_uris: set[str]) -> int:
+        statement = select(AssetModel).where(
+            AssetModel.project_id == project_id,
+            (
+                (AssetModel.source == "git")
+                | (AssetModel.source_uri == "agora://project-overview")
+            ),
+        )
+        stale_assets = [
+            asset
+            for asset in self.session.scalars(statement).all()
+            if asset.source_uri not in managed_source_uris
+        ]
+        for asset in stale_assets:
+            self.session.delete(asset)
+        self.session.commit()
+        return len(stale_assets)

@@ -208,6 +208,10 @@ def _run_initialization_job(
             keyword_index.index_asset(stored.id, asset)
             vector_index.index_asset(stored.id, asset)
             stored_assets.append(stored)
+        asset_repo.prune_project_sources(
+            project_id=project.id,
+            managed_source_uris={asset.source_uri for asset in result.assets},
+        )
         job_repo.mark_completed(job, asset_count=len(stored_assets), warnings=result.warnings)
     except HTTPException:
         raise

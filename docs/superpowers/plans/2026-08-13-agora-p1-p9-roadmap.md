@@ -425,3 +425,42 @@ Black-box validation path:
 Commit:
 
 - Pending.
+
+### 2026-08-13: P2 Stale Asset Pruning
+
+Scope:
+
+- Added pruning for initialization-managed assets that disappear from the repository on re-initialization.
+- Pruning applies only to git-ingested assets and the generated project overview asset.
+- Agent/manual/writeback assets are not pruned by repository initialization.
+- This closes the remaining duplicate/stale knowledge pollution case for moved or deleted files.
+
+Files changed:
+
+- Modified: `apps/api/routers/projects.py`
+- Modified: `packages/core/repositories/assets.py`
+- Modified: `tests/integration/api/test_initialization_jobs.py`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_initialization_jobs.py::test_reinitialize_prunes_git_assets_removed_from_repository -v
+# 1 passed
+
+.venv/bin/pytest -q
+# 50 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Create or use a temporary project initialized from a temporary repository.
+- Confirm `src/removed.py` appears in Assets after the first initialization.
+- Delete `src/removed.py` from the repository and initialize again.
+- Expected: `src/removed.py` no longer appears in Assets; remaining assets are stable and not duplicated.
+
+Commit:
+
+- Pending.

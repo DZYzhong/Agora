@@ -65,6 +65,42 @@ def test_initialize_local_can_be_repeated_without_duplicate_assets():
     assert len(assets) == first.json()["asset_count"]
 
 
+def test_reinitialize_prunes_git_assets_removed_from_repository(tmp_path):
+    client = TestClient(app)
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "README.md").write_text("# Prune Repo\n\nPrune deleted files.", encoding="utf-8")
+    (repo / "src/app.py").write_text("print('keep')", encoding="utf-8")
+    (repo / "src/removed.py").write_text("print('remove')", encoding="utf-8")
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_prune",
+            "name": "Prune",
+            "slug": "prune",
+            "git_remotes": [],
+        },
+    ).json()
+
+    first = client.post(
+        f"/projects/{project['id']}/initialize-local",
+        json={"repo_path": str(repo)},
+    )
+    assert first.status_code == 200
+    (repo / "src/removed.py").unlink()
+
+    second = client.post(
+        f"/projects/{project['id']}/initialize-local",
+        json={"repo_path": str(repo)},
+    )
+
+    assert second.status_code == 200
+    assets = client.get(f"/projects/{project['id']}/assets").json()
+    source_uris = {asset["source_uri"] for asset in assets}
+    assert "src/app.py" in source_uris
+    assert "src/removed.py" not in source_uris
+
+
 def test_initialize_local_records_failed_initialization_job_when_missing_remote(tmp_path):
     client = TestClient(app)
     project = client.post(
