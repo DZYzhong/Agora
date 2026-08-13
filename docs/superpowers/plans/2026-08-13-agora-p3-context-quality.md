@@ -332,11 +332,41 @@ cd apps/web && npm run build
 
 Expected: PASS.
 
+### Task 9: Retrieval Evaluation Fixture
+
+**Files:**
+- Create: `tests/unit/knowledge/test_context_retrieval_eval.py`
+
+- [x] **Step 1: Add retrieval evaluation fixture**
+
+Create a focused evaluation-style test covering overview, source, memory, and chunk fact behavior with one indexed project fixture.
+
+- [x] **Step 2: Run evaluation test**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/unit/knowledge/test_context_retrieval_eval.py -v
+```
+
+Expected: PASS.
+
+- [x] **Step 3: Run full verification**
+
+Run:
+
+```bash
+.venv/bin/pytest -q
+cd apps/web && npm run build
+```
+
+Expected: PASS.
+
 ---
 
 ## Chunk 2: Verification and Roadmap Log
 
-### Task 9: Final Verification
+### Task 10: Final Verification
 
 **Files:**
 - Modify: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`

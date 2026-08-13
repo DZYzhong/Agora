@@ -758,4 +758,37 @@ Black-box validation path:
 
 Commit:
 
-- Pending.
+- `feat: expose context levels and chunk facts`
+
+### 2026-08-13: P3 Retrieval Evaluation Fixture
+
+Scope:
+
+- Added a focused retrieval evaluation test covering overview, source, memory, and chunk-fact behavior together.
+- The fixture indexes project overview, code, writeback memory, and docs into the fake keyword/vector indexes.
+- This locks in the intended P3 behavior across broad project queries, implementation queries, review/risk queries, and chunk-level fact references.
+
+Files changed:
+
+- Created: `tests/unit/knowledge/test_context_retrieval_eval.py`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/unit/knowledge/test_context_retrieval_eval.py -v
+# 1 passed
+
+.venv/bin/pytest -q
+# 55 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Black-box validation:
+
+- Covered together with the P3 Context Levels and Chunk Facts validation flow.
+
+Commit:
+
+- `test: add context retrieval evaluation`
