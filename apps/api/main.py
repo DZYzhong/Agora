@@ -5,6 +5,7 @@ from apps.api.routers.health import router as health_router
 from apps.api.routers.projects import router as projects_router
 from apps.api.routers.assets import router as assets_router
 from apps.api.routers.sessions import router as sessions_router
+from apps.api.routers.skills import router as skills_router
 from apps.api.routers.writebacks import router as writebacks_router
 
 app = FastAPI(title="Agora API")
@@ -13,4 +14,5 @@ app.include_router(projects_router)
 app.include_router(assets_router)
 app.include_router(harness_router)
 app.include_router(sessions_router)
+app.include_router(skills_router)
 app.include_router(writebacks_router)

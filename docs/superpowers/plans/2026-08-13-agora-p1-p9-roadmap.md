@@ -259,6 +259,57 @@ Commit:
 
 - Pending.
 
+### 2026-08-13: P4 Skill Lifecycle API and Web
+
+Scope:
+
+- Added project-scoped Skill lifecycle API.
+- Skills can now be created, edited, approved, deprecated, run, and listed with run history.
+- Built-in skills are lazily seeded and listed alongside project skills.
+- SkillRun records persist input, output, warnings, status, session ID, and timestamps.
+- Replaced the static Skills page with a lifecycle management UI: create candidate, edit definition, approve/deprecate, run skill, and inspect run history.
+
+Files changed:
+
+- Created: `packages/core/repositories/skills.py`
+- Modified: `packages/core/services/runtime.py`
+- Modified: `packages/harness/skill_orchestrator.py`
+- Created: `apps/api/routers/skills.py`
+- Modified: `apps/api/main.py`
+- Modified: `apps/web/lib/api.ts`
+- Modified: `apps/web/app/projects/[projectId]/skills/page.tsx`
+- Created: `apps/web/app/projects/[projectId]/skills/create/route.ts`
+- Created: `apps/web/app/projects/[projectId]/skills/[skillId]/update/route.ts`
+- Created: `apps/web/app/projects/[projectId]/skills/[skillId]/approve/route.ts`
+- Created: `apps/web/app/projects/[projectId]/skills/[skillId]/deprecate/route.ts`
+- Created: `apps/web/app/projects/[projectId]/skills/[skillId]/run/route.ts`
+- Modified: `apps/web/app/styles.css`
+- Created: `tests/integration/api/test_skills_api.py`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_skills_api.py -v
+# 1 passed
+
+.venv/bin/pytest -q
+# 59 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Open a project's Skills page.
+- Expected: built-in approved skills are listed.
+- Create a candidate project skill.
+- Edit it to draft, approve it, run it, inspect Skill runs, then deprecate it.
+
+Commit:
+
+- Pending.
+
 ### 2026-08-13: Roadmap Reconstructed
 
 Scope:

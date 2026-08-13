@@ -28,7 +28,10 @@ class SkillOrchestrator:
         input: dict,
         context: dict,
     ) -> SkillRunResult:
-        skill = self.core.get_skill_by_slug(skill_slug)
+        try:
+            skill = self.core.get_skill_by_slug(skill_slug, project_id=project_id)
+        except TypeError:
+            skill = self.core.get_skill_by_slug(skill_slug)
         if skill is None and get_builtin_skill(skill_slug):
             skill = self.core.create_skill(slug=skill_slug, status="approved", name=get_builtin_skill(skill_slug)["name"])
         if skill is None:

@@ -73,7 +73,8 @@ label {
   gap: 6px;
 }
 
-input {
+input,
+select {
   border: 1px solid #c6ccd5;
   border-radius: 6px;
   font: inherit;
@@ -129,11 +130,25 @@ button {
 }
 
 .inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 14px;
+}
+
+.inline-form input,
+.inline-form select {
+  min-width: 150px;
 }
 
 .compact-form {
   margin: 0;
+}
+
+.skill-list {
+  display: grid;
+  gap: 16px;
+  margin: 20px 0;
 }
 
 .alert {

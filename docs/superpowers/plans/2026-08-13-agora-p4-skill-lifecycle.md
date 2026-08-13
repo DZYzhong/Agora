@@ -20,15 +20,15 @@
 - Modify: `packages/core/services/skills.py`
 - Test: `tests/integration/api/test_skills_api.py`
 
-- [ ] **Step 1: Write failing API test**
+- [x] **Step 1: Write failing API test**
 
 Cover project skill creation, list, update, approve, deprecate, run, and run history.
 
-- [ ] **Step 2: Add repository**
+- [x] **Step 2: Add repository**
 
 Implement skill CRUD, project-scoped listing with built-ins, status transitions, and skill run listing.
 
-- [ ] **Step 3: Add runtime/service methods**
+- [x] **Step 3: Add runtime/service methods**
 
 Expose repository methods through CoreRuntime and helpers.
 
@@ -39,7 +39,7 @@ Expose repository methods through CoreRuntime and helpers.
 - Modify: `apps/api/main.py`
 - Test: `tests/integration/api/test_skills_api.py`
 
-- [ ] **Step 1: Create router**
+- [x] **Step 1: Create router**
 
 Add endpoints:
 
@@ -51,7 +51,7 @@ Add endpoints:
 - `POST /projects/{project_id}/skills/{skill_id}/run`
 - `GET /projects/{project_id}/skill-runs`
 
-- [ ] **Step 2: Run API tests**
+- [x] **Step 2: Run API tests**
 
 Run targeted test and full pytest.
 
@@ -68,15 +68,15 @@ Run targeted test and full pytest.
 - Create: `apps/web/app/projects/[projectId]/skills/[skillId]/run/route.ts`
 - Modify: `apps/web/app/styles.css`
 
-- [ ] **Step 1: Render lifecycle controls**
+- [x] **Step 1: Render lifecycle controls**
 
 Show built-in and project skills, status badges, definitions, run history, and create/update/approve/deprecate/run forms.
 
-- [ ] **Step 2: Add server action routes**
+- [x] **Step 2: Add server action routes**
 
 Wire form posts to the Skills API and revalidate the skills page.
 
-- [ ] **Step 3: Run Web build**
+- [x] **Step 3: Run Web build**
 
 Run `cd apps/web && npm run build`.
 

@@ -1,0 +1,92 @@
+from fastapi.testclient import TestClient
+
+from apps.api.main import app
+
+
+def test_project_skill_lifecycle_and_run_history():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_skill_lifecycle",
+            "name": "Skill Lifecycle",
+            "slug": "skill-lifecycle",
+            "git_remotes": ["git@example.com:skill-lifecycle.git"],
+        },
+    ).json()
+
+    create_response = client.post(
+        f"/projects/{project['id']}/skills",
+        json={
+            "slug": "release-risk-review",
+            "name": "Release Risk Review",
+            "status": "candidate",
+            "definition": {
+                "version": "0.1.0",
+                "triggers": ["release", "risk"],
+                "input_schema": {"type": "object"},
+                "instructions": "Review release risk and produce concise findings.",
+            },
+        },
+    )
+
+    assert create_response.status_code == 201
+    skill = create_response.json()
+    assert skill["status"] == "candidate"
+    assert skill["definition"]["version"] == "0.1.0"
+
+    update_response = client.patch(
+        f"/projects/{project['id']}/skills/{skill['id']}",
+        json={
+            "status": "draft",
+            "definition": {
+                "version": "0.2.0",
+                "triggers": ["release", "risk", "rollback"],
+                "input_schema": {"type": "object"},
+                "instructions": "Review release and rollback risk.",
+            },
+        },
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["status"] == "draft"
+    assert update_response.json()["definition"]["version"] == "0.2.0"
+
+    approve_response = client.post(f"/projects/{project['id']}/skills/{skill['id']}/approve")
+    assert approve_response.status_code == 200
+    assert approve_response.json()["status"] == "approved"
+
+    run_response = client.post(
+        f"/projects/{project['id']}/skills/{skill['id']}/run",
+        json={
+            "session_id": None,
+            "input": {"change": "release payment retry"},
+            "context": {"summary": "Payment retry release touches refund flow."},
+        },
+    )
+    assert run_response.status_code == 200
+    run = run_response.json()
+    assert run["status"] == "completed"
+    assert run["skill_id"] == skill["id"]
+    assert run["input"]["change"] == "release payment retry"
+    assert run["output"]["summary"]
+
+    runs_response = client.get(f"/projects/{project['id']}/skill-runs")
+    assert runs_response.status_code == 200
+    assert runs_response.json()[0]["id"] == run["id"]
+
+    deprecate_response = client.post(f"/projects/{project['id']}/skills/{skill['id']}/deprecate")
+    assert deprecate_response.status_code == 200
+    assert deprecate_response.json()["status"] == "deprecated"
+
+    blocked_run = client.post(
+        f"/projects/{project['id']}/skills/{skill['id']}/run",
+        json={
+            "input": {"change": "release payment retry"},
+            "context": {"summary": "Payment retry release touches refund flow."},
+        },
+    )
+    assert blocked_run.status_code == 400
+
+    skills = client.get(f"/projects/{project['id']}/skills").json()
+    assert any(item["slug"] == "task-context-summary" and item["builtin"] for item in skills)
+    assert any(item["slug"] == "release-risk-review" and not item["builtin"] for item in skills)

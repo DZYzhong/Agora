@@ -4,6 +4,7 @@ from packages.core.repositories.assets import AssetRepository
 from packages.core.repositories.context_packs import ContextPackRepository
 from packages.core.repositories.projects import ProjectRepository
 from packages.core.repositories.sessions import TaskSessionRepository
+from packages.core.repositories.skills import SkillRepository
 from packages.core.repositories.writebacks import WritebackRepository
 
 
@@ -40,6 +41,27 @@ class CoreRuntime:
 
     def list_context_packs_by_ids(self, context_pack_ids: list[str]):
         return ContextPackRepository(self.session).list_by_ids(context_pack_ids)
+
+    def create_skill(self, **kwargs):
+        return SkillRepository(self.session).create(**kwargs)
+
+    def get_skill(self, skill_id: str):
+        return SkillRepository(self.session).get(skill_id)
+
+    def get_skill_by_slug(self, skill_slug: str, *, project_id: str | None = None):
+        return SkillRepository(self.session).get_by_slug(skill_slug, project_id=project_id)
+
+    def list_skills_by_project(self, project_id: str):
+        return SkillRepository(self.session).list_by_project(project_id)
+
+    def update_skill(self, skill_id: str, **kwargs):
+        return SkillRepository(self.session).update(skill_id, **kwargs)
+
+    def create_skill_run(self, **kwargs):
+        return SkillRepository(self.session).create_run(**kwargs)
+
+    def list_skill_runs_by_project(self, project_id: str):
+        return SkillRepository(self.session).list_runs_by_project(project_id)
 
     def create_asset(self, **kwargs):
         return AssetRepository(self.session).create(**kwargs)
