@@ -1197,3 +1197,48 @@ Black-box validation:
 
 - User confirmed the grouped P3 validation passed.
 - Sessions page showed generated ContextPack history, including level, summary, key facts, source count, and `context_planned` events.
+
+### 2026-08-13: P6 Migration and Local Admin Baseline
+
+Scope:
+
+- Started P6 Production Persistence Baseline.
+- Added Alembic configuration and an initial migration matching the current SQLAlchemy model schema.
+- Added a guarded local admin CLI for rebuilding persisted asset indexes and resetting file-backed SQLite databases.
+- Aligned local environment documentation with the runtime `AGORA_DATABASE_URL` variable.
+- Added a P6 implementation plan file for remaining production persistence chunks.
+
+Files changed:
+
+- Created: `alembic.ini`
+- Created: `alembic/env.py`
+- Created: `alembic/script.py.mako`
+- Created: `alembic/versions/20260813_0001_initial_schema.py`
+- Created: `scripts/agora_admin.py`
+- Created: `tests/integration/test_migrations.py`
+- Created: `tests/integration/test_admin_cli.py`
+- Created: `docs/superpowers/plans/2026-08-13-agora-p6-production-persistence.md`
+- Modified: `.env.example`
+- Modified: `README.md`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/test_migrations.py tests/integration/test_admin_cli.py -v
+# 4 passed
+
+.venv/bin/pytest -q
+# 66 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# passed
+```
+
+Black-box validation path:
+
+- No immediate user validation required on 2026-08-13 because the user deferred black-box testing until tomorrow.
+- Tomorrow, verify from the browser that the app still creates a software R&D project, initializes a repository, lists assets, and runs a context query after the P6 persistence baseline changes.
+
+Commit:
+
+- `feat: add persistence migration baseline`
