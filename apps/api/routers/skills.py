@@ -67,6 +67,17 @@ def _ensure_project(runtime: CoreRuntime, project_id: str):
     return project
 
 
+def _is_builtin_skill(skill) -> bool:
+    return skill.project_id is None or bool((skill.definition or {}).get("builtin"))
+
+
+def _ensure_project_skill(skill, project_id: str) -> None:
+    if _is_builtin_skill(skill):
+        raise HTTPException(status_code=400, detail="Built-in skills are read-only")
+    if skill.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Skill not found")
+
+
 def _ensure_builtin_skills(runtime: CoreRuntime, *, org_id: str) -> None:
     for slug, definition in BUILT_IN_SKILLS.items():
         if runtime.get_skill_by_slug(slug) is None:
@@ -111,16 +122,18 @@ def update_skill(project_id: str, skill_id: str, payload: SkillUpdateRequest, se
     runtime = CoreRuntime(session)
     _ensure_project(runtime, project_id)
     try:
-        skill = runtime.update_skill(
-            skill_id,
-            name=payload.name,
-            status=payload.status.value if payload.status else None,
-            definition=payload.definition,
-        )
+        skill = runtime.get_skill(skill_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    if skill.project_id not in (project_id, None):
+    if skill is None:
         raise HTTPException(status_code=404, detail="Skill not found")
+    _ensure_project_skill(skill, project_id)
+    skill = runtime.update_skill(
+        skill_id,
+        name=payload.name,
+        status=payload.status.value if payload.status else None,
+        definition=payload.definition,
+    )
     return _serialize_skill(skill, builtin=bool((skill.definition or {}).get("builtin")))
 
 
@@ -129,9 +142,13 @@ def approve_skill(project_id: str, skill_id: str, session: Session = Depends(get
     runtime = CoreRuntime(session)
     _ensure_project(runtime, project_id)
     try:
-        skill = runtime.update_skill(skill_id, status=SkillStatus.APPROVED.value)
+        skill = runtime.get_skill(skill_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if skill is None:
+        raise HTTPException(status_code=404, detail="Skill not found")
+    _ensure_project_skill(skill, project_id)
+    skill = runtime.update_skill(skill_id, status=SkillStatus.APPROVED.value)
     return _serialize_skill(skill, builtin=bool((skill.definition or {}).get("builtin")))
 
 
@@ -140,9 +157,13 @@ def deprecate_skill(project_id: str, skill_id: str, session: Session = Depends(g
     runtime = CoreRuntime(session)
     _ensure_project(runtime, project_id)
     try:
-        skill = runtime.update_skill(skill_id, status=SkillStatus.DEPRECATED.value)
+        skill = runtime.get_skill(skill_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if skill is None:
+        raise HTTPException(status_code=404, detail="Skill not found")
+    _ensure_project_skill(skill, project_id)
+    skill = runtime.update_skill(skill_id, status=SkillStatus.DEPRECATED.value)
     return _serialize_skill(skill, builtin=bool((skill.definition or {}).get("builtin")))
 
 
@@ -153,6 +174,19 @@ def run_skill(project_id: str, skill_id: str, payload: SkillRunRequest, session:
     skill = runtime.get_skill(skill_id)
     if skill is None or skill.project_id not in (project_id, None):
         raise HTTPException(status_code=404, detail="Skill not found")
+    if skill.status != SkillStatus.APPROVED.value:
+        error = f"Skill is not approved: {skill.slug}"
+        runtime.create_skill_run(
+            org_id=project.org_id,
+            project_id=project.id,
+            session_id=payload.session_id,
+            skill_id=skill.id,
+            input=payload.input,
+            output={"error": error},
+            warnings=[error],
+            status="failed",
+        )
+        raise HTTPException(status_code=400, detail=error)
     try:
         result = SkillOrchestrator(core=runtime, llm=FakeLlmGateway()).run_skill(
             session_id=payload.session_id,
@@ -163,6 +197,16 @@ def run_skill(project_id: str, skill_id: str, payload: SkillRunRequest, session:
             context=payload.context,
         )
     except ValueError as exc:
+        runtime.create_skill_run(
+            org_id=project.org_id,
+            project_id=project.id,
+            session_id=payload.session_id,
+            skill_id=skill.id,
+            input=payload.input,
+            output={"error": str(exc)},
+            warnings=[str(exc)],
+            status="failed",
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     run = next(run for run in runtime.list_skill_runs_by_project(project.id) if run.id == result.skill_run_id)
     return _serialize_run(run)

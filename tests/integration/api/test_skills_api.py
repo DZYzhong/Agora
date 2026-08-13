@@ -86,6 +86,11 @@ def test_project_skill_lifecycle_and_run_history():
         },
     )
     assert blocked_run.status_code == 400
+    runs_after_block = client.get(f"/projects/{project['id']}/skill-runs").json()
+    failed_run = next(run for run in runs_after_block if run["status"] == "failed")
+    assert failed_run["skill_id"] == skill["id"]
+    assert failed_run["output"]["error"] == "Skill is not approved: release-risk-review"
+    assert failed_run["warnings"] == ["Skill is not approved: release-risk-review"]
 
     skills = client.get(f"/projects/{project['id']}/skills").json()
     assert any(item["slug"] == "task-context-summary" and item["builtin"] for item in skills)
@@ -132,3 +137,33 @@ def test_repeated_accepted_writebacks_create_candidate_skill():
     assert not candidate["builtin"]
     assert candidate["definition"]["source"] == "accepted_writebacks"
     assert candidate["definition"]["writeback_type"] == "release_risk_review"
+
+
+def test_builtin_skills_are_read_only_for_lifecycle_updates():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_builtin_read_only",
+            "name": "Built-in Read Only",
+            "slug": "builtin-read-only",
+            "git_remotes": ["git@example.com:builtin-read-only.git"],
+        },
+    ).json()
+    skills = client.get(f"/projects/{project['id']}/skills").json()
+    builtin = next(item for item in skills if item["slug"] == "task-context-summary")
+
+    update_response = client.patch(
+        f"/projects/{project['id']}/skills/{builtin['id']}",
+        json={"status": "deprecated"},
+    )
+    assert update_response.status_code == 400
+    assert update_response.json()["detail"] == "Built-in skills are read-only"
+
+    deprecate_response = client.post(f"/projects/{project['id']}/skills/{builtin['id']}/deprecate")
+    assert deprecate_response.status_code == 400
+    assert deprecate_response.json()["detail"] == "Built-in skills are read-only"
+
+    refreshed = client.get(f"/projects/{project['id']}/skills").json()
+    refreshed_builtin = next(item for item in refreshed if item["id"] == builtin["id"])
+    assert refreshed_builtin["status"] == "approved"

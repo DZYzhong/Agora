@@ -112,12 +112,12 @@ export default async function SkillsPage({ params }: { params: Promise<{ project
               </form>
             ) : null}
             <div className="actions">
-              {skill.status !== "approved" ? (
+              {!skill.builtin && skill.status !== "approved" ? (
                 <form action={`/projects/${projectId}/skills/${skill.id}/approve`} method="post">
                   <button type="submit">Approve</button>
                 </form>
               ) : null}
-              {skill.status !== "deprecated" ? (
+              {!skill.builtin && skill.status !== "deprecated" ? (
                 <form action={`/projects/${projectId}/skills/${skill.id}/deprecate`} method="post">
                   <button type="submit">Deprecate</button>
                 </form>

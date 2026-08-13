@@ -257,7 +257,7 @@ Verification:
 
 Commit:
 
-- Pending.
+- `feat: audit skill lifecycle failures`
 
 ### 2026-08-13: P4 Candidate Skills from Accepted Writebacks
 
@@ -298,9 +298,14 @@ Black-box validation path:
 - Open the project's Skills page.
 - Expected: a candidate project skill appears with slug derived from the writeback type.
 
+Black-box validation:
+
+- User confirmed the grouped P4 validation passed.
+- The Skills page showed the auto-created candidate from repeated accepted writebacks.
+
 Commit:
 
-- Pending.
+- `feat: create candidate skills from writebacks`
 
 ### 2026-08-13: P4 Skill Lifecycle API and Web
 
@@ -348,6 +353,53 @@ Black-box validation path:
 - Expected: built-in approved skills are listed.
 - Create a candidate project skill.
 - Edit it to draft, approve it, run it, inspect Skill runs, then deprecate it.
+
+Black-box validation:
+
+- User confirmed the grouped P4 validation passed.
+- The Skills page showed built-in approved skills, a manual candidate skill, and an auto-generated candidate skill.
+- User validated editing, approving, running, run-history visibility, and deprecating a project skill.
+
+Commit:
+
+- `feat: add skill lifecycle management`
+
+### 2026-08-13: P4 Skill Run Audit and Built-in Guardrails
+
+Scope:
+
+- Failed skill runs are now persisted as `SkillRun` rows with `status=failed`, error output, warnings, input, skill ID, project ID, and timestamp.
+- Deprecated or otherwise unapproved skill run attempts remain blocked, but the failed attempt is visible in run history.
+- Built-in skills are read-only for lifecycle mutations: update, approve, and deprecate reject built-ins instead of mutating shared/global behavior.
+- The Skills page hides approve/deprecate controls for built-in skills.
+- The Skills page run action redirects back to run history after a blocked run so the persisted failed record is visible.
+
+Files changed:
+
+- Modified: `apps/api/routers/skills.py`
+- Modified: `apps/web/app/projects/[projectId]/skills/page.tsx`
+- Modified: `apps/web/app/projects/[projectId]/skills/[skillId]/run/route.ts`
+- Modified: `tests/integration/api/test_skills_api.py`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_skills_api.py -v
+# 3 passed
+
+.venv/bin/pytest -q
+# 61 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Open a project's Skills page.
+- Expected: built-in skills show no approve/deprecate buttons.
+- Run an approved project skill and confirm a completed run appears.
+- Deprecate that same project skill, run it again, and confirm the page returns to Skill runs with a failed run entry containing the error.
 
 Commit:
 

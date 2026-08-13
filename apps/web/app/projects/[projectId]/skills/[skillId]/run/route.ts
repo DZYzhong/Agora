@@ -10,10 +10,14 @@ export async function POST(
   const formData = await request.formData();
   const summary = String(formData.get("summary") ?? "").trim();
 
-  await apiPost(`/projects/${projectId}/skills/${skillId}/run`, {
-    input: { summary },
-    context: { summary },
-  });
+  try {
+    await apiPost(`/projects/${projectId}/skills/${skillId}/run`, {
+      input: { summary },
+      context: { summary },
+    });
+  } catch {
+    // Failed runs are persisted by the API and shown in the run history.
+  }
 
   revalidatePath(`/projects/${projectId}/skills`);
   redirect(`/projects/${projectId}/skills`);
