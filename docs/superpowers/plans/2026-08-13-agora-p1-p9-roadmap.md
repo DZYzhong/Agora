@@ -520,4 +520,47 @@ Black-box validation path:
 
 Commit:
 
+- `feat: fetch context source references`
+
+Black-box validation:
+
+- User confirmed the Context Tester source reference flow passed.
+- Clicking `View source` opened a source detail page with traceable source content.
+
+### 2026-08-13: P3 Source Reference Previews
+
+Scope:
+
+- Added short `preview` text to ContextPack source references.
+- Context Tester now displays source preview text inline before the `View source` link.
+- This makes source relevance easier to judge before opening the full source detail page.
+
+Files changed:
+
+- Modified: `packages/knowledge/context_engine.py`
+- Modified: `tests/unit/knowledge/test_context_engine.py`
+- Modified: `apps/web/app/projects/[projectId]/context/page.tsx`
+- Modified: `apps/web/app/styles.css`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/unit/knowledge/test_context_engine.py -v
+# 4 passed
+
+.venv/bin/pytest -q
+# 52 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Open a project with assets.
+- Go to Context and run a query.
+- Expected: each source row shows a short preview of matched source content plus `View source`.
+
+Commit:
+
 - Pending.

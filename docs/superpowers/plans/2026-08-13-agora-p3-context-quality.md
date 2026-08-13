@@ -118,11 +118,52 @@ cd apps/web && npm run build
 
 Expected: PASS.
 
+### Task 4: Source Reference Previews
+
+**Files:**
+- Modify: `packages/knowledge/context_engine.py`
+- Modify: `tests/unit/knowledge/test_context_engine.py`
+- Modify: `apps/web/app/projects/[projectId]/context/page.tsx`
+- Modify: `apps/web/app/styles.css`
+
+- [x] **Step 1: Write failing preview test**
+
+Assert every ContextPack source ref includes a short `preview` field.
+
+- [x] **Step 2: Run test to verify failure**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/unit/knowledge/test_context_engine.py::test_context_engine_generates_traceable_context_pack -v
+```
+
+Expected: FAIL because source refs do not include previews.
+
+- [x] **Step 3: Add preview generation**
+
+Use the first sentence of source content, truncated to a short preview length.
+
+- [x] **Step 4: Render previews in Web**
+
+Show preview text in Context Tester source rows.
+
+- [x] **Step 5: Run tests and build**
+
+Run:
+
+```bash
+.venv/bin/pytest -q
+cd apps/web && npm run build
+```
+
+Expected: PASS.
+
 ---
 
 ## Chunk 2: Verification and Roadmap Log
 
-### Task 4: Final Verification
+### Task 5: Final Verification
 
 **Files:**
 - Modify: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`

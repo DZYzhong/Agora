@@ -31,6 +31,7 @@ def test_context_engine_generates_traceable_context_pack():
     assert context.summary
     assert context.source_refs[0]["asset_id"] == "asset_1"
     assert "refund" in context.summary.lower()
+    assert context.source_refs[0]["preview"] == "Refund retry must be idempotent and capped."
 
 
 def test_context_engine_falls_back_to_project_overview_for_broad_queries():

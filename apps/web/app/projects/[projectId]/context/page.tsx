@@ -20,6 +20,7 @@ type ContextResponse = {
     asset_id: string;
     title: string;
     source_uri: string;
+    preview: string;
     relevance: number;
     retrieval_sources: string[];
   }>;
@@ -97,6 +98,7 @@ export default async function ContextTesterPage({
                 <div>
                   <strong className="asset-title">{source.title}</strong>
                   <p className="asset-uri">{source.source_uri}</p>
+                  <p className="source-preview">{source.preview}</p>
                   {session?.session_id ? (
                     <Link
                       className="source-link"

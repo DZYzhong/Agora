@@ -52,6 +52,7 @@ class ContextEngine:
                     "asset_id": candidate.asset_id,
                     "title": candidate.title,
                     "source_uri": candidate.source_uri,
+                    "preview": _preview(candidate.content),
                     "relevance": candidate.score,
                     "retrieval_sources": list(candidate.sources),
                 }
@@ -75,3 +76,10 @@ def _first_sentence(content: str) -> str:
         if separator in stripped:
             return stripped.split(separator, 1)[0] + separator
     return stripped
+
+
+def _preview(content: str, *, max_chars: int = 240) -> str:
+    sentence = _first_sentence(content)
+    if len(sentence) <= max_chars:
+        return sentence
+    return sentence[: max_chars - 1].rstrip() + "..."
