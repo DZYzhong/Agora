@@ -661,4 +661,10 @@ Black-box validation path:
 
 Commit:
 
-- Pending.
+- `feat: rank context sources by intent`
+
+Black-box validation:
+
+- User confirmed this flow passed.
+- Implementation query ranked `code_file` first in the prepared fixture project.
+- Risk-oriented query ranked `writeback` first in the prepared fixture project.

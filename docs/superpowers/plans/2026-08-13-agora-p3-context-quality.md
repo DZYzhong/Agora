@@ -276,4 +276,7 @@ Record implementation, tests, commit, and black-box validation steps.
 ```bash
 git add apps/web/app/projects/[projectId]/context/page.tsx apps/web/app/styles.css packages/knowledge/context_engine.py tests/unit/knowledge/test_context_engine.py docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md docs/superpowers/plans/2026-08-13-agora-p3-context-quality.md
 git commit -m "feat: add context source spans"
+
+git add apps/web/app/projects/[projectId]/context/page.tsx packages/knowledge/context_engine.py packages/knowledge/retrieval.py packages/storage/opensearch/fake.py packages/storage/qdrant/fake.py tests/unit/knowledge/test_context_engine.py docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md docs/superpowers/plans/2026-08-13-agora-p3-context-quality.md
+git commit -m "feat: rank context sources by intent"
 ```
