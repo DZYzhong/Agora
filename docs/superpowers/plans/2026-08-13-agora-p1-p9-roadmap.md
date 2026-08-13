@@ -830,7 +830,12 @@ Black-box validation path:
 
 Commit:
 
-- Pending.
+- `fix: infer analysis intent for overview queries`
+
+Black-box validation:
+
+- User confirmed the grouped P3 validation passed.
+- Overview query now shows `analysis`, `Context level: overview`, and Project Overview ranks first.
 
 ### 2026-08-13: P3 Persisted ContextPack Session Timeline
 
@@ -877,4 +882,9 @@ Black-box validation path:
 
 Commit:
 
-- Pending.
+- `feat: persist context packs on sessions`
+
+Black-box validation:
+
+- User confirmed the grouped P3 validation passed.
+- Sessions page showed generated ContextPack history, including level, summary, key facts, source count, and `context_planned` events.
