@@ -609,4 +609,10 @@ Black-box validation path:
 
 Commit:
 
-- Pending.
+- `feat: add context source spans`
+
+Black-box validation:
+
+- User confirmed this flow passed.
+- Context Tester source rows displayed stable chunk IDs and line ranges.
+- `View source` continued to open the full traceable source detail page.

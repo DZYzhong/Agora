@@ -224,9 +224,9 @@ Expected: PASS.
 
 Record implementation, tests, commit, and black-box validation steps.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
-git add apps packages tests docs/superpowers/plans
-git commit -m "feat: fetch context source references"
+git add apps/web/app/projects/[projectId]/context/page.tsx apps/web/app/styles.css packages/knowledge/context_engine.py tests/unit/knowledge/test_context_engine.py docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md docs/superpowers/plans/2026-08-13-agora-p3-context-quality.md
+git commit -m "feat: add context source spans"
 ```
