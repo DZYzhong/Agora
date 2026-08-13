@@ -6,6 +6,7 @@ from packages.domain.schemas import AssetCreate
 @dataclass(frozen=True)
 class VectorSearchResult:
     asset_id: str
+    asset_type: str
     title: str
     content: str
     source_uri: str
@@ -31,6 +32,7 @@ class FakeVectorIndex:
                 results.append(
                     VectorSearchResult(
                         asset_id=asset_id,
+                        asset_type=asset.type,
                         title=asset.title,
                         content=asset.content,
                         source_uri=asset.source_uri,

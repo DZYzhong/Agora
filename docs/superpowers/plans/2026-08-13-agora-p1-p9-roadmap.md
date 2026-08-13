@@ -616,3 +616,49 @@ Black-box validation:
 - User confirmed this flow passed.
 - Context Tester source rows displayed stable chunk IDs and line ranges.
 - `View source` continued to open the full traceable source detail page.
+
+### 2026-08-13: P3 Intent-Aware Retrieval Boosts
+
+Scope:
+
+- Added `asset_type` to fake keyword/vector search results and merged search candidates.
+- ContextEngine now re-ranks retrieved candidates by intent.
+- Implementation work boosts code files; risk/review work boosts accepted writebacks and analysis memory; docs work boosts docs and project overview assets.
+- Context Tester now displays asset type beside retrieval source labels.
+
+Files changed:
+
+- Modified: `packages/knowledge/context_engine.py`
+- Modified: `packages/knowledge/retrieval.py`
+- Modified: `packages/storage/opensearch/fake.py`
+- Modified: `packages/storage/qdrant/fake.py`
+- Modified: `tests/unit/knowledge/test_context_engine.py`
+- Modified: `apps/web/app/projects/[projectId]/context/page.tsx`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/unit/knowledge/test_context_engine.py::test_context_engine_boosts_sources_by_intent -v
+# 1 passed
+
+.venv/bin/pytest tests/unit/knowledge/test_context_engine.py tests/unit/knowledge/test_indexing.py -v
+# 7 passed
+
+.venv/bin/pytest -q
+# 53 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Open a project with initialized assets.
+- Go to Context and run a code-oriented query, such as a class, module, or implementation keyword.
+- Expected: source rows show asset type labels like `code_file`, `doc`, `writeback`; implementation-oriented results should favor relevant `code_file` rows when scores are close.
+- Run a risk-oriented query, such as `风险 一致性 Kafka retry`.
+- Expected: accepted writeback or analysis-style context should rank higher when it matches the query.
+
+Commit:
+
+- Pending.

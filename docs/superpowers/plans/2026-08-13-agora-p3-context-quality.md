@@ -200,11 +200,58 @@ cd apps/web && npm run build
 
 Expected: PASS.
 
+### Task 6: Intent-Aware Retrieval Boosts
+
+**Files:**
+- Modify: `packages/knowledge/context_engine.py`
+- Modify: `packages/knowledge/retrieval.py`
+- Modify: `packages/storage/opensearch/fake.py`
+- Modify: `packages/storage/qdrant/fake.py`
+- Modify: `tests/unit/knowledge/test_context_engine.py`
+- Modify: `apps/web/app/projects/[projectId]/context/page.tsx`
+
+- [x] **Step 1: Write failing intent ranking test**
+
+Assert implementation intent ranks a matching `code_file` before a matching `writeback`, while risk intent ranks a matching `writeback` first.
+
+- [x] **Step 2: Run test to verify failure**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/unit/knowledge/test_context_engine.py::test_context_engine_boosts_sources_by_intent -v
+```
+
+Expected: FAIL because writeback's fixed score boost wins for implementation intent.
+
+- [x] **Step 3: Carry asset type through retrieval**
+
+Add `asset_type` to fake keyword/vector results and merged `SearchCandidate`.
+
+- [x] **Step 4: Re-rank by intent**
+
+Apply lightweight ContextEngine boosts for implementation, review, testing, docs, risk, and analysis intents.
+
+- [x] **Step 5: Render asset type in Web**
+
+Show asset type next to retrieval source labels in Context Tester source rows.
+
+- [x] **Step 6: Run tests and build**
+
+Run:
+
+```bash
+.venv/bin/pytest -q
+cd apps/web && npm run build
+```
+
+Expected: PASS.
+
 ---
 
 ## Chunk 2: Verification and Roadmap Log
 
-### Task 6: Final Verification
+### Task 7: Final Verification
 
 **Files:**
 - Modify: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`

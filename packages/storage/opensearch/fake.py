@@ -6,6 +6,7 @@ from packages.domain.schemas import AssetCreate
 @dataclass(frozen=True)
 class KeywordSearchResult:
     asset_id: str
+    asset_type: str
     title: str
     content: str
     source_uri: str
@@ -29,6 +30,7 @@ class FakeKeywordIndex:
         results = [
             KeywordSearchResult(
                 asset_id=asset_id,
+                asset_type=asset.type,
                 title=asset.title,
                 content=asset.content,
                 source_uri=asset.source_uri,
@@ -50,6 +52,7 @@ class FakeKeywordIndex:
                 results.append(
                     KeywordSearchResult(
                         asset_id=asset_id,
+                        asset_type=asset.type,
                         title=asset.title,
                         content=asset.content,
                         source_uri=asset.source_uri,

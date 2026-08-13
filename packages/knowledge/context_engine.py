@@ -38,6 +38,7 @@ class ContextEngine:
                 keyword_results=self.keyword_index.list_assets(org_id=org_id, project_id=project_id),
                 vector_results=[],
             )
+        candidates = _rank_by_intent(candidates, intent=intent)
         summary = self._summarize(candidates, token_budget=token_budget)
         return PlannedContextPack(
             id=uuid4().hex,
@@ -50,6 +51,7 @@ class ContextEngine:
             source_refs=[
                 {
                     "asset_id": candidate.asset_id,
+                    "asset_type": candidate.asset_type,
                     "chunk_id": _chunk_id(candidate.asset_id),
                     "title": candidate.title,
                     "source_uri": candidate.source_uri,
@@ -100,3 +102,25 @@ def _source_span(content: str) -> dict[str, int]:
         "start_char": 0,
         "end_char": len(content),
     }
+
+
+def _rank_by_intent(candidates: list[SearchCandidate], *, intent: str) -> list[SearchCandidate]:
+    normalized_intent = intent.lower().replace("-", "_")
+    return sorted(
+        candidates,
+        key=lambda candidate: (candidate.score + _intent_boost(normalized_intent, candidate.asset_type)),
+        reverse=True,
+    )
+
+
+def _intent_boost(intent: str, asset_type: str) -> float:
+    boosts = {
+        "implementation": {"code_file": 2.5, "doc": 0.5, "writeback": -1.5},
+        "review": {"writeback": 1.5, "code_file": 1.0, "doc": 0.25},
+        "testing": {"code_file": 1.5, "doc": 0.75, "writeback": 0.25},
+        "docs": {"doc": 2.0, "project_overview": 1.5, "writeback": 0.5},
+        "documentation": {"doc": 2.0, "project_overview": 1.5, "writeback": 0.5},
+        "risk": {"writeback": 2.0, "project_overview": 1.0, "doc": 0.75},
+        "analysis": {"project_overview": 1.0, "writeback": 0.75, "doc": 0.25},
+    }
+    return boosts.get(intent, {}).get(asset_type, 0.0)

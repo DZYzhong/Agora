@@ -18,6 +18,7 @@ type ContextResponse = {
   summary: string;
   source_refs: Array<{
     asset_id: string;
+    asset_type: string;
     chunk_id: string;
     title: string;
     source_uri: string;
@@ -118,7 +119,7 @@ export default async function ContextTesterPage({
                     </Link>
                   ) : null}
                 </div>
-                <span className="asset-type">{source.retrieval_sources.join(" / ")}</span>
+                <span className="asset-type">{source.asset_type} · {source.retrieval_sources.join(" / ")}</span>
                 <span className="source-score">{source.relevance.toFixed(2)}</span>
               </div>
             ))}

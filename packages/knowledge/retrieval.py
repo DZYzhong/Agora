@@ -4,6 +4,7 @@ from typing import Protocol
 
 class RawSearchResult(Protocol):
     asset_id: str
+    asset_type: str
     title: str
     content: str
     source_uri: str
@@ -13,6 +14,7 @@ class RawSearchResult(Protocol):
 @dataclass(frozen=True)
 class SearchCandidate:
     asset_id: str
+    asset_type: str
     title: str
     content: str
     source_uri: str
@@ -38,6 +40,7 @@ def _merge_into(merged: dict[str, SearchCandidate], results: list[RawSearchResul
         if existing is None:
             merged[result.asset_id] = SearchCandidate(
                 asset_id=result.asset_id,
+                asset_type=result.asset_type,
                 title=result.title,
                 content=result.content,
                 source_uri=result.source_uri,
@@ -47,6 +50,7 @@ def _merge_into(merged: dict[str, SearchCandidate], results: list[RawSearchResul
             continue
         merged[result.asset_id] = SearchCandidate(
             asset_id=existing.asset_id,
+            asset_type=existing.asset_type,
             title=existing.title,
             content=existing.content,
             source_uri=existing.source_uri,

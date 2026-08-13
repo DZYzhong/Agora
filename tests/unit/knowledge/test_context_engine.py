@@ -156,3 +156,61 @@ def test_context_engine_prefers_accepted_writeback_over_raw_code_matches():
     )
 
     assert context.source_refs[0]["asset_id"] == "writeback_1"
+
+
+def test_context_engine_boosts_sources_by_intent():
+    keyword = FakeKeywordIndex()
+    vector = FakeVectorIndex()
+    keyword.index_asset(
+        "doc_1",
+        AssetCreate(
+            org_id="org_1",
+            project_id="proj_1",
+            type="doc",
+            source="git",
+            source_uri="docs/kafka.md",
+            title="Kafka Guide",
+            content="Kafka retry behavior and consistency notes.",
+        ),
+    )
+    keyword.index_asset(
+        "code_1",
+        AssetCreate(
+            org_id="org_1",
+            project_id="proj_1",
+            type="code_file",
+            source="git",
+            source_uri="src/kafka/producer.py",
+            title="producer.py",
+            content="Kafka retry behavior and consistency implementation.",
+        ),
+    )
+    keyword.index_asset(
+        "writeback_1",
+        AssetCreate(
+            org_id="org_1",
+            project_id="proj_1",
+            type="writeback",
+            source="agent",
+            source_uri="writebacks/kafka-risk",
+            title="Kafka Risk Analysis",
+            content="Kafka retry behavior and consistency risk analysis.",
+        ),
+    )
+    engine = ContextEngine(keyword_index=keyword, vector_index=vector)
+
+    implementation_context = engine.plan_context(
+        org_id="org_1",
+        project_id="proj_1",
+        intent="implementation",
+        query="Kafka retry behavior consistency",
+    )
+    risk_context = engine.plan_context(
+        org_id="org_1",
+        project_id="proj_1",
+        intent="risk",
+        query="Kafka retry behavior consistency",
+    )
+
+    assert implementation_context.source_refs[0]["asset_id"] == "code_1"
+    assert risk_context.source_refs[0]["asset_id"] == "writeback_1"
