@@ -497,7 +497,7 @@ Black-box validation:
 
 - User confirmed the P5 Session Audit validation passed.
 - Sessions filtering, audit counters, and the session detail page were verified from the browser.
-- Future black-box fixtures should use China-oriented manufacturer/manufacturing data by default, including MES, ERP, WMS, equipment, work orders, quality inspection, production line, supply chain, and plant operations scenarios.
+- Future black-box fixtures should use China-oriented software R&D team data by default, including requirements, iterations, defects, code review, regression testing, release risk, gray releases, monitoring alerts, incident review, CI/CD, and engineering collaboration scenarios.
 
 Commit:
 
