@@ -32,6 +32,13 @@ def test_context_engine_generates_traceable_context_pack():
     assert context.source_refs[0]["asset_id"] == "asset_1"
     assert "refund" in context.summary.lower()
     assert context.source_refs[0]["preview"] == "Refund retry must be idempotent and capped."
+    assert context.source_refs[0]["chunk_id"] == "asset_1:chunk:0"
+    assert context.source_refs[0]["source_span"] == {
+        "start_line": 1,
+        "end_line": 1,
+        "start_char": 0,
+        "end_char": len(asset.content),
+    }
 
 
 def test_context_engine_falls_back_to_project_overview_for_broad_queries():

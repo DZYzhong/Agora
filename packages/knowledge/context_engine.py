@@ -50,8 +50,10 @@ class ContextEngine:
             source_refs=[
                 {
                     "asset_id": candidate.asset_id,
+                    "chunk_id": _chunk_id(candidate.asset_id),
                     "title": candidate.title,
                     "source_uri": candidate.source_uri,
+                    "source_span": _source_span(candidate.content),
                     "preview": _preview(candidate.content),
                     "relevance": candidate.score,
                     "retrieval_sources": list(candidate.sources),
@@ -83,3 +85,18 @@ def _preview(content: str, *, max_chars: int = 240) -> str:
     if len(sentence) <= max_chars:
         return sentence
     return sentence[: max_chars - 1].rstrip() + "..."
+
+
+def _chunk_id(asset_id: str, *, index: int = 0) -> str:
+    return f"{asset_id}:chunk:{index}"
+
+
+def _source_span(content: str) -> dict[str, int]:
+    if not content:
+        return {"start_line": 1, "end_line": 1, "start_char": 0, "end_char": 0}
+    return {
+        "start_line": 1,
+        "end_line": content.count("\n") + 1,
+        "start_char": 0,
+        "end_char": len(content),
+    }

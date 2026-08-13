@@ -341,6 +341,15 @@ button {
   overflow-wrap: anywhere;
 }
 
+.source-meta {
+  color: #718096;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+
 .asset-row {
   align-items: flex-start;
   border-top: 1px solid #edf0f4;

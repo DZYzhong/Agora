@@ -563,4 +563,50 @@ Black-box validation path:
 
 Commit:
 
+- `feat: preview context source references`
+
+Black-box validation:
+
+- User confirmed the Context Tester preview flow passed.
+- Source rows displayed preview text before opening full source detail.
+
+### 2026-08-13: P3 Source Reference Chunk Spans
+
+Scope:
+
+- Added stable `chunk_id` values to ContextPack source references.
+- Added `source_span` metadata with line and character ranges for each source reference.
+- Context Tester now displays chunk ID and line range in each source row.
+- This is currently asset-level tracing (`chunk:0`) and prepares the surface for later asset-type chunking.
+
+Files changed:
+
+- Modified: `packages/knowledge/context_engine.py`
+- Modified: `tests/unit/knowledge/test_context_engine.py`
+- Modified: `apps/web/app/projects/[projectId]/context/page.tsx`
+- Modified: `apps/web/app/styles.css`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/unit/knowledge/test_context_engine.py::test_context_engine_generates_traceable_context_pack -v
+# 1 passed
+
+.venv/bin/pytest -q
+# 52 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Open a project with initialized assets.
+- Go to Context and run a query.
+- Expected: each source row shows a stable chunk ID like `<asset_id>:chunk:0` and a line range like `lines 1-12`.
+- Click `View source`.
+- Expected: the full source detail page still opens normally.
+
+Commit:
+
 - Pending.

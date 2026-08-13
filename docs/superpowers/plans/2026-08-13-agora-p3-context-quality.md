@@ -159,16 +159,37 @@ cd apps/web && npm run build
 
 Expected: PASS.
 
----
-
-## Chunk 2: Verification and Roadmap Log
-
-### Task 5: Final Verification
+### Task 5: Source Reference Chunk Spans
 
 **Files:**
-- Modify: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+- Modify: `packages/knowledge/context_engine.py`
+- Modify: `tests/unit/knowledge/test_context_engine.py`
+- Modify: `apps/web/app/projects/[projectId]/context/page.tsx`
+- Modify: `apps/web/app/styles.css`
 
-- [ ] **Step 1: Run full tests**
+- [x] **Step 1: Write failing chunk/span test**
+
+Assert each ContextPack source ref includes a stable `chunk_id` and `source_span`.
+
+- [x] **Step 2: Run test to verify failure**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/unit/knowledge/test_context_engine.py::test_context_engine_generates_traceable_context_pack -v
+```
+
+Expected: FAIL because source refs do not include chunk/span fields.
+
+- [x] **Step 3: Add asset-level chunk/span metadata**
+
+Generate stable `asset_id:chunk:0` chunk IDs and source spans with line and character ranges.
+
+- [x] **Step 4: Render chunk/span metadata in Web**
+
+Show chunk ID and source line range in Context Tester source rows.
+
+- [x] **Step 5: Run tests and build**
 
 Run:
 
@@ -179,7 +200,27 @@ cd apps/web && npm run build
 
 Expected: PASS.
 
-- [ ] **Step 2: Update roadmap**
+---
+
+## Chunk 2: Verification and Roadmap Log
+
+### Task 6: Final Verification
+
+**Files:**
+- Modify: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+
+- [x] **Step 1: Run full tests**
+
+Run:
+
+```bash
+.venv/bin/pytest -q
+cd apps/web && npm run build
+```
+
+Expected: PASS.
+
+- [x] **Step 2: Update roadmap**
 
 Record implementation, tests, commit, and black-box validation steps.
 

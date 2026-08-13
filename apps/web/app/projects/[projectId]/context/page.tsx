@@ -18,8 +18,15 @@ type ContextResponse = {
   summary: string;
   source_refs: Array<{
     asset_id: string;
+    chunk_id: string;
     title: string;
     source_uri: string;
+    source_span: {
+      start_line: number;
+      end_line: number;
+      start_char: number;
+      end_char: number;
+    };
     preview: string;
     relevance: number;
     retrieval_sources: string[];
@@ -98,6 +105,9 @@ export default async function ContextTesterPage({
                 <div>
                   <strong className="asset-title">{source.title}</strong>
                   <p className="asset-uri">{source.source_uri}</p>
+                  <p className="source-meta">
+                    {source.chunk_id} · lines {source.source_span.start_line}-{source.source_span.end_line}
+                  </p>
                   <p className="source-preview">{source.preview}</p>
                   {session?.session_id ? (
                     <Link
