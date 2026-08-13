@@ -90,3 +90,45 @@ def test_project_skill_lifecycle_and_run_history():
     skills = client.get(f"/projects/{project['id']}/skills").json()
     assert any(item["slug"] == "task-context-summary" and item["builtin"] for item in skills)
     assert any(item["slug"] == "release-risk-review" and not item["builtin"] for item in skills)
+
+
+def test_repeated_accepted_writebacks_create_candidate_skill():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_skill_candidates",
+            "name": "Skill Candidates",
+            "slug": "skill-candidates",
+            "git_remotes": ["git@example.com:skill-candidates.git"],
+        },
+    ).json()
+    start = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "分析发布风险",
+            "agent_type": "codex",
+        },
+    ).json()
+
+    for index in range(2):
+        writeback = client.post(
+            "/harness/prepare-writeback",
+            json={
+                "session_id": start["session_id"],
+                "type": "release_risk_review",
+                "title": f"Release risk review {index}",
+                "content": "Review release risk, rollback path, and test evidence before deployment.",
+                "asset_refs": [],
+            },
+        ).json()
+        accept = client.post(f"/projects/{project['id']}/writebacks/{writeback['id']}/accept")
+        assert accept.status_code == 200
+
+    skills = client.get(f"/projects/{project['id']}/skills").json()
+    candidate = next(item for item in skills if item["slug"] == "release-risk-review")
+    assert candidate["status"] == "candidate"
+    assert not candidate["builtin"]
+    assert candidate["definition"]["source"] == "accepted_writebacks"
+    assert candidate["definition"]["writeback_type"] == "release_risk_review"

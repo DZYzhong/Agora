@@ -82,7 +82,44 @@ Run `cd apps/web && npm run build`.
 
 ## Chunk 3: P4 Log and Validation
 
-### Task 4: Verification and Roadmap
+### Task 4: Candidate Skills from Accepted Writebacks
+
+**Files:**
+- Modify: `packages/core/repositories/writebacks.py`
+- Modify: `packages/core/services/runtime.py`
+- Modify: `packages/harness/memory_writeback.py`
+- Modify: `tests/integration/api/test_skills_api.py`
+
+- [x] **Step 1: Write failing candidate creation test**
+
+Accept two writebacks of the same type and assert a candidate project skill appears.
+
+- [x] **Step 2: Run test to verify failure**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_skills_api.py::test_repeated_accepted_writebacks_create_candidate_skill -v
+```
+
+Expected: FAIL because accepted writebacks do not generate candidate skills yet.
+
+- [x] **Step 3: Generate candidate skill on repeated accepted writebacks**
+
+After accepting a writeback, if two or more accepted writebacks of the same project/type exist, create one candidate skill derived from that writeback type.
+
+- [x] **Step 4: Run tests and build**
+
+Run:
+
+```bash
+.venv/bin/pytest -q
+cd apps/web && npm run build
+```
+
+Expected: PASS.
+
+### Task 5: Verification and Roadmap
 
 **Files:**
 - Modify: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`

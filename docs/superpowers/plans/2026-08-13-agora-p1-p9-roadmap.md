@@ -259,6 +259,49 @@ Commit:
 
 - Pending.
 
+### 2026-08-13: P4 Candidate Skills from Accepted Writebacks
+
+Scope:
+
+- Added candidate skill creation from repeated accepted writebacks.
+- When two or more accepted writebacks of the same project/type exist, Agora creates one candidate project skill.
+- Candidate skill definitions include source metadata, writeback type, triggers, input schema, instructions, and evidence writeback IDs.
+- This connects repeated AI memory/writeback patterns to reviewable team workflow assets.
+
+Files changed:
+
+- Modified: `packages/core/repositories/writebacks.py`
+- Modified: `packages/core/services/runtime.py`
+- Modified: `packages/harness/memory_writeback.py`
+- Modified: `tests/integration/api/test_skills_api.py`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p4-skill-lifecycle.md`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_skills_api.py::test_repeated_accepted_writebacks_create_candidate_skill -v
+# 1 passed
+
+.venv/bin/pytest tests/integration/api/test_skills_api.py -v
+# 2 passed
+
+.venv/bin/pytest -q
+# 60 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Prepare and accept two writebacks of the same type.
+- Open the project's Skills page.
+- Expected: a candidate project skill appears with slug derived from the writeback type.
+
+Commit:
+
+- Pending.
+
 ### 2026-08-13: P4 Skill Lifecycle API and Web
 
 Scope:

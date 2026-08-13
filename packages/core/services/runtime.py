@@ -75,5 +75,8 @@ class CoreRuntime:
     def get_writeback(self, writeback_id: str):
         return WritebackRepository(self.session).get(writeback_id)
 
+    def list_accepted_writebacks_by_type(self, *, project_id: str, type: str):
+        return WritebackRepository(self.session).list_by_project_type_status(project_id=project_id, type=type, status="accepted")
+
     def accept_writeback(self, writeback_id: str, *, accepted_asset_id: str | None = None):
         return WritebackRepository(self.session).accept(writeback_id, accepted_asset_id=accepted_asset_id)

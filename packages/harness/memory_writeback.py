@@ -48,7 +48,9 @@ class MemoryWritebackService:
         asset = self.core.create_asset(**asset_payload.model_dump())
         self.keyword_index.index_asset(asset.id, asset_payload)
         self.vector_index.index_asset(asset.id, asset_payload)
-        return self.core.accept_writeback(writeback_id, accepted_asset_id=asset.id)
+        accepted = self.core.accept_writeback(writeback_id, accepted_asset_id=asset.id)
+        self._create_candidate_skill_from_repeated_writebacks(accepted)
+        return accepted
 
     def reject_writeback(self, writeback_id: str):
         writeback = self.core.get_writeback(writeback_id)
@@ -56,3 +58,37 @@ class MemoryWritebackService:
             raise ValueError(f"Writeback not found: {writeback_id}")
         writeback.status = "rejected"
         return writeback
+
+    def _create_candidate_skill_from_repeated_writebacks(self, writeback) -> None:
+        if not all(
+            hasattr(self.core, method)
+            for method in ("list_accepted_writebacks_by_type", "get_skill_by_slug", "create_skill")
+        ):
+            return
+        accepted = self.core.list_accepted_writebacks_by_type(project_id=writeback.project_id, type=writeback.type)
+        if len(accepted) < 2:
+            return
+        slug = writeback.type.replace("_", "-")
+        existing = self.core.get_skill_by_slug(slug, project_id=writeback.project_id)
+        if existing is not None:
+            return
+        self.core.create_skill(
+            org_id=writeback.org_id,
+            project_id=writeback.project_id,
+            slug=slug,
+            name=_title_from_slug(slug),
+            status="candidate",
+            definition={
+                "version": "0.1.0",
+                "source": "accepted_writebacks",
+                "writeback_type": writeback.type,
+                "triggers": [part for part in slug.split("-") if part],
+                "input_schema": {"type": "object"},
+                "instructions": accepted[-1].content,
+                "evidence_writeback_ids": [item.id for item in accepted[-2:]],
+            },
+        )
+
+
+def _title_from_slug(slug: str) -> str:
+    return " ".join(part.capitalize() for part in slug.split("-") if part)

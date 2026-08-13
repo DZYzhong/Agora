@@ -42,6 +42,14 @@ class WritebackRepository:
         statement = select(WritebackModel).where(WritebackModel.project_id == project_id)
         return list(self.session.scalars(statement).all())
 
+    def list_by_project_type_status(self, *, project_id: str, type: str, status: str) -> list[WritebackModel]:
+        statement = select(WritebackModel).where(
+            WritebackModel.project_id == project_id,
+            WritebackModel.type == type,
+            WritebackModel.status == status,
+        )
+        return list(self.session.scalars(statement).all())
+
     def accept(self, writeback_id: str, *, accepted_asset_id: str | None = None) -> WritebackModel:
         writeback = self.session.get(WritebackModel, writeback_id)
         if writeback is None:
