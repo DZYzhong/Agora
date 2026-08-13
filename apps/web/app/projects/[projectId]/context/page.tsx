@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { apiGet, apiPost } from "../../../../lib/api";
 
 type Project = {
@@ -96,6 +97,14 @@ export default async function ContextTesterPage({
                 <div>
                   <strong className="asset-title">{source.title}</strong>
                   <p className="asset-uri">{source.source_uri}</p>
+                  {session?.session_id ? (
+                    <Link
+                      className="source-link"
+                      href={`/projects/${project.id}/context/source/${source.asset_id}?session_id=${encodeURIComponent(session.session_id)}`}
+                    >
+                      View source
+                    </Link>
+                  ) : null}
                 </div>
                 <span className="asset-type">{source.retrieval_sources.join(" / ")}</span>
                 <span className="source-score">{source.relevance.toFixed(2)}</span>

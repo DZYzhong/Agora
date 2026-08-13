@@ -18,6 +18,18 @@ class WorkStartResult:
     clarification: str | None = None
 
 
+@dataclass(frozen=True)
+class ContextRefResult:
+    session_id: str
+    asset_id: str
+    title: str
+    source_uri: str
+    type: str
+    content: str
+    truncated: bool
+    metadata: dict
+
+
 class HarnessService:
     def __init__(self, *, core, context_engine):
         self.core = core
@@ -70,6 +82,26 @@ class HarnessService:
 
     def record_event(self, *, session_id: str, event_type: str, payload: dict):
         return self.session_recorder.record_event(session_id=session_id, event_type=event_type, payload=payload)
+
+    def fetch_context_ref(self, *, session_id: str, asset_id: str, max_tokens: int = 2000):
+        session = self.core.get_session(session_id)
+        if session is None:
+            raise ValueError(f"Session not found: {session_id}")
+        asset = self.core.get_asset(asset_id)
+        if asset is None or asset.project_id != session.project_id:
+            raise ValueError(f"Context source not found: {asset_id}")
+        max_chars = max(200, max_tokens * 4)
+        content = asset.content[:max_chars]
+        return ContextRefResult(
+            session_id=session_id,
+            asset_id=asset.id,
+            title=asset.title,
+            source_uri=asset.source_uri,
+            type=asset.type,
+            content=content,
+            truncated=len(asset.content) > len(content),
+            metadata=asset.asset_metadata or {},
+        )
 
     def close_work(
         self,

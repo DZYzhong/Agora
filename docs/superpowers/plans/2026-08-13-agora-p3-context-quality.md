@@ -1,0 +1,150 @@
+# Agora P3 Context Quality Implementation Plan
+
+> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Improve Agora's context quality and traceability so users and AI agents can inspect source references instead of only receiving summaries.
+
+**Architecture:** Keep the current fake keyword/vector indexes and persisted SQLite assets. Add a focused source-reference retrieval path first, then use it from API, MCP, and Web without introducing new index infrastructure.
+
+**Tech Stack:** FastAPI, SQLAlchemy, Next.js App Router, pytest, stdio MCP.
+
+---
+
+## Chunk 1: Fetch Context Source References
+
+### Task 1: Backend Source Reference Fetch
+
+**Files:**
+- Modify: `packages/core/services/runtime.py`
+- Modify: `packages/harness/service.py`
+- Modify: `apps/api/routers/harness.py`
+- Test: `tests/integration/api/test_harness_api.py`
+
+- [x] **Step 1: Write failing API test**
+
+Add a test that starts a session, plans context, takes a source `asset_id`, calls `POST /harness/fetch-context-ref`, and asserts the returned content matches the source asset.
+
+- [x] **Step 2: Run test to verify failure**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_harness_api.py -v
+```
+
+Expected: FAIL because fetch-context-ref endpoint does not exist.
+
+- [x] **Step 3: Implement harness method**
+
+Add `HarnessService.fetch_context_ref(session_id, asset_id, max_tokens)`:
+
+- Validate the session exists.
+- Load the asset by ID.
+- Ensure asset belongs to the session project.
+- Return asset metadata, title, source URI, and truncated content.
+
+- [x] **Step 4: Expose API endpoint**
+
+Add `POST /harness/fetch-context-ref`.
+
+- [x] **Step 5: Run targeted test**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_harness_api.py -v
+```
+
+Expected: PASS.
+
+### Task 2: MCP Source Reference Fetch
+
+**Files:**
+- Modify: `apps/mcp/server.py`
+- Modify: `apps/mcp/tools.py`
+- Test: `tests/unit/mcp/test_tools.py`
+- Test: `tests/unit/mcp/test_stdio_server.py`
+
+- [x] **Step 1: Write failing MCP tests**
+
+Assert MCP dispatch calls `/harness/fetch-context-ref`, and local `AgoraMcpTools.agora_fetch_context_ref` delegates to harness when available.
+
+- [x] **Step 2: Run tests to verify failure**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/unit/mcp/test_tools.py tests/unit/mcp/test_stdio_server.py -v
+```
+
+Expected: FAIL because current fetch returns placeholder content.
+
+- [x] **Step 3: Implement MCP fetch**
+
+Update MCP schema to use `asset_id` and call the API endpoint.
+
+- [x] **Step 4: Run MCP tests**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/unit/mcp/test_tools.py tests/unit/mcp/test_stdio_server.py -v
+```
+
+Expected: PASS.
+
+### Task 3: Web Source Reference Detail
+
+**Files:**
+- Modify: `apps/web/app/projects/[projectId]/context/page.tsx`
+- Create: `apps/web/app/projects/[projectId]/context/source/[assetId]/page.tsx`
+- Modify: `apps/web/app/styles.css`
+
+- [x] **Step 1: Add source detail page**
+
+Create a page that starts from `session_id`, calls `/harness/fetch-context-ref`, and shows source title, URI, asset ID, and content.
+
+- [x] **Step 2: Link source refs**
+
+Context Tester source rows should link to the detail page with current `session_id`.
+
+- [x] **Step 3: Run Web build**
+
+Run:
+
+```bash
+cd apps/web && npm run build
+```
+
+Expected: PASS.
+
+---
+
+## Chunk 2: Verification and Roadmap Log
+
+### Task 4: Final Verification
+
+**Files:**
+- Modify: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+
+- [ ] **Step 1: Run full tests**
+
+Run:
+
+```bash
+.venv/bin/pytest -q
+cd apps/web && npm run build
+```
+
+Expected: PASS.
+
+- [ ] **Step 2: Update roadmap**
+
+Record implementation, tests, commit, and black-box validation steps.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add apps packages tests docs/superpowers/plans
+git commit -m "feat: fetch context source references"
+```

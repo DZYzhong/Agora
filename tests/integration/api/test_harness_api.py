@@ -149,3 +149,50 @@ def test_close_work_endpoint_can_prepare_development_update_from_repo_diff(tmp_p
 
     assert context["source_refs"][0]["source_uri"] == f"writebacks/{body['writeback']['id']}"
     assert "调整风险策略" in context["summary"]
+
+
+def test_fetch_context_ref_returns_traceable_asset_content(tmp_path):
+    client = TestClient(app)
+    repo = tmp_path / "repo"
+    (repo / "docs").mkdir(parents=True)
+    (repo / "README.md").write_text("# Fetch Ref\n\nReference project.", encoding="utf-8")
+    (repo / "docs/ref.md").write_text("Reference detail line one.\nReference detail line two.", encoding="utf-8")
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_fetch_ref",
+            "name": "Fetch Ref",
+            "slug": "fetch-ref",
+            "git_remotes": ["git@example.com:fetch-ref.git"],
+        },
+    ).json()
+    client.post(
+        f"/projects/{project['id']}/initialize-local",
+        json={"repo_path": str(repo)},
+    )
+    assets = client.get(f"/projects/{project['id']}/assets").json()
+    asset = next(asset for asset in assets if asset["source_uri"] == "docs/ref.md")
+    start = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "Inspect reference details",
+            "agent_type": "codex",
+        },
+    ).json()
+
+    response = client.post(
+        "/harness/fetch-context-ref",
+        json={
+            "session_id": start["session_id"],
+            "asset_id": asset["id"],
+            "max_tokens": 20,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["asset_id"] == asset["id"]
+    assert body["title"] == "docs/ref.md"
+    assert body["source_uri"] == "docs/ref.md"
+    assert "Reference detail line one." in body["content"]

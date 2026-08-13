@@ -34,6 +34,12 @@ class RecordEventRequest(BaseModel):
     payload: dict[str, Any]
 
 
+class FetchContextRefRequest(BaseModel):
+    session_id: str
+    asset_id: str
+    max_tokens: int = 2000
+
+
 class CloseWorkRequest(BaseModel):
     session_id: str
     status: str = "closed"
@@ -101,6 +107,20 @@ def record_event(
 ):
     event = _harness(session, keyword_index, vector_index).record_event(**payload.model_dump())
     return {"ok": True, "event": event}
+
+
+@router.post("/fetch-context-ref")
+def fetch_context_ref(
+    payload: FetchContextRefRequest,
+    session: Session = Depends(get_db_session),
+    keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
+    vector_index: FakeVectorIndex = Depends(get_vector_index),
+):
+    try:
+        result = _harness(session, keyword_index, vector_index).fetch_context_ref(**payload.model_dump())
+        return result.__dict__
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/close-work")

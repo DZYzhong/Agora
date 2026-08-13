@@ -46,6 +46,16 @@ TOOLS = [
         ["session_id"],
     ),
     _tool(
+        "agora_fetch_context_ref",
+        "Fetch the full content for a source reference returned by agora_plan_context.",
+        {
+            "session_id": {"type": "string"},
+            "asset_id": {"type": "string", "description": "The asset_id from a ContextPack source_refs item."},
+            "max_tokens": {"type": "integer", "default": 2000},
+        },
+        ["session_id", "asset_id"],
+    ),
+    _tool(
         "agora_record_event",
         "Record an AI work event into Agora.",
         {
@@ -134,6 +144,15 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                 "session_id": arguments["session_id"],
                 "query": arguments.get("query"),
                 "token_budget": arguments.get("token_budget", 4000),
+            },
+        )
+    if name == "agora_fetch_context_ref":
+        return await _post(
+            "/harness/fetch-context-ref",
+            {
+                "session_id": arguments["session_id"],
+                "asset_id": arguments["asset_id"],
+                "max_tokens": arguments.get("max_tokens", 2000),
             },
         )
     if name == "agora_record_event":

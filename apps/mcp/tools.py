@@ -10,8 +10,10 @@ class AgoraMcpTools:
         result = self.harness.plan_context(session_id=session_id, query=query, token_budget=token_budget)
         return _object_to_dict(result)
 
-    def agora_fetch_context_ref(self, *, session_id: str, source_ref: str, max_tokens: int = 2000) -> dict:
-        return {"session_id": session_id, "source_ref": source_ref, "max_tokens": max_tokens, "content": ""}
+    def agora_fetch_context_ref(self, *, session_id: str, asset_id: str, max_tokens: int = 2000) -> dict:
+        if not hasattr(self.harness, "fetch_context_ref"):
+            return {"session_id": session_id, "asset_id": asset_id, "max_tokens": max_tokens, "status": "not_implemented"}
+        return _object_to_dict(self.harness.fetch_context_ref(session_id=session_id, asset_id=asset_id, max_tokens=max_tokens))
 
     def agora_run_skill(self, *, session_id: str, skill_slug: str, input: dict) -> dict:
         if not hasattr(self.harness, "run_skill"):

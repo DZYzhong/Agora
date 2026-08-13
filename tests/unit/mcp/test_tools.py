@@ -5,6 +5,7 @@ class FakeHarness:
     def __init__(self):
         self.started = False
         self.closed_with = None
+        self.fetched_with = None
 
     def start_work(self, **kwargs):
         self.started = True
@@ -24,6 +25,14 @@ class FakeHarness:
     def close_work(self, **kwargs):
         self.closed_with = kwargs
         return {"session_id": kwargs["session_id"], "status": kwargs.get("status", "closed"), "writeback": {"id": "wb_1"}}
+
+    def fetch_context_ref(self, **kwargs):
+        self.fetched_with = kwargs
+        return {
+            "session_id": kwargs["session_id"],
+            "asset_id": kwargs["asset_id"],
+            "content": "source content",
+        }
 
 
 def test_mcp_start_work_delegates_to_harness():
@@ -61,4 +70,18 @@ def test_mcp_close_work_passes_development_capture_arguments():
         "head_ref": None,
         "agent_summary": "完成新功能",
         "test_result": "pytest passed",
+    }
+
+
+def test_mcp_fetch_context_ref_delegates_to_harness():
+    fake_harness = FakeHarness()
+    tools = AgoraMcpTools(harness=fake_harness)
+
+    result = tools.agora_fetch_context_ref(session_id="sess_1", asset_id="asset_1", max_tokens=100)
+
+    assert result["content"] == "source content"
+    assert fake_harness.fetched_with == {
+        "session_id": "sess_1",
+        "asset_id": "asset_1",
+        "max_tokens": 100,
     }

@@ -325,6 +325,14 @@ button {
   font-weight: 700;
 }
 
+.source-link {
+  color: #155eef;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 8px;
+}
+
 .asset-row {
   align-items: flex-start;
   border-top: 1px solid #edf0f4;

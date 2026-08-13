@@ -468,3 +468,56 @@ Black-box validation:
 Commit:
 
 - `feat: prune stale repository assets`
+
+### 2026-08-13: P3 Context Source Reference Fetch
+
+Scope:
+
+- Started P3 Context Quality work.
+- Added backend support for fetching a traceable source reference by `session_id` and `asset_id`.
+- Added `POST /harness/fetch-context-ref`.
+- Updated MCP stdio tool schema and local MCP adapter so `agora_fetch_context_ref` returns real asset content instead of placeholder content.
+- Added Web context source detail page.
+- Context Tester source rows now link to source detail when a session is available.
+
+Files changed:
+
+- Created: `docs/superpowers/plans/2026-08-13-agora-p3-context-quality.md`
+- Modified: `apps/api/routers/harness.py`
+- Modified: `packages/harness/service.py`
+- Modified: `apps/mcp/server.py`
+- Modified: `apps/mcp/tools.py`
+- Modified: `apps/web/app/projects/[projectId]/context/page.tsx`
+- Created: `apps/web/app/projects/[projectId]/context/source/[assetId]/page.tsx`
+- Modified: `apps/web/app/styles.css`
+- Modified: `tests/integration/api/test_harness_api.py`
+- Modified: `tests/unit/mcp/test_tools.py`
+- Modified: `tests/unit/mcp/test_stdio_server.py`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_fetch_context_ref_returns_traceable_asset_content -v
+# 1 passed
+
+.venv/bin/pytest tests/unit/mcp/test_tools.py tests/unit/mcp/test_stdio_server.py -v
+# 4 passed
+
+.venv/bin/pytest -q
+# 52 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Open a project with assets.
+- Go to Context.
+- Run a context query that returns source refs.
+- Click `View source` on a source row.
+- Expected: a source detail page opens showing title, source URI, asset ID, and source content.
+
+Commit:
+
+- Pending.
