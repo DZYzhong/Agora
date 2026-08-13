@@ -37,6 +37,34 @@ def test_initialize_local_records_completed_initialization_job():
     assert jobs[0]["error"] is None
 
 
+def test_initialize_local_can_be_repeated_without_duplicate_assets():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_reinit",
+            "name": "Reinitialize",
+            "slug": "reinitialize",
+            "git_remotes": ["git@example.com:reinitialize.git"],
+        },
+    ).json()
+
+    first = client.post(
+        f"/projects/{project['id']}/initialize-local",
+        json={"repo_path": "tests/fixtures/sample_repo"},
+    )
+    second = client.post(
+        f"/projects/{project['id']}/initialize-local",
+        json={"repo_path": "tests/fixtures/sample_repo"},
+    )
+    assets = client.get(f"/projects/{project['id']}/assets").json()
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["asset_count"] == second.json()["asset_count"]
+    assert len(assets) == first.json()["asset_count"]
+
+
 def test_initialize_local_records_failed_initialization_job_when_missing_remote(tmp_path):
     client = TestClient(app)
     project = client.post(

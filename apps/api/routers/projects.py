@@ -149,7 +149,7 @@ def initialize_local_project(
         asset_repo = AssetRepository(session)
         stored_assets = []
         for asset in result.assets:
-            stored = asset_repo.create(**asset.model_dump())
+            stored = asset_repo.upsert_by_source_uri(**asset.model_dump())
             keyword_index.index_asset(stored.id, asset)
             vector_index.index_asset(stored.id, asset)
             stored_assets.append(stored)

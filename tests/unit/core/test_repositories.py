@@ -56,3 +56,36 @@ def test_asset_repository_creates_asset():
 
     assert asset.project_id == project.id
     assert asset.title == "README"
+
+
+def test_asset_repository_upserts_by_project_and_source_uri():
+    session = make_session()
+    project = ProjectRepository(session).create(org_id="org_1", name="Payment", slug="payment")
+    repo = AssetRepository(session)
+
+    first = repo.upsert_by_source_uri(
+        org_id="org_1",
+        project_id=project.id,
+        type="doc",
+        source="git",
+        source_uri="README.md",
+        title="README",
+        content="Old content",
+        content_hash="old",
+    )
+    second = repo.upsert_by_source_uri(
+        org_id="org_1",
+        project_id=project.id,
+        type="doc",
+        source="git",
+        source_uri="README.md",
+        title="README",
+        content="New content",
+        content_hash="new",
+    )
+
+    assets = repo.list_by_project(project.id)
+    assert first.id == second.id
+    assert len(assets) == 1
+    assert assets[0].content == "New content"
+    assert assets[0].content_hash == "new"

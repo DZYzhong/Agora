@@ -31,3 +31,20 @@ def test_analyze_repository_detects_java_maven_source_files(tmp_path):
     assert "src/test/java/com/acme/AppTest.java" in result.test_paths
     assert "target/classes/App.class" not in result.source_files
     assert ".git/config" not in result.source_files
+
+
+def test_analyze_repository_reports_skipped_files_and_warnings(tmp_path):
+    repo = tmp_path / "real_repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "dist").mkdir()
+    (repo / "src/app.py").write_text("print('ok')", encoding="utf-8")
+    (repo / "src/blob.bin").write_bytes(b"\x00\x01\x02")
+    (repo / "dist/bundle.js").write_text("generated", encoding="utf-8")
+    (repo / "src/large.py").write_text("x" * 200_000, encoding="utf-8")
+
+    result = analyze_repository(repo)
+
+    assert result.scanned_file_count == 4
+    assert result.skipped_file_count == 3
+    assert result.source_files == ["src/app.py"]
+    assert any("Skipped 3 files" in warning for warning in result.warnings)

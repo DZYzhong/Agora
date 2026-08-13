@@ -1,4 +1,5 @@
 from pathlib import Path
+from hashlib import sha256
 
 from packages.domain.schemas import AssetCreate
 from packages.integrations.git.analyzer import RepositoryAnalysis
@@ -56,6 +57,7 @@ def _file_asset(
 ) -> AssetCreate:
     path = repo_path / relative_path
     content = path.read_text(encoding="utf-8")
+    content_hash = sha256(content.encode("utf-8")).hexdigest()
     return AssetCreate(
         org_id=org_id,
         project_id=project_id,
@@ -66,6 +68,7 @@ def _file_asset(
         content=content,
         summary=content.strip().splitlines()[0] if content.strip() else relative_path,
         metadata=metadata or {"path": relative_path},
+        content_hash=content_hash,
     )
 
 

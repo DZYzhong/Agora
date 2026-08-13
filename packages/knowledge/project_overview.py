@@ -1,3 +1,5 @@
+from hashlib import sha256
+
 from packages.domain.schemas import AssetCreate
 from packages.integrations.git.analyzer import RepositoryAnalysis
 
@@ -26,6 +28,7 @@ def generate_project_overview_asset(
         sections.append(f"README: {analysis.readme_path}")
 
     content = "\n".join(section for section in sections if section)
+    content_hash = sha256(content.encode("utf-8")).hexdigest()
     return AssetCreate(
         org_id=org_id,
         project_id=project_id,
@@ -41,7 +44,10 @@ def generate_project_overview_asset(
             "source_count": len(analysis.source_files),
             "test_count": len(analysis.test_paths),
             "readme_path": analysis.readme_path,
+            "scanned_file_count": analysis.scanned_file_count,
+            "skipped_file_count": analysis.skipped_file_count,
         },
+        content_hash=content_hash,
     )
 
 

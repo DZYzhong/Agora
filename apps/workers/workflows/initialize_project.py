@@ -37,5 +37,5 @@ def initialize_project_from_local_repo(
         asset_count=len(assets),
         modules=analysis.modules,
         assets=assets,
-        warnings=[],
+        warnings=analysis.warnings or [],
     )

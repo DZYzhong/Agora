@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+MAX_SOURCE_FILE_BYTES = 128_000
+
 
 DEPENDENCY_FILES = [
     "package.json",
@@ -51,18 +53,33 @@ class RepositoryAnalysis:
     dependency_files: list[str]
     readme_path: str | None
     source_files: list[str]
+    scanned_file_count: int = 0
+    skipped_file_count: int = 0
+    warnings: list[str] | None = None
 
 
 def analyze_repository(repo_path: Path) -> RepositoryAnalysis:
     readme = _find_readme(repo_path)
+    source_scan = _scan_source_files(repo_path)
     return RepositoryAnalysis(
         project_summary=_summarize_readme(readme) if readme else repo_path.name,
         modules=_find_modules(repo_path),
-        test_paths=_find_tests(repo_path),
+        test_paths=_find_tests(source_scan.source_files),
         dependency_files=_find_dependency_files(repo_path),
         readme_path=_relative(readme, repo_path) if readme else None,
-        source_files=_find_source_files(repo_path),
+        source_files=source_scan.source_files,
+        scanned_file_count=source_scan.scanned_file_count,
+        skipped_file_count=source_scan.skipped_file_count,
+        warnings=source_scan.warnings,
     )
+
+
+@dataclass(frozen=True)
+class SourceFileScan:
+    source_files: list[str]
+    scanned_file_count: int
+    skipped_file_count: int
+    warnings: list[str]
 
 
 def _find_readme(repo_path: Path) -> Path | None:
@@ -93,10 +110,10 @@ def _find_modules(repo_path: Path) -> list[str]:
     return modules
 
 
-def _find_tests(repo_path: Path) -> list[str]:
+def _find_tests(source_files: list[str]) -> list[str]:
     return [
         relative_path
-        for relative_path in _find_source_files(repo_path)
+        for relative_path in source_files
         if _is_test_path(relative_path)
     ]
 
@@ -106,13 +123,46 @@ def _find_dependency_files(repo_path: Path) -> list[str]:
 
 
 def _find_source_files(repo_path: Path) -> list[str]:
+    return _scan_source_files(repo_path).source_files
+
+
+def _scan_source_files(repo_path: Path) -> SourceFileScan:
     files: list[str] = []
+    skipped: list[str] = []
+    scanned_file_count = 0
     for path in sorted(repo_path.rglob("*")):
-        if not path.is_file() or _is_ignored(path, repo_path):
+        if not path.is_file():
             continue
-        if path.suffix.lower() in SOURCE_EXTENSIONS:
-            files.append(_relative(path, repo_path))
-    return files
+        scanned_file_count += 1
+        relative_path = _relative(path, repo_path)
+        skip_reason = _skip_reason(path, repo_path)
+        if skip_reason:
+            skipped.append(f"{relative_path} ({skip_reason})")
+            continue
+        files.append(relative_path)
+    warnings = []
+    if skipped:
+        warnings.append(f"Skipped {len(skipped)} files during repository analysis: {', '.join(skipped[:5])}")
+    return SourceFileScan(
+        source_files=files,
+        scanned_file_count=scanned_file_count,
+        skipped_file_count=len(skipped),
+        warnings=warnings,
+    )
+
+
+def _skip_reason(path: Path, repo_path: Path) -> str | None:
+    if _is_ignored(path, repo_path):
+        return "ignored path"
+    if path.stat().st_size > MAX_SOURCE_FILE_BYTES:
+        return f"larger than {MAX_SOURCE_FILE_BYTES} bytes"
+    if path.suffix.lower() not in SOURCE_EXTENSIONS:
+        return "unsupported extension"
+    try:
+        path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return "not valid UTF-8 text"
+    return None
 
 
 def _is_ignored(path: Path, repo_path: Path) -> bool:
