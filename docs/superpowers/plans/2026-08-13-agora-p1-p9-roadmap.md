@@ -708,4 +708,10 @@ Black-box validation path:
 
 Commit:
 
-- Pending.
+- `feat: match context refs to chunks`
+
+Black-box validation:
+
+- User confirmed this flow passed.
+- Querying `refund idempotency` in the prepared chunk fixture showed the matching later paragraph.
+- The source row displayed a later `chunk:<n>` value and matching later line range instead of always using `chunk:0`.
