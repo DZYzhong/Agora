@@ -362,11 +362,48 @@ cd apps/web && npm run build
 
 Expected: PASS.
 
+### Task 10: Overview Query Intent Fix
+
+**Files:**
+- Modify: `packages/harness/task_resolver.py`
+- Modify: `tests/unit/harness/test_harness_service.py`
+- Modify: `tests/unit/knowledge/test_context_engine.py`
+
+- [x] **Step 1: Reproduce with failing tests**
+
+Assert `介绍一下这个项目` starts work with `analysis` intent and broad overview queries rank Project Overview first even when docs/code files match.
+
+- [x] **Step 2: Run target tests**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/unit/harness/test_harness_service.py::test_start_work_infers_analysis_intent_for_project_overview_request tests/unit/knowledge/test_context_engine.py::test_context_engine_prefers_project_overview_for_broad_query_even_with_matching_files -v
+```
+
+Expected: FAIL for intent inference before the fix.
+
+- [x] **Step 3: Fix intent inference**
+
+Classify English overview/summarize/analyze requests and Chinese introduction/overview/core-module/business-flow requests as `analysis`.
+
+- [x] **Step 4: Run related and full verification**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/unit/harness/test_harness_service.py tests/unit/knowledge/test_context_engine.py tests/unit/knowledge/test_context_retrieval_eval.py -v
+.venv/bin/pytest -q
+cd apps/web && npm run build
+```
+
+Expected: PASS.
+
 ---
 
 ## Chunk 2: Verification and Roadmap Log
 
-### Task 10: Final Verification
+### Task 11: Final Verification
 
 **Files:**
 - Modify: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`

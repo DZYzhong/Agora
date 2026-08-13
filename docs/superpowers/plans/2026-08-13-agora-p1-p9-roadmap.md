@@ -792,3 +792,42 @@ Black-box validation:
 Commit:
 
 - `test: add context retrieval evaluation`
+
+### 2026-08-13: P3 Overview Query Intent Fix
+
+Scope:
+
+- Fixed project overview requests such as `介绍一下这个项目` being misclassified as `implementation`.
+- Added analysis intent inference for English overview/summarize/analyze requests and Chinese introduction/overview/core-module/business-flow requests.
+- Added regression coverage proving broad overview queries prefer `Project Overview` even when docs/code files also match query terms.
+
+Files changed:
+
+- Modified: `packages/harness/task_resolver.py`
+- Modified: `tests/unit/harness/test_harness_service.py`
+- Modified: `tests/unit/knowledge/test_context_engine.py`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/unit/harness/test_harness_service.py::test_start_work_infers_analysis_intent_for_project_overview_request tests/unit/knowledge/test_context_engine.py::test_context_engine_prefers_project_overview_for_broad_query_even_with_matching_files -v
+# 2 passed
+
+.venv/bin/pytest tests/unit/harness/test_harness_service.py tests/unit/knowledge/test_context_engine.py tests/unit/knowledge/test_context_retrieval_eval.py -v
+# 13 passed
+
+.venv/bin/pytest -q
+# 57 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Re-open the project overview query URL.
+- Expected: Session intent shows `analysis`, Context level shows `overview`, and Project Overview ranks first.
+
+Commit:
+
+- Pending.

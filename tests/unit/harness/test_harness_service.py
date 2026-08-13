@@ -109,3 +109,21 @@ def test_start_work_resolves_project_by_normalized_remote(fake_core, fake_contex
 
     assert result.project.id == project.id
     assert result.next_action == "plan_context"
+
+
+def test_start_work_infers_analysis_intent_for_project_overview_request(fake_core, fake_context_engine):
+    project = fake_core.create_project(
+        org_id="org_1",
+        name="Payment",
+        slug="payment",
+        git_remotes=["git@example.com:payment.git"],
+    )
+    harness = HarnessService(core=fake_core, context_engine=fake_context_engine)
+
+    result = harness.start_work(
+        project_id=project.id,
+        user_message="介绍一下这个项目",
+        agent_type="codex",
+    )
+
+    assert result.intent == "analysis"

@@ -124,6 +124,54 @@ def test_context_engine_prefers_project_overview_for_broad_fallback():
     assert context.level == "overview"
 
 
+def test_context_engine_prefers_project_overview_for_broad_query_even_with_matching_files():
+    keyword = FakeKeywordIndex()
+    vector = FakeVectorIndex()
+    assets = {
+        "doc_1": AssetCreate(
+            org_id="org_1",
+            project_id="proj_1",
+            type="doc",
+            source="git",
+            source_uri="docs/refund.md",
+            title="docs/refund.md",
+            content="# Refund Guide\n\n项目 retry handling and operator runbooks.",
+        ),
+        "code_1": AssetCreate(
+            org_id="org_1",
+            project_id="proj_1",
+            type="code_file",
+            source="git",
+            source_uri="src/refund/service.py",
+            title="src/refund/service.py",
+            content="class RefundService:\n    pass\n\n项目 refund implementation uses request keys.",
+        ),
+        "overview_1": AssetCreate(
+            org_id="org_1",
+            project_id="proj_1",
+            type="project_overview",
+            source="agora",
+            source_uri="agora://project-overview",
+            title="Project Overview",
+            content="Project overview modules include src/refund and docs/refund.",
+        ),
+    }
+    for asset_id, asset in assets.items():
+        keyword.index_asset(asset_id, asset)
+        vector.index_asset(asset_id, asset)
+    engine = ContextEngine(keyword_index=keyword, vector_index=vector)
+
+    context = engine.plan_context(
+        org_id="org_1",
+        project_id="proj_1",
+        intent="analysis",
+        query="介绍一下这个项目",
+    )
+
+    assert context.source_refs[0]["asset_id"] == "overview_1"
+    assert context.level == "overview"
+
+
 def test_context_engine_prefers_accepted_writeback_over_raw_code_matches():
     keyword = FakeKeywordIndex()
     vector = FakeVectorIndex()

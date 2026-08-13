@@ -19,6 +19,10 @@ class TaskResolver:
 
 def _infer_intent(message: str) -> str:
     lowered = message.lower()
+    if any(keyword in lowered for keyword in ("overview", "summarize", "summary", "analyze")):
+        return "analysis"
+    if any(keyword in message for keyword in ("介绍", "概览", "概况", "分析", "核心模块", "主要业务流程")):
+        return "analysis"
     if "test" in lowered or "测试" in message:
         return "test_generation"
     if "review" in lowered or "风险" in message:
