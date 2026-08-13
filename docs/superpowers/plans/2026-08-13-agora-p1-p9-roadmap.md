@@ -493,6 +493,12 @@ Black-box validation path:
 - Open a session audit detail page.
 - Expected: the detail page shows audit counters, context packs, source refs, skill runs, writebacks, and timeline events.
 
+Black-box validation:
+
+- User confirmed the P5 Session Audit validation passed.
+- Sessions filtering, audit counters, and the session detail page were verified from the browser.
+- Future black-box fixtures should use China-oriented manufacturer/manufacturing data by default, including MES, ERP, WMS, equipment, work orders, quality inspection, production line, supply chain, and plant operations scenarios.
+
 Commit:
 
 - `feat: add session audit workspace`
