@@ -120,7 +120,6 @@ def initialize_local_project(
         raise HTTPException(status_code=404, detail="Project not found")
 
     job_repo = InitializationJobRepository(session)
-    repo_path = Path(payload.repo_path)
     git_remote = project.git_remotes[0] if project.git_remotes else None
     job = job_repo.create(
         org_id=project.org_id,
@@ -128,17 +127,73 @@ def initialize_local_project(
         repo_path=payload.repo_path,
         git_remote=git_remote,
     )
+    return _run_initialization_job(
+        project=project,
+        job=job,
+        session=session,
+        job_repo=job_repo,
+        keyword_index=keyword_index,
+        vector_index=vector_index,
+    )
 
+
+@router.post("/{project_id}/initialization-jobs/{job_id}/retry")
+def retry_initialization_job(
+    project_id: str,
+    job_id: str,
+    session: Session = Depends(get_db_session),
+    keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
+    vector_index: FakeVectorIndex = Depends(get_vector_index),
+):
+    project = ProjectRepository(session).get(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    job_repo = InitializationJobRepository(session)
+    previous_job = job_repo.get(job_id)
+    if previous_job is None or previous_job.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Initialization job not found")
+    if previous_job.status != "failed":
+        raise HTTPException(status_code=400, detail="Only failed initialization jobs can be retried")
+
+    retry_job = job_repo.create(
+        org_id=project.org_id,
+        project_id=project.id,
+        repo_path=previous_job.repo_path,
+        git_remote=previous_job.git_remote,
+    )
+    result = _run_initialization_job(
+        project=project,
+        job=retry_job,
+        session=session,
+        job_repo=job_repo,
+        keyword_index=keyword_index,
+        vector_index=vector_index,
+    )
+    result["retry_of_job_id"] = previous_job.id
+    return result
+
+
+def _run_initialization_job(
+    *,
+    project,
+    job,
+    session: Session,
+    job_repo: InitializationJobRepository,
+    keyword_index: FakeKeywordIndex,
+    vector_index: FakeVectorIndex,
+) -> dict:
+    repo_path = Path(job.repo_path)
     if not repo_path.exists():
         if not project.git_remotes:
-            error = f"Repository path does not exist and project has no Git remote to clone: {payload.repo_path}"
+            error = f"Repository path does not exist and project has no Git remote to clone: {job.repo_path}"
             job_repo.mark_failed(job, error=error)
             raise HTTPException(
                 status_code=400,
                 detail=error,
             )
         try:
-            clone_repository(git_remote, repo_path)
+            clone_repository(project.git_remotes[0], repo_path)
         except GitCloneError as exc:
             error = f"Git clone failed: {exc}"
             job_repo.mark_failed(job, error=error)

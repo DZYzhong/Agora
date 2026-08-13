@@ -132,6 +132,10 @@ button {
   margin-top: 14px;
 }
 
+.compact-form {
+  margin: 0;
+}
+
 .alert {
   background: #fff1f2;
   border: 1px solid #fecdd3;
@@ -248,7 +252,7 @@ button {
   border-top: 1px solid #edf0f4;
   display: grid;
   gap: 12px;
-  grid-template-columns: 120px 100px 100px minmax(180px, 1fr);
+  grid-template-columns: 120px 100px 100px minmax(180px, 1fr) 100px;
   padding: 12px;
 }
 

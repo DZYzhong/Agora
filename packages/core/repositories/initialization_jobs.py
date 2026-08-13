@@ -38,6 +38,9 @@ class InitializationJobRepository:
         )
         return list(self.session.scalars(statement).all())
 
+    def get(self, job_id: str) -> ProjectInitializationJobModel | None:
+        return self.session.get(ProjectInitializationJobModel, job_id)
+
     def mark_completed(
         self,
         job: ProjectInitializationJobModel,

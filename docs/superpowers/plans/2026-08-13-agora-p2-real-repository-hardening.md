@@ -18,11 +18,11 @@
 - Modify: `packages/core/repositories/assets.py`
 - Test: `tests/unit/core/test_repositories.py`
 
-- [ ] **Step 1: Write failing repository test**
+- [x] **Step 1: Write failing repository test**
 
 Add a test proving that `AssetRepository.upsert_by_source_uri` updates an existing project asset instead of creating a duplicate.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run:
 
@@ -32,11 +32,11 @@ Run:
 
 Expected: FAIL because `upsert_by_source_uri` does not exist.
 
-- [ ] **Step 3: Implement asset upsert**
+- [x] **Step 3: Implement asset upsert**
 
 Add `find_by_project_source_uri` and `upsert_by_source_uri` methods. Matching key is `project_id + source_uri`. Updated fields should include type, source, title, content, summary, metadata, and content_hash.
 
-- [ ] **Step 4: Run test**
+- [x] **Step 4: Run test**
 
 Run:
 
@@ -52,11 +52,11 @@ Expected: PASS.
 - Modify: `apps/api/routers/projects.py`
 - Test: `tests/integration/api/test_initialization_jobs.py`
 
-- [ ] **Step 1: Write failing API test**
+- [x] **Step 1: Write failing API test**
 
 Add a test that initializes the same project twice and asserts the project asset count remains stable.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run:
 
@@ -66,11 +66,11 @@ Run:
 
 Expected: FAIL because initialization currently creates duplicate assets.
 
-- [ ] **Step 3: Replace create with upsert**
+- [x] **Step 3: Replace create with upsert**
 
 Use `AssetRepository.upsert_by_source_uri` in `initialize_local_project`. Re-index the returned stored asset after upsert.
 
-- [ ] **Step 4: Run targeted tests**
+- [x] **Step 4: Run targeted tests**
 
 Run:
 
@@ -92,11 +92,11 @@ Expected: PASS.
 - Test: `tests/unit/integrations/test_git_analyzer.py`
 - Test: `tests/integration/workers/test_initialize_project.py`
 
-- [ ] **Step 1: Write failing analyzer tests**
+- [x] **Step 1: Write failing analyzer tests**
 
 Add fixture files for generated, large, hidden, and binary-like content. Assert that analysis reports skipped file count and warnings while excluding skipped files from `source_files`.
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run:
 
@@ -106,7 +106,7 @@ Run:
 
 Expected: FAIL because diagnostics are not implemented.
 
-- [ ] **Step 3: Implement diagnostics**
+- [x] **Step 3: Implement diagnostics**
 
 Extend `RepositoryAnalysis` with:
 
@@ -121,11 +121,11 @@ Skip files when:
 - file extension is not a supported source extension
 - file cannot be read as UTF-8 when ingestion attempts to read it
 
-- [ ] **Step 4: Propagate warnings**
+- [x] **Step 4: Propagate warnings**
 
 Return analyzer warnings from `InitializeProjectResult.warnings`.
 
-- [ ] **Step 5: Run targeted tests**
+- [x] **Step 5: Run targeted tests**
 
 Run:
 
@@ -143,11 +143,11 @@ Expected: PASS.
 - Modify: `apps/api/routers/projects.py`
 - Test: `tests/integration/api/test_initialization_jobs.py`
 
-- [ ] **Step 1: Write failing diagnostics test**
+- [x] **Step 1: Write failing diagnostics test**
 
 Assert initialization job responses include warnings from repository analysis.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run:
 
@@ -157,11 +157,11 @@ Run:
 
 Expected: FAIL because job diagnostics are incomplete.
 
-- [ ] **Step 3: Persist warnings and counts**
+- [x] **Step 3: Persist warnings and counts**
 
 Use existing `warnings` and `asset_count` job fields for P2. Defer schema expansion for scanned/skipped counts until Alembic is introduced, but include counts in warnings text and initialization response.
 
-- [ ] **Step 4: Run targeted tests**
+- [x] **Step 4: Run targeted tests**
 
 Run:
 
@@ -171,11 +171,55 @@ Run:
 
 Expected: PASS.
 
+### Task 5: Retry Failed Initialization Jobs
+
+**Files:**
+- Modify: `apps/api/routers/projects.py`
+- Modify: `packages/core/repositories/initialization_jobs.py`
+- Modify: `apps/web/app/projects/[projectId]/page.tsx`
+- Modify: `apps/web/app/styles.css`
+- Create: `apps/web/app/projects/[projectId]/initialization-jobs/[jobId]/retry/route.ts`
+- Test: `tests/integration/api/test_initialization_jobs.py`
+
+- [x] **Step 1: Write failing retry API test**
+
+Add a test that creates a failed initialization job, fixes the repository path, retries the failed job, and asserts a new completed job appears above the failed job.
+
+- [x] **Step 2: Run test to verify failure**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_initialization_jobs.py -v
+```
+
+Expected: FAIL because retry endpoint does not exist.
+
+- [x] **Step 3: Implement retry API**
+
+Add `POST /projects/{project_id}/initialization-jobs/{job_id}/retry`, only allowing retries for failed jobs. Retry creates a new job using the failed job's original repository path.
+
+- [x] **Step 4: Add Web retry action**
+
+Show a `Retry` button for failed initialization history rows. The route handler calls the retry API and redirects back to project detail.
+
+- [x] **Step 5: Run targeted and full tests**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_initialization_jobs.py -v
+.venv/bin/pytest -q
+cd apps/web && npm run build
+```
+
+Expected: PASS.
+
 ---
 
 ## Chunk 3: Verification and Roadmap Log
 
-### Task 5: Final Verification and Roadmap Update
+### Task 6: Final Verification and Roadmap Update
 
 **Files:**
 - Modify: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`

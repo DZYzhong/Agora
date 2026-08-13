@@ -346,7 +346,7 @@ cd apps/web && npm run build
 
 Commit:
 
-- Pending.
+- `fix: summarize ignored repository directories`
 
 ### 2026-08-13: P2 Warning Noise Reduction
 
@@ -374,6 +374,53 @@ Verification:
 cd apps/web && npm run build
 # passed
 ```
+
+Commit:
+
+- `fix: reduce repository warning noise`
+
+Black-box validation:
+
+- User confirmed the warning noise reduction and repeated initialization behavior passed on the `东风大数据` project.
+- Latest repeated initialization stayed at 319 assets and did not duplicate project knowledge.
+
+### 2026-08-13: P2 Failed Initialization Retry
+
+Scope:
+
+- Added API support to retry a failed initialization job using the failed job's original repository path.
+- Retry creates a new initialization job, preserving the failed job in history.
+- Added Web retry action for failed initialization jobs in the project detail initialization history.
+- Retry success revalidates project detail and assets pages.
+
+Files changed:
+
+- Modified: `apps/api/routers/projects.py`
+- Modified: `packages/core/repositories/initialization_jobs.py`
+- Modified: `tests/integration/api/test_initialization_jobs.py`
+- Modified: `apps/web/app/projects/[projectId]/page.tsx`
+- Modified: `apps/web/app/styles.css`
+- Created: `apps/web/app/projects/[projectId]/initialization-jobs/[jobId]/retry/route.ts`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_initialization_jobs.py -v
+# 4 passed
+
+.venv/bin/pytest -q
+# 49 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Create or use a project with a failed initialization job.
+- Fix the repository path problem outside Agora.
+- Open the project detail page and click `Retry` on the failed history row.
+- Expected: a new completed job appears above the failed job; assets are created or updated without duplicating existing assets.
 
 Commit:
 

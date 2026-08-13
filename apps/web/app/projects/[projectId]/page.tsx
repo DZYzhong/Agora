@@ -105,6 +105,7 @@ export default async function ProjectDetailPage({
               <span>Assets</span>
               <span>Warnings</span>
               <span>Completed</span>
+              <span>Action</span>
             </div>
             {initializationJobs.map((job) => (
               <div className="history-row" key={job.id}>
@@ -112,6 +113,17 @@ export default async function ProjectDetailPage({
                 <span>{job.asset_count}</span>
                 <span>{job.warnings.length}</span>
                 <span>{job.completed_at ? new Date(job.completed_at).toLocaleString() : "In progress"}</span>
+                <span>
+                  {job.status === "failed" ? (
+                    <form className="inline-form compact-form" action={`/projects/${project.id}/initialization-jobs/${job.id}/retry`} method="post">
+                      <button type="submit" className="secondary-button">
+                        Retry
+                      </button>
+                    </form>
+                  ) : (
+                    "None"
+                  )}
+                </span>
               </div>
             ))}
           </div>

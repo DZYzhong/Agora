@@ -91,3 +91,41 @@ def test_initialize_local_records_failed_initialization_job_when_missing_remote(
     assert jobs[0]["status"] == "failed"
     assert "no Git remote" in jobs[0]["error"]
     assert jobs[0]["asset_count"] == 0
+
+
+def test_retry_failed_initialization_job_uses_previous_repo_path(tmp_path):
+    client = TestClient(app)
+    missing_repo = tmp_path / "missing_repo"
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_retry_init",
+            "name": "Retry Initialization",
+            "slug": "retry-initialization",
+            "git_remotes": [],
+        },
+    ).json()
+
+    failed_response = client.post(
+        f"/projects/{project['id']}/initialize-local",
+        json={"repo_path": str(missing_repo)},
+    )
+    assert failed_response.status_code == 400
+
+    (missing_repo / "src").mkdir(parents=True)
+    (missing_repo / "README.md").write_text("# Retry Repo\n\nRecovered repository.", encoding="utf-8")
+    (missing_repo / "src/app.py").write_text("print('retry')", encoding="utf-8")
+    failed_job = client.get(f"/projects/{project['id']}/initialization-jobs").json()[0]
+
+    retry_response = client.post(f"/projects/{project['id']}/initialization-jobs/{failed_job['id']}/retry")
+
+    assert retry_response.status_code == 200
+    retry_body = retry_response.json()
+    assert retry_body["status"] == "completed"
+    assert retry_body["asset_count"] > 0
+    assert retry_body["retry_of_job_id"] == failed_job["id"]
+
+    jobs = client.get(f"/projects/{project['id']}/initialization-jobs").json()
+    assert jobs[0]["status"] == "completed"
+    assert jobs[0]["repo_path"] == str(missing_repo)
+    assert jobs[1]["status"] == "failed"
