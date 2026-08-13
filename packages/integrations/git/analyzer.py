@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import os
 from pathlib import Path
 
 MAX_SOURCE_FILE_BYTES = 128_000
@@ -129,18 +130,31 @@ def _find_source_files(repo_path: Path) -> list[str]:
 def _scan_source_files(repo_path: Path) -> SourceFileScan:
     files: list[str] = []
     skipped: list[str] = []
+    ignored_dirs: set[str] = set()
     scanned_file_count = 0
-    for path in sorted(repo_path.rglob("*")):
-        if not path.is_file():
-            continue
-        scanned_file_count += 1
-        relative_path = _relative(path, repo_path)
-        skip_reason = _skip_reason(path, repo_path)
-        if skip_reason:
-            skipped.append(f"{relative_path} ({skip_reason})")
-            continue
-        files.append(relative_path)
+    for root, dir_names, file_names in os.walk(repo_path):
+        root_path = Path(root)
+        kept_dirs = []
+        for dir_name in sorted(dir_names):
+            relative_dir = (root_path / dir_name).relative_to(repo_path).as_posix()
+            if dir_name in IGNORED_DIRS:
+                ignored_dirs.add(relative_dir)
+            else:
+                kept_dirs.append(dir_name)
+        dir_names[:] = kept_dirs
+
+        for file_name in sorted(file_names):
+            path = root_path / file_name
+            scanned_file_count += 1
+            relative_path = _relative(path, repo_path)
+            skip_reason = _skip_reason(path)
+            if skip_reason:
+                skipped.append(f"{relative_path} ({skip_reason})")
+                continue
+            files.append(relative_path)
     warnings = []
+    if ignored_dirs:
+        warnings.append(f"Ignored directories: {', '.join(sorted(ignored_dirs)[:8])}")
     if skipped:
         warnings.append(f"Skipped {len(skipped)} files during repository analysis: {', '.join(skipped[:5])}")
     return SourceFileScan(
@@ -151,9 +165,7 @@ def _scan_source_files(repo_path: Path) -> SourceFileScan:
     )
 
 
-def _skip_reason(path: Path, repo_path: Path) -> str | None:
-    if _is_ignored(path, repo_path):
-        return "ignored path"
+def _skip_reason(path: Path) -> str | None:
     if path.stat().st_size > MAX_SOURCE_FILE_BYTES:
         return f"larger than {MAX_SOURCE_FILE_BYTES} bytes"
     if path.suffix.lower() not in SOURCE_EXTENSIONS:

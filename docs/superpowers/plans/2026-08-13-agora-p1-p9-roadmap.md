@@ -312,3 +312,38 @@ cd apps/web && npm run build
 Commit:
 
 - `feat: harden repository initialization`
+
+### 2026-08-13: P2 Black-Box Feedback Follow-Up
+
+Scope:
+
+- User verified P2 through the project detail page on the persisted `东风大数据` project.
+- The core idempotency behavior held: re-initializing `/Users/daniel/Documents/PTest3` completed with 319 assets instead of duplicating to a larger count.
+- Black-box review exposed that `.git` files were shown as hundreds of skipped files, which was technically explainable but poor UX and misleading.
+- Changed repository scanning to prune ignored directories before file scanning.
+- Warnings now summarize ignored directories, such as `.git` and `node_modules`, instead of listing/counting every file inside them.
+
+Files changed:
+
+- Modified: `packages/integrations/git/analyzer.py`
+- Modified: `tests/unit/integrations/test_git_analyzer.py`
+- Modified: `tests/integration/workers/test_initialize_project.py`
+- Modified: `apps/web/app/projects/[projectId]/page.tsx`
+- Modified: `apps/web/app/styles.css`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/unit/integrations/test_git_analyzer.py tests/integration/workers/test_initialize_project.py -v
+# 6 passed
+
+.venv/bin/pytest -q
+# 47 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Commit:
+
+- Pending.

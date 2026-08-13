@@ -44,7 +44,26 @@ def test_analyze_repository_reports_skipped_files_and_warnings(tmp_path):
 
     result = analyze_repository(repo)
 
-    assert result.scanned_file_count == 4
-    assert result.skipped_file_count == 3
+    assert result.scanned_file_count == 3
+    assert result.skipped_file_count == 2
     assert result.source_files == ["src/app.py"]
-    assert any("Skipped 3 files" in warning for warning in result.warnings)
+    assert any("Ignored directories: dist" in warning for warning in result.warnings)
+    assert any("Skipped 2 files" in warning for warning in result.warnings)
+
+
+def test_analyze_repository_summarizes_ignored_directories_without_counting_each_file(tmp_path):
+    repo = tmp_path / "real_repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / ".git/objects").mkdir(parents=True)
+    (repo / "node_modules/pkg").mkdir(parents=True)
+    (repo / "src/app.py").write_text("print('ok')", encoding="utf-8")
+    (repo / ".git/config").write_text("[core]", encoding="utf-8")
+    (repo / ".git/HEAD").write_text("ref: refs/heads/main", encoding="utf-8")
+    (repo / "node_modules/pkg/index.js").write_text("ignored", encoding="utf-8")
+
+    result = analyze_repository(repo)
+
+    assert result.scanned_file_count == 1
+    assert result.skipped_file_count == 0
+    assert result.source_files == ["src/app.py"]
+    assert any("Ignored directories: .git, node_modules" in warning for warning in result.warnings)

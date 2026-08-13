@@ -31,4 +31,4 @@ def test_initialize_project_from_local_repo_returns_analysis_warnings(tmp_path):
 
     assert result.asset_count > 0
     assert result.warnings
-    assert any("Skipped 1 files" in warning for warning in result.warnings)
+    assert any("Ignored directories: node_modules" in warning for warning in result.warnings)

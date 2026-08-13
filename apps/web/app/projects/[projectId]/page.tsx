@@ -80,12 +80,43 @@ export default async function ProjectDetailPage({
           </dl>
         ) : null}
         {latestInitializationJob?.error ? <p className="alert">{latestInitializationJob.error}</p> : null}
+        {latestInitializationJob?.warnings?.length ? (
+          <div className="warning-list">
+            <h3>Warnings</h3>
+            <ul>
+              {latestInitializationJob.warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {latestInitializationJob?.status === "completed" ? (
           <Link className="button-link" href={`/projects/${project.id}/assets`}>
             View assets
           </Link>
         ) : null}
       </section>
+      {initializationJobs.length ? (
+        <section className="panel">
+          <h2>Initialization history</h2>
+          <div className="history-list">
+            <div className="history-row history-header">
+              <span>Status</span>
+              <span>Assets</span>
+              <span>Warnings</span>
+              <span>Completed</span>
+            </div>
+            {initializationJobs.map((job) => (
+              <div className="history-row" key={job.id}>
+                <span>{job.status}</span>
+                <span>{job.asset_count}</span>
+                <span>{job.warnings.length}</span>
+                <span>{job.completed_at ? new Date(job.completed_at).toLocaleString() : "In progress"}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <form className="panel form" action={`/projects/${project.id}/initialize`} method="post">
         <h2>Initialize from local repository</h2>
         {initError ? <p className="alert">{initError}</p> : null}
