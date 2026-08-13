@@ -424,7 +424,7 @@ Black-box validation path:
 
 Commit:
 
-- Pending.
+- `feat: retry failed project initialization`
 
 ### 2026-08-13: P2 Stale Asset Pruning
 
@@ -461,6 +461,10 @@ Black-box validation path:
 - Delete `src/removed.py` from the repository and initialize again.
 - Expected: `src/removed.py` no longer appears in Assets; remaining assets are stable and not duplicated.
 
+Black-box validation:
+
+- User confirmed this flow passed with prepared temporary repositories.
+
 Commit:
 
-- Pending.
+- `feat: prune stale repository assets`
