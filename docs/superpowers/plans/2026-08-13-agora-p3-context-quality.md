@@ -247,11 +247,50 @@ cd apps/web && npm run build
 
 Expected: PASS.
 
+### Task 7: Matching Chunk Source References
+
+**Files:**
+- Modify: `packages/knowledge/context_engine.py`
+- Modify: `tests/unit/knowledge/test_context_engine.py`
+
+- [x] **Step 1: Write failing matching chunk test**
+
+Assert a query that matches a later paragraph returns `chunk:1`, that paragraph's line/character span, and that paragraph's preview.
+
+- [x] **Step 2: Run test to verify failure**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/unit/knowledge/test_context_engine.py::test_context_engine_source_ref_points_to_matching_chunk -v
+```
+
+Expected: FAIL because source refs still use asset-level `chunk:0` spans.
+
+- [x] **Step 3: Add query-matched chunk selection**
+
+Split source content into paragraph chunks, compute chunk spans, and choose the chunk with the highest query token overlap.
+
+- [x] **Step 4: Keep existing source ref contract**
+
+Continue returning `asset_id`, `asset_type`, `chunk_id`, `source_span`, `preview`, `relevance`, and `retrieval_sources`.
+
+- [x] **Step 5: Run tests and build**
+
+Run:
+
+```bash
+.venv/bin/pytest -q
+cd apps/web && npm run build
+```
+
+Expected: PASS.
+
 ---
 
 ## Chunk 2: Verification and Roadmap Log
 
-### Task 7: Final Verification
+### Task 8: Final Verification
 
 **Files:**
 - Modify: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`

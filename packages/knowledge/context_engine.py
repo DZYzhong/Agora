@@ -16,6 +16,13 @@ class PlannedContextPack:
     source_refs: list[dict] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class SourceChunk:
+    index: int
+    content: str
+    source_span: dict[str, int]
+
+
 class ContextEngine:
     def __init__(self, *, keyword_index, vector_index):
         self.keyword_index = keyword_index
@@ -49,17 +56,7 @@ class ContextEngine:
             summary=summary,
             key_facts=[{"fact": _first_sentence(candidate.content), "source_refs": [candidate.asset_id]} for candidate in candidates[:3]],
             source_refs=[
-                {
-                    "asset_id": candidate.asset_id,
-                    "asset_type": candidate.asset_type,
-                    "chunk_id": _chunk_id(candidate.asset_id),
-                    "title": candidate.title,
-                    "source_uri": candidate.source_uri,
-                    "source_span": _source_span(candidate.content),
-                    "preview": _preview(candidate.content),
-                    "relevance": candidate.score,
-                    "retrieval_sources": list(candidate.sources),
-                }
+                _source_ref(candidate, query=query)
                 for candidate in candidates
             ],
         )
@@ -89,19 +86,71 @@ def _preview(content: str, *, max_chars: int = 240) -> str:
     return sentence[: max_chars - 1].rstrip() + "..."
 
 
+def _source_ref(candidate: SearchCandidate, *, query: str) -> dict:
+    chunk = _best_chunk(candidate.content, query=query)
+    return {
+        "asset_id": candidate.asset_id,
+        "asset_type": candidate.asset_type,
+        "chunk_id": _chunk_id(candidate.asset_id, index=chunk.index),
+        "title": candidate.title,
+        "source_uri": candidate.source_uri,
+        "source_span": chunk.source_span,
+        "preview": _preview(chunk.content),
+        "relevance": candidate.score,
+        "retrieval_sources": list(candidate.sources),
+    }
+
+
 def _chunk_id(asset_id: str, *, index: int = 0) -> str:
     return f"{asset_id}:chunk:{index}"
 
 
-def _source_span(content: str) -> dict[str, int]:
+def _best_chunk(content: str, *, query: str) -> SourceChunk:
+    chunks = _source_chunks(content)
+    if not chunks:
+        return SourceChunk(index=0, content="", source_span=_source_span(""))
+    query_terms = _terms(query)
+    if not query_terms:
+        return chunks[0]
+    return max(chunks, key=lambda chunk: (_chunk_score(chunk.content, query_terms), -chunk.index))
+
+
+def _source_chunks(content: str) -> list[SourceChunk]:
+    if not content:
+        return []
+    chunks: list[SourceChunk] = []
+    cursor = 0
+    for index, paragraph in enumerate(part for part in content.split("\n\n") if part.strip()):
+        start_char = content.index(paragraph, cursor)
+        end_char = start_char + len(paragraph)
+        chunks.append(
+            SourceChunk(
+                index=index,
+                content=paragraph,
+                source_span=_source_span(content, start_char=start_char, end_char=end_char),
+            )
+        )
+        cursor = end_char
+    return chunks or [SourceChunk(index=0, content=content, source_span=_source_span(content))]
+
+
+def _source_span(content: str, *, start_char: int = 0, end_char: int | None = None) -> dict[str, int]:
+    if end_char is None:
+        end_char = len(content)
     if not content:
         return {"start_line": 1, "end_line": 1, "start_char": 0, "end_char": 0}
-    return {
-        "start_line": 1,
-        "end_line": content.count("\n") + 1,
-        "start_char": 0,
-        "end_char": len(content),
-    }
+    start_line = content.count("\n", 0, start_char) + 1
+    end_line = content.count("\n", 0, max(start_char, end_char - 1)) + 1
+    return {"start_line": start_line, "end_line": end_line, "start_char": start_char, "end_char": end_char}
+
+
+def _chunk_score(content: str, query_terms: set[str]) -> int:
+    haystack_terms = _terms(content)
+    return len(query_terms & haystack_terms)
+
+
+def _terms(text: str) -> set[str]:
+    return {term for term in text.lower().replace("_", " ").replace("-", " ").split() if term}
 
 
 def _rank_by_intent(candidates: list[SearchCandidate], *, intent: str) -> list[SearchCandidate]:

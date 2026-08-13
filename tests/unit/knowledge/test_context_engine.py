@@ -214,3 +214,36 @@ def test_context_engine_boosts_sources_by_intent():
 
     assert implementation_context.source_refs[0]["asset_id"] == "code_1"
     assert risk_context.source_refs[0]["asset_id"] == "writeback_1"
+
+
+def test_context_engine_source_ref_points_to_matching_chunk():
+    asset = AssetCreate(
+        org_id="org_1",
+        project_id="proj_1",
+        type="doc",
+        source="git",
+        source_uri="docs/payments.md",
+        title="Payment Notes",
+        content="Payment overview stays stable.\n\nRefund retry uses idempotency keys.",
+    )
+    keyword = FakeKeywordIndex()
+    vector = FakeVectorIndex()
+    keyword.index_asset("asset_1", asset)
+    vector.index_asset("asset_1", asset)
+
+    context = ContextEngine(keyword_index=keyword, vector_index=vector).plan_context(
+        org_id="org_1",
+        project_id="proj_1",
+        intent="implementation",
+        query="refund idempotency",
+    )
+
+    source = context.source_refs[0]
+    assert source["chunk_id"] == "asset_1:chunk:1"
+    assert source["source_span"] == {
+        "start_line": 3,
+        "end_line": 3,
+        "start_char": asset.content.index("Refund"),
+        "end_char": len(asset.content),
+    }
+    assert source["preview"] == "Refund retry uses idempotency keys."

@@ -668,3 +668,44 @@ Black-box validation:
 - User confirmed this flow passed.
 - Implementation query ranked `code_file` first in the prepared fixture project.
 - Risk-oriented query ranked `writeback` first in the prepared fixture project.
+
+### 2026-08-13: P3 Matching Chunk Source References
+
+Scope:
+
+- Upgraded ContextPack source references from asset-level `chunk:0` spans to query-matched chunk spans.
+- Added source chunk selection inside ContextEngine using paragraph chunks and query token overlap.
+- Source refs now point to the best matching paragraph chunk, with stable `chunk_id`, line range, character range, and preview from that chunk.
+- Kept API/Web field shape unchanged, so existing Context Tester and source detail flows continue to work.
+
+Files changed:
+
+- Modified: `packages/knowledge/context_engine.py`
+- Modified: `tests/unit/knowledge/test_context_engine.py`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/unit/knowledge/test_context_engine.py::test_context_engine_source_ref_points_to_matching_chunk -v
+# 1 passed
+
+.venv/bin/pytest tests/unit/knowledge/test_context_engine.py -v
+# 6 passed
+
+.venv/bin/pytest -q
+# 54 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Open a project with initialized assets containing multi-paragraph docs/code.
+- Go to Context and query a term that appears in a later paragraph.
+- Expected: source row preview shows the matching paragraph rather than the first paragraph.
+- Expected: source row line range points to the matched paragraph, such as `lines 3-3`, with a matching `chunk:<n>` value.
+
+Commit:
+
+- Pending.
