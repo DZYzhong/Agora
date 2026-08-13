@@ -196,3 +196,48 @@ def test_fetch_context_ref_returns_traceable_asset_content(tmp_path):
     assert body["title"] == "docs/ref.md"
     assert body["source_uri"] == "docs/ref.md"
     assert "Reference detail line one." in body["content"]
+
+
+def test_plan_context_persists_context_pack_on_session_timeline(tmp_path):
+    client = TestClient(app)
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "src/service.py").write_text("Refund retry idempotency implementation.", encoding="utf-8")
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_context_pack",
+            "name": "Context Pack",
+            "slug": "context-pack",
+            "git_remotes": ["git@example.com:context-pack.git"],
+        },
+    ).json()
+    client.post(
+        f"/projects/{project['id']}/initialize-local",
+        json={"repo_path": str(repo)},
+    )
+    start = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "Implement refund retry",
+            "agent_type": "codex",
+        },
+    ).json()
+
+    context = client.post(
+        "/harness/plan-context",
+        json={
+            "session_id": start["session_id"],
+            "query": "refund retry idempotency",
+            "token_budget": 1200,
+        },
+    ).json()
+
+    sessions = client.get(f"/projects/{project['id']}/sessions").json()
+    context_packs = sessions[0]["context_packs"]
+    assert context_packs[0]["id"] == context["id"]
+    assert context_packs[0]["level"] == context["level"]
+    assert context_packs[0]["source_refs"][0]["chunk_id"]
+    assert sessions[0]["events"][0]["event_type"] == "context_planned"
+    assert sessions[0]["events"][0]["payload"]["context_pack_id"] == context["id"]

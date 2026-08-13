@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from packages.core.repositories.assets import AssetRepository
+from packages.core.repositories.context_packs import ContextPackRepository
 from packages.core.repositories.projects import ProjectRepository
 from packages.core.repositories.sessions import TaskSessionRepository
 from packages.core.repositories.writebacks import WritebackRepository
@@ -33,6 +34,12 @@ class CoreRuntime:
 
     def record_event(self, **kwargs):
         return TaskSessionRepository(self.session).record_event(**kwargs)
+
+    def create_context_pack(self, **kwargs):
+        return ContextPackRepository(self.session).create(**kwargs)
+
+    def list_context_packs_by_ids(self, context_pack_ids: list[str]):
+        return ContextPackRepository(self.session).list_by_ids(context_pack_ids)
 
     def create_asset(self, **kwargs):
         return AssetRepository(self.session).create(**kwargs)

@@ -15,6 +15,21 @@ type TaskSession = {
   status: string;
   created_at: string;
   closed_at: string | null;
+  context_packs: Array<{
+    id: string;
+    level: string;
+    summary: string;
+    key_facts: Array<{
+      fact: string;
+      source_refs: string[];
+    }>;
+    source_refs: Array<{
+      asset_id: string;
+      title: string;
+      chunk_id: string;
+    }>;
+    created_at: string;
+  }>;
   events: SessionEvent[];
 };
 
@@ -56,6 +71,33 @@ export default async function SessionsPage({ params }: { params: Promise<{ proje
                 <dd>{session.closed_at ? new Date(session.closed_at).toLocaleString() : "Open"}</dd>
               </div>
             </dl>
+            {session.context_packs.length ? (
+              <div className="context-pack-list">
+                {session.context_packs.map((contextPack) => (
+                  <section className="context-pack-row" key={contextPack.id}>
+                    <div className="session-header">
+                      <div>
+                        <p className="eyebrow">ContextPack</p>
+                        <h3>{contextPack.level}</h3>
+                        <p className="asset-uri">{contextPack.id}</p>
+                      </div>
+                      <span className="asset-type">{contextPack.source_refs.length} sources</span>
+                    </div>
+                    <pre className="context-summary">{contextPack.summary}</pre>
+                    {contextPack.key_facts.length ? (
+                      <ul className="fact-list">
+                        {contextPack.key_facts.map((fact) => (
+                          <li key={`${contextPack.id}-${fact.source_refs.join("-")}`}>
+                            <span>{fact.fact}</span>
+                            <code>{fact.source_refs.join(", ")}</code>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </section>
+                ))}
+              </div>
+            ) : null}
             {session.events.length ? (
               <div className="event-list">
                 {session.events.map((event) => (

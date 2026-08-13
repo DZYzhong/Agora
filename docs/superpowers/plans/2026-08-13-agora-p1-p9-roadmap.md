@@ -831,3 +831,50 @@ Black-box validation path:
 Commit:
 
 - Pending.
+
+### 2026-08-13: P3 Persisted ContextPack Session Timeline
+
+Scope:
+
+- Persisted every planned ContextPack into the `context_packs` table.
+- Recorded a `context_planned` session event containing ContextPack ID, level, and source count.
+- Extended the sessions API to return ContextPack history attached to each session.
+- Sessions page now shows ContextPack level, summary, key facts, and source count for each session.
+- This completes the P3 audit loop: a reviewer can see what context was generated for a session after the fact.
+
+Files changed:
+
+- Created: `packages/core/repositories/context_packs.py`
+- Modified: `packages/core/services/runtime.py`
+- Modified: `packages/harness/context_planner.py`
+- Modified: `apps/api/routers/sessions.py`
+- Modified: `apps/web/app/projects/[projectId]/sessions/page.tsx`
+- Modified: `apps/web/app/styles.css`
+- Modified: `tests/integration/api/test_harness_api.py`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_plan_context_persists_context_pack_on_session_timeline -v
+# 1 passed
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py tests/unit/harness/test_harness_service.py -v
+# 10 passed
+
+.venv/bin/pytest -q
+# 58 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Run one or more Context Tester queries for a project.
+- Open that project's Sessions page.
+- Expected: the latest sessions show ContextPack blocks with level, summary, key facts, and source count.
+- Expected: session events include `context_planned` with the ContextPack ID.
+
+Commit:
+
+- Pending.

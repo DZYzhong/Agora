@@ -399,11 +399,59 @@ cd apps/web && npm run build
 
 Expected: PASS.
 
+### Task 11: Persisted ContextPack Session Timeline
+
+**Files:**
+- Create: `packages/core/repositories/context_packs.py`
+- Modify: `packages/core/services/runtime.py`
+- Modify: `packages/harness/context_planner.py`
+- Modify: `apps/api/routers/sessions.py`
+- Modify: `apps/web/app/projects/[projectId]/sessions/page.tsx`
+- Modify: `apps/web/app/styles.css`
+- Modify: `tests/integration/api/test_harness_api.py`
+
+- [x] **Step 1: Write failing API timeline test**
+
+Assert `POST /harness/plan-context` persists a ContextPack and `/projects/{project_id}/sessions` returns it under the session with a `context_planned` event.
+
+- [x] **Step 2: Run test to verify failure**
+
+Run:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_plan_context_persists_context_pack_on_session_timeline -v
+```
+
+Expected: FAIL because sessions do not expose context packs yet.
+
+- [x] **Step 3: Add ContextPack repository/runtime methods**
+
+Persist generated ContextPacks using their generated IDs and load packs by event IDs.
+
+- [x] **Step 4: Persist and record during planning**
+
+After ContextEngine returns a pack, save it and record `context_planned` with pack ID, level, and source count.
+
+- [x] **Step 5: Expose timeline in API/Web**
+
+Return context packs from the sessions API and render level, summary, key facts, and source count on the Sessions page.
+
+- [x] **Step 6: Run tests and build**
+
+Run:
+
+```bash
+.venv/bin/pytest -q
+cd apps/web && npm run build
+```
+
+Expected: PASS.
+
 ---
 
 ## Chunk 2: Verification and Roadmap Log
 
-### Task 11: Final Verification
+### Task 12: Final Verification
 
 **Files:**
 - Modify: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
