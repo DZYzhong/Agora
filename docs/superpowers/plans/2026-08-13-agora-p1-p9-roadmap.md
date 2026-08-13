@@ -239,6 +239,26 @@ Exit criteria:
 
 ## Execution Log
 
+### 2026-08-13: P4 Skill Lifecycle Started
+
+Scope:
+
+- Started P4 Skill Lifecycle.
+- Created a durable implementation plan for Skill CRUD, approval/deprecation workflow, SkillRun history, and Web lifecycle controls.
+- P4 will be developed as a larger validation batch instead of requiring user validation after each small field or endpoint.
+
+Files changed:
+
+- Created: `docs/superpowers/plans/2026-08-13-agora-p4-skill-lifecycle.md`
+
+Verification:
+
+- Not run for plan-only change.
+
+Commit:
+
+- Pending.
+
 ### 2026-08-13: Roadmap Reconstructed
 
 Scope:
