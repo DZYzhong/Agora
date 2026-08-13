@@ -403,7 +403,44 @@ Black-box validation path:
 
 Commit:
 
-- Pending.
+- `feat: audit skill lifecycle failures`
+
+### 2026-08-13: P4 Candidate Skill Evidence Review
+
+Scope:
+
+- Candidate skills generated from accepted writebacks now expose `evidence_refs` in the Skills API.
+- Evidence refs include writeback ID, type, title, status, accepted asset ID, and a compact content preview.
+- The Skills page renders an Evidence section on skill cards, so reviewers can inspect why an auto-generated candidate exists before approving it.
+- Added repository/runtime helpers to load writebacks by ordered evidence IDs.
+
+Files changed:
+
+- Modified: `packages/core/repositories/writebacks.py`
+- Modified: `packages/core/services/runtime.py`
+- Modified: `apps/api/routers/skills.py`
+- Modified: `apps/web/app/projects/[projectId]/skills/page.tsx`
+- Modified: `apps/web/app/styles.css`
+- Modified: `tests/integration/api/test_skills_api.py`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p4-skill-lifecycle.md`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_skills_api.py::test_repeated_accepted_writebacks_create_candidate_skill -v
+# 1 passed
+```
+
+Black-box validation path:
+
+- Create or open a project with two accepted writebacks of the same type.
+- Open the project's Skills page.
+- Expected: the auto-generated candidate skill shows an Evidence section with both writeback titles and previews.
+- Approve the candidate and confirm the Evidence section remains visible for audit context.
+
+Commit:
+
+- `feat: show candidate skill evidence`
 
 ### 2026-08-13: Roadmap Reconstructed
 

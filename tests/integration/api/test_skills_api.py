@@ -137,6 +137,12 @@ def test_repeated_accepted_writebacks_create_candidate_skill():
     assert not candidate["builtin"]
     assert candidate["definition"]["source"] == "accepted_writebacks"
     assert candidate["definition"]["writeback_type"] == "release_risk_review"
+    assert [item["title"] for item in candidate["evidence_refs"]] == [
+        "Release risk review 0",
+        "Release risk review 1",
+    ]
+    assert all(item["status"] == "accepted" for item in candidate["evidence_refs"])
+    assert all(item["content_preview"].startswith("Review release risk") for item in candidate["evidence_refs"])
 
 
 def test_builtin_skills_are_read_only_for_lifecycle_updates():

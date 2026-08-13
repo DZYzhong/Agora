@@ -12,6 +12,14 @@ type Skill = {
     instructions?: string;
     builtin?: boolean;
   };
+  evidence_refs: {
+    id: string;
+    type: string;
+    title: string;
+    status: string;
+    accepted_asset_id: string | null;
+    content_preview: string;
+  }[];
   builtin: boolean;
 };
 
@@ -96,6 +104,21 @@ export default async function SkillsPage({ params }: { params: Promise<{ project
               </div>
             </dl>
             {skill.definition.instructions ? <p className="asset-summary">{skill.definition.instructions}</p> : null}
+            {skill.evidence_refs.length ? (
+              <div className="evidence-list">
+                <p className="eyebrow">Evidence</p>
+                {skill.evidence_refs.map((evidence) => (
+                  <div className="evidence-row" key={evidence.id}>
+                    <strong>{evidence.title}</strong>
+                    <p className="asset-uri">{evidence.type} · {evidence.status}</p>
+                    <p>{evidence.content_preview}</p>
+                    {evidence.accepted_asset_id ? (
+                      <p className="asset-uri">Accepted asset: {evidence.accepted_asset_id}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {!skill.builtin ? (
               <form className="inline-form" action={`/projects/${projectId}/skills/${skill.id}/update`} method="post">
                 <input name="name" defaultValue={skill.name} />

@@ -31,7 +31,30 @@ class SkillRunRequest(BaseModel):
     context: dict = Field(default_factory=dict)
 
 
-def _serialize_skill(skill, *, builtin: bool = False) -> dict:
+def _content_preview(content: str, *, limit: int = 160) -> str:
+    compact = " ".join(content.split())
+    if len(compact) <= limit:
+        return compact
+    return f"{compact[: limit - 1]}..."
+
+
+def _serialize_evidence_refs(runtime: CoreRuntime, skill) -> list[dict]:
+    evidence_ids = (skill.definition or {}).get("evidence_writeback_ids") or []
+    writebacks = runtime.list_writebacks_by_ids(evidence_ids)
+    return [
+        {
+            "id": writeback.id,
+            "type": writeback.type,
+            "title": writeback.title,
+            "status": writeback.status,
+            "accepted_asset_id": writeback.accepted_asset_id,
+            "content_preview": _content_preview(writeback.content),
+        }
+        for writeback in writebacks
+    ]
+
+
+def _serialize_skill(skill, *, runtime: CoreRuntime | None = None, builtin: bool = False) -> dict:
     return {
         "id": skill.id,
         "org_id": skill.org_id,
@@ -40,6 +63,7 @@ def _serialize_skill(skill, *, builtin: bool = False) -> dict:
         "name": skill.name,
         "status": skill.status,
         "definition": skill.definition,
+        "evidence_refs": _serialize_evidence_refs(runtime, skill) if runtime is not None else [],
         "builtin": builtin,
         "created_at": skill.created_at,
     }
@@ -97,7 +121,7 @@ def list_skills(project_id: str, session: Session = Depends(get_db_session)):
     project = _ensure_project(runtime, project_id)
     _ensure_builtin_skills(runtime, org_id=project.org_id)
     return [
-        _serialize_skill(skill, builtin=bool((skill.definition or {}).get("builtin")))
+        _serialize_skill(skill, runtime=runtime, builtin=bool((skill.definition or {}).get("builtin")))
         for skill in runtime.list_skills_by_project(project_id)
     ]
 
@@ -114,7 +138,7 @@ def create_skill(project_id: str, payload: SkillCreateRequest, session: Session 
         status=payload.status.value,
         definition=payload.definition,
     )
-    return _serialize_skill(skill)
+    return _serialize_skill(skill, runtime=runtime)
 
 
 @router.patch("/skills/{skill_id}")
@@ -134,7 +158,7 @@ def update_skill(project_id: str, skill_id: str, payload: SkillUpdateRequest, se
         status=payload.status.value if payload.status else None,
         definition=payload.definition,
     )
-    return _serialize_skill(skill, builtin=bool((skill.definition or {}).get("builtin")))
+    return _serialize_skill(skill, runtime=runtime, builtin=bool((skill.definition or {}).get("builtin")))
 
 
 @router.post("/skills/{skill_id}/approve")
@@ -149,7 +173,7 @@ def approve_skill(project_id: str, skill_id: str, session: Session = Depends(get
         raise HTTPException(status_code=404, detail="Skill not found")
     _ensure_project_skill(skill, project_id)
     skill = runtime.update_skill(skill_id, status=SkillStatus.APPROVED.value)
-    return _serialize_skill(skill, builtin=bool((skill.definition or {}).get("builtin")))
+    return _serialize_skill(skill, runtime=runtime, builtin=bool((skill.definition or {}).get("builtin")))
 
 
 @router.post("/skills/{skill_id}/deprecate")
@@ -164,7 +188,7 @@ def deprecate_skill(project_id: str, skill_id: str, session: Session = Depends(g
         raise HTTPException(status_code=404, detail="Skill not found")
     _ensure_project_skill(skill, project_id)
     skill = runtime.update_skill(skill_id, status=SkillStatus.DEPRECATED.value)
-    return _serialize_skill(skill, builtin=bool((skill.definition or {}).get("builtin")))
+    return _serialize_skill(skill, runtime=runtime, builtin=bool((skill.definition or {}).get("builtin")))
 
 
 @router.post("/skills/{skill_id}/run")

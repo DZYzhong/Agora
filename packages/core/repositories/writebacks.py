@@ -50,6 +50,14 @@ class WritebackRepository:
         )
         return list(self.session.scalars(statement).all())
 
+    def list_by_ids(self, writeback_ids: list[str]) -> list[WritebackModel]:
+        if not writeback_ids:
+            return []
+        statement = select(WritebackModel).where(WritebackModel.id.in_(writeback_ids))
+        writebacks = list(self.session.scalars(statement).all())
+        by_id = {writeback.id: writeback for writeback in writebacks}
+        return [by_id[writeback_id] for writeback_id in writeback_ids if writeback_id in by_id]
+
     def accept(self, writeback_id: str, *, accepted_asset_id: str | None = None) -> WritebackModel:
         writeback = self.session.get(WritebackModel, writeback_id)
         if writeback is None:

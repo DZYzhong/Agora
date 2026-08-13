@@ -137,3 +137,25 @@ cd apps/web && npm run build
 - [ ] **Step 2: Update roadmap**
 
 Record implementation scope, tests, commit, and black-box validation path.
+
+### Task 6: Candidate Skill Evidence Review
+
+**Files:**
+- Modify: `packages/core/repositories/writebacks.py`
+- Modify: `packages/core/services/runtime.py`
+- Modify: `apps/api/routers/skills.py`
+- Modify: `apps/web/app/projects/[projectId]/skills/page.tsx`
+- Modify: `apps/web/app/styles.css`
+- Modify: `tests/integration/api/test_skills_api.py`
+
+- [x] **Step 1: Write failing evidence summary test**
+
+Assert that a candidate skill generated from accepted writebacks returns `evidence_refs` with title, status, accepted asset ID, and content preview.
+
+- [x] **Step 2: Return evidence summaries from Skills API**
+
+Resolve `definition.evidence_writeback_ids` to writeback summaries during skill serialization.
+
+- [x] **Step 3: Render evidence on Skills page**
+
+Show candidate evidence directly on skill cards so reviewers can inspect why a skill was proposed before approving it.
