@@ -147,6 +147,8 @@ def _scan_source_files(repo_path: Path) -> SourceFileScan:
             path = root_path / file_name
             scanned_file_count += 1
             relative_path = _relative(path, repo_path)
+            if path.suffix.lower() not in SOURCE_EXTENSIONS:
+                continue
             skip_reason = _skip_reason(path)
             if skip_reason:
                 skipped.append(f"{relative_path} ({skip_reason})")
@@ -168,8 +170,6 @@ def _scan_source_files(repo_path: Path) -> SourceFileScan:
 def _skip_reason(path: Path) -> str | None:
     if path.stat().st_size > MAX_SOURCE_FILE_BYTES:
         return f"larger than {MAX_SOURCE_FILE_BYTES} bytes"
-    if path.suffix.lower() not in SOURCE_EXTENSIONS:
-        return "unsupported extension"
     try:
         path.read_text(encoding="utf-8")
     except UnicodeDecodeError:

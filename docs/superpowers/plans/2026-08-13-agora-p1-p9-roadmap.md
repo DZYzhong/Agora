@@ -347,3 +347,34 @@ cd apps/web && npm run build
 Commit:
 
 - Pending.
+
+### 2026-08-13: P2 Warning Noise Reduction
+
+Scope:
+
+- User re-ran black-box validation and confirmed assets remained stable at 319.
+- The warning panel was still too noisy because ordinary unsupported files, such as `.gitignore` and shell scripts, were shown as skipped warnings.
+- Changed analyzer behavior so unsupported extensions are silently ignored rather than reported as warnings.
+- Kept warnings for ignored directories, large supported files, and non-UTF-8 supported source files.
+
+Files changed:
+
+- Modified: `packages/integrations/git/analyzer.py`
+- Modified: `tests/unit/integrations/test_git_analyzer.py`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/unit/integrations/test_git_analyzer.py tests/integration/workers/test_initialize_project.py -v
+# 7 passed
+
+.venv/bin/pytest -q
+# 48 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Commit:
+
+- Pending.

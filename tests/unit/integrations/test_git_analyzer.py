@@ -38,7 +38,7 @@ def test_analyze_repository_reports_skipped_files_and_warnings(tmp_path):
     (repo / "src").mkdir(parents=True)
     (repo / "dist").mkdir()
     (repo / "src/app.py").write_text("print('ok')", encoding="utf-8")
-    (repo / "src/blob.bin").write_bytes(b"\x00\x01\x02")
+    (repo / "src/blob.py").write_bytes(b"\xff\xfe\x00")
     (repo / "dist/bundle.js").write_text("generated", encoding="utf-8")
     (repo / "src/large.py").write_text("x" * 200_000, encoding="utf-8")
 
@@ -49,6 +49,21 @@ def test_analyze_repository_reports_skipped_files_and_warnings(tmp_path):
     assert result.source_files == ["src/app.py"]
     assert any("Ignored directories: dist" in warning for warning in result.warnings)
     assert any("Skipped 2 files" in warning for warning in result.warnings)
+
+
+def test_analyze_repository_ignores_unsupported_extensions_without_warning(tmp_path):
+    repo = tmp_path / "real_repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "src/app.py").write_text("print('ok')", encoding="utf-8")
+    (repo / ".gitignore").write_text("target/\n", encoding="utf-8")
+    (repo / "start_roadrunner.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+
+    result = analyze_repository(repo)
+
+    assert result.scanned_file_count == 3
+    assert result.skipped_file_count == 0
+    assert result.source_files == ["src/app.py"]
+    assert result.warnings == []
 
 
 def test_analyze_repository_summarizes_ignored_directories_without_counting_each_file(tmp_path):
