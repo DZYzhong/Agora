@@ -18,9 +18,23 @@ class TaskSessionRepository:
     def get(self, session_id: str) -> TaskSessionModel | None:
         return self.session.get(TaskSessionModel, session_id)
 
-    def list_by_project(self, project_id: str) -> list[TaskSessionModel]:
+    def list_by_project(
+        self,
+        project_id: str,
+        *,
+        intent: str | None = None,
+        status: str | None = None,
+    ) -> list[TaskSessionModel]:
         statement = select(TaskSessionModel).where(TaskSessionModel.project_id == project_id).order_by(TaskSessionModel.created_at.desc())
+        if intent:
+            statement = statement.where(TaskSessionModel.intent == intent)
+        if status:
+            statement = statement.where(TaskSessionModel.status == status)
         return list(self.session.scalars(statement).all())
+
+    def get_by_project(self, *, project_id: str, session_id: str) -> TaskSessionModel | None:
+        statement = select(TaskSessionModel).where(TaskSessionModel.project_id == project_id, TaskSessionModel.id == session_id)
+        return self.session.scalars(statement).first()
 
     def record_event(self, *, session_id: str, event_type: str, payload: dict) -> SessionEventModel:
         event = SessionEventModel(session_id=session_id, event_type=event_type, payload=payload)

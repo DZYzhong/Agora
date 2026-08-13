@@ -1,4 +1,5 @@
 import { apiGet } from "../../../../lib/api";
+import Link from "next/link";
 
 type SessionEvent = {
   id: string;
@@ -9,12 +10,19 @@ type SessionEvent = {
 
 type TaskSession = {
   id: string;
+  project_id: string;
   task_id: string | null;
   agent_type: string;
   intent: string;
   status: string;
   created_at: string;
   closed_at: string | null;
+  audit_counts: {
+    events: number;
+    context_packs: number;
+    skill_runs: number;
+    writebacks: number;
+  };
   context_packs: Array<{
     id: string;
     level: string;
@@ -33,11 +41,33 @@ type TaskSession = {
   events: SessionEvent[];
 };
 
-export default async function SessionsPage({ params }: { params: Promise<{ projectId: string }> }) {
+type SearchParams = {
+  intent?: string;
+  status?: string;
+  q?: string;
+};
+
+function queryString(searchParams: SearchParams): string {
+  const params = new URLSearchParams();
+  if (searchParams.intent) params.set("intent", searchParams.intent);
+  if (searchParams.status) params.set("status", searchParams.status);
+  if (searchParams.q) params.set("q", searchParams.q);
+  const value = params.toString();
+  return value ? `?${value}` : "";
+}
+
+export default async function SessionsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ projectId: string }>;
+  searchParams: Promise<SearchParams>;
+}) {
   const { projectId } = await params;
+  const filters = await searchParams;
   let sessions: TaskSession[] = [];
   try {
-    sessions = await apiGet<TaskSession[]>(`/projects/${projectId}/sessions`);
+    sessions = await apiGet<TaskSession[]>(`/projects/${projectId}/sessions${queryString(filters)}`);
   } catch {
     sessions = [];
   }
@@ -46,6 +76,36 @@ export default async function SessionsPage({ params }: { params: Promise<{ proje
     <main className="page">
       <h1>Sessions</h1>
       <p className="muted">Project {projectId}</p>
+      <section className="panel form">
+        <h2>Filters</h2>
+        <form className="filter-form" action={`/projects/${projectId}/sessions`} method="get">
+          <label>
+            Intent
+            <select name="intent" defaultValue={filters.intent ?? ""}>
+              <option value="">All intents</option>
+              <option value="analysis">analysis</option>
+              <option value="implementation">implementation</option>
+              <option value="review">review</option>
+              <option value="test_generation">test_generation</option>
+            </select>
+          </label>
+          <label>
+            Status
+            <select name="status" defaultValue={filters.status ?? ""}>
+              <option value="">All statuses</option>
+              <option value="started">started</option>
+              <option value="closed">closed</option>
+              <option value="failed">failed</option>
+            </select>
+          </label>
+          <label>
+            Search
+            <input name="q" defaultValue={filters.q ?? ""} placeholder="context, skill, writeback, event" />
+          </label>
+          <button type="submit">Apply filters</button>
+          <Link className="button-link secondary-link" href={`/projects/${projectId}/sessions`}>Clear</Link>
+        </form>
+      </section>
       <section className="session-list">
         {sessions.map((session) => (
           <article className="panel" key={session.id}>
@@ -70,46 +130,26 @@ export default async function SessionsPage({ params }: { params: Promise<{ proje
                 <dt>Closed</dt>
                 <dd>{session.closed_at ? new Date(session.closed_at).toLocaleString() : "Open"}</dd>
               </div>
+              <div>
+                <dt>Context</dt>
+                <dd>{session.audit_counts.context_packs}</dd>
+              </div>
+              <div>
+                <dt>Skill runs</dt>
+                <dd>{session.audit_counts.skill_runs}</dd>
+              </div>
+              <div>
+                <dt>Writebacks</dt>
+                <dd>{session.audit_counts.writebacks}</dd>
+              </div>
+              <div>
+                <dt>Events</dt>
+                <dd>{session.audit_counts.events}</dd>
+              </div>
             </dl>
-            {session.context_packs.length ? (
-              <div className="context-pack-list">
-                {session.context_packs.map((contextPack) => (
-                  <section className="context-pack-row" key={contextPack.id}>
-                    <div className="session-header">
-                      <div>
-                        <p className="eyebrow">ContextPack</p>
-                        <h3>{contextPack.level}</h3>
-                        <p className="asset-uri">{contextPack.id}</p>
-                      </div>
-                      <span className="asset-type">{contextPack.source_refs.length} sources</span>
-                    </div>
-                    <pre className="context-summary">{contextPack.summary}</pre>
-                    {contextPack.key_facts.length ? (
-                      <ul className="fact-list">
-                        {contextPack.key_facts.map((fact) => (
-                          <li key={`${contextPack.id}-${fact.source_refs.join("-")}`}>
-                            <span>{fact.fact}</span>
-                            <code>{fact.source_refs.join(", ")}</code>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </section>
-                ))}
-              </div>
-            ) : null}
-            {session.events.length ? (
-              <div className="event-list">
-                {session.events.map((event) => (
-                  <div className="event-row" key={event.id}>
-                    <strong>{event.event_type}</strong>
-                    <pre>{JSON.stringify(event.payload, null, 2)}</pre>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="muted">No events recorded.</p>
-            )}
+            <div className="actions">
+              <Link className="button-link" href={`/projects/${projectId}/sessions/${session.id}`}>View audit</Link>
+            </div>
           </article>
         ))}
         {sessions.length === 0 ? (

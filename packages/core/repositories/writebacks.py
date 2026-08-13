@@ -42,6 +42,14 @@ class WritebackRepository:
         statement = select(WritebackModel).where(WritebackModel.project_id == project_id)
         return list(self.session.scalars(statement).all())
 
+    def list_by_session(self, *, project_id: str, session_id: str) -> list[WritebackModel]:
+        statement = (
+            select(WritebackModel)
+            .where(WritebackModel.project_id == project_id, WritebackModel.session_id == session_id)
+            .order_by(WritebackModel.created_at.asc())
+        )
+        return list(self.session.scalars(statement).all())
+
     def list_by_project_type_status(self, *, project_id: str, type: str, status: str) -> list[WritebackModel]:
         statement = select(WritebackModel).where(
             WritebackModel.project_id == project_id,

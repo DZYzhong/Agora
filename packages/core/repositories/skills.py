@@ -95,3 +95,11 @@ class SkillRepository:
     def list_runs_by_project(self, project_id: str) -> list[SkillRunModel]:
         statement = select(SkillRunModel).where(SkillRunModel.project_id == project_id).order_by(SkillRunModel.created_at.desc())
         return list(self.session.scalars(statement).all())
+
+    def list_runs_by_session(self, *, project_id: str, session_id: str) -> list[SkillRunModel]:
+        statement = (
+            select(SkillRunModel)
+            .where(SkillRunModel.project_id == project_id, SkillRunModel.session_id == session_id)
+            .order_by(SkillRunModel.created_at.asc())
+        )
+        return list(self.session.scalars(statement).all())

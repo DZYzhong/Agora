@@ -40,6 +40,14 @@ a {
   padding: 32px 24px;
 }
 
+.page-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
 .panel {
   background: #ffffff;
   border: 1px solid #dde1e7;
@@ -139,6 +147,18 @@ button {
 .inline-form input,
 .inline-form select {
   min-width: 150px;
+}
+
+.filter-form {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.filter-form .button-link,
+.filter-form button {
+  margin-top: 0;
 }
 
 .compact-form {
@@ -480,6 +500,10 @@ button {
   display: grid;
   gap: 16px;
   margin-top: 20px;
+}
+
+.page > .panel + .panel {
+  margin-top: 16px;
 }
 
 .session-header {

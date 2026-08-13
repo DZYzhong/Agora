@@ -27,8 +27,11 @@ class CoreRuntime:
     def get_session(self, session_id: str):
         return TaskSessionRepository(self.session).get(session_id)
 
-    def list_sessions_by_project(self, project_id: str):
-        return TaskSessionRepository(self.session).list_by_project(project_id)
+    def list_sessions_by_project(self, project_id: str, *, intent: str | None = None, status: str | None = None):
+        return TaskSessionRepository(self.session).list_by_project(project_id, intent=intent, status=status)
+
+    def get_session_by_project(self, *, project_id: str, session_id: str):
+        return TaskSessionRepository(self.session).get_by_project(project_id=project_id, session_id=session_id)
 
     def list_session_events(self, session_id: str):
         return TaskSessionRepository(self.session).list_events(session_id)
@@ -63,6 +66,9 @@ class CoreRuntime:
     def list_skill_runs_by_project(self, project_id: str):
         return SkillRepository(self.session).list_runs_by_project(project_id)
 
+    def list_skill_runs_by_session(self, *, project_id: str, session_id: str):
+        return SkillRepository(self.session).list_runs_by_session(project_id=project_id, session_id=session_id)
+
     def create_asset(self, **kwargs):
         return AssetRepository(self.session).create(**kwargs)
 
@@ -80,6 +86,9 @@ class CoreRuntime:
 
     def list_writebacks_by_ids(self, writeback_ids: list[str]):
         return WritebackRepository(self.session).list_by_ids(writeback_ids)
+
+    def list_writebacks_by_session(self, *, project_id: str, session_id: str):
+        return WritebackRepository(self.session).list_by_session(project_id=project_id, session_id=session_id)
 
     def accept_writeback(self, writeback_id: str, *, accepted_asset_id: str | None = None):
         return WritebackRepository(self.session).accept(writeback_id, accepted_asset_id=accepted_asset_id)

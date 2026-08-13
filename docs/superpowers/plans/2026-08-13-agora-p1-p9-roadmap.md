@@ -438,9 +438,64 @@ Black-box validation path:
 - Expected: the auto-generated candidate skill shows an Evidence section with both writeback titles and previews.
 - Approve the candidate and confirm the Evidence section remains visible for audit context.
 
+Black-box validation:
+
+- User confirmed the P4 candidate evidence validation passed.
+- The Skills page showed the candidate skill evidence section with both accepted writeback titles and previews.
+- The evidence section remained visible after approving the candidate skill.
+
 Commit:
 
 - `feat: show candidate skill evidence`
+
+### 2026-08-13: P5 Session Audit Started
+
+Scope:
+
+- Started P5 Session Memory and Work Audit with a larger implementation batch.
+- Created a durable P5 implementation plan covering session filters, detail audit API, Web list filters, Web detail page, and black-box fixture validation.
+- Added session list filtering by intent, status, and audit-content search query.
+- Added a project-scoped session detail API endpoint.
+- Session audit payloads now include context packs, skill runs, writebacks, events, and audit counters.
+- Added Web session filters, audit counters, and detail links.
+- Added a Web session audit detail page showing context packs, source refs, skill runs, writebacks, and event timeline.
+
+Files changed:
+
+- Created: `docs/superpowers/plans/2026-08-13-agora-p5-session-audit.md`
+- Modified: `packages/core/repositories/sessions.py`
+- Modified: `packages/core/repositories/skills.py`
+- Modified: `packages/core/repositories/writebacks.py`
+- Modified: `packages/core/services/runtime.py`
+- Modified: `apps/api/routers/sessions.py`
+- Modified: `apps/web/app/projects/[projectId]/sessions/page.tsx`
+- Created: `apps/web/app/projects/[projectId]/sessions/[sessionId]/page.tsx`
+- Modified: `apps/web/app/styles.css`
+- Created: `tests/integration/api/test_sessions_api.py`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_sessions_api.py tests/integration/api/test_harness_api.py tests/integration/api/test_skills_api.py -v
+# 9 passed
+
+.venv/bin/pytest -q
+# 62 passed
+
+cd apps/web && npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Open a project with multiple sessions.
+- Use the Sessions page filters for intent/status/search.
+- Open a session audit detail page.
+- Expected: the detail page shows audit counters, context packs, source refs, skill runs, writebacks, and timeline events.
+
+Commit:
+
+- `feat: add session audit workspace`
 
 ### 2026-08-13: Roadmap Reconstructed
 
