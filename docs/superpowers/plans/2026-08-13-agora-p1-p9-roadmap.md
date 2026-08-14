@@ -16,6 +16,8 @@
 
 **Ambient memory principle:** Agora should be felt as little as possible in the developer's daily workflow. Developers should keep working inside their AI development tool and local IDE/terminal. The AI tool should automatically resolve projects, check freshness, fetch or generate context, upload useful context/writebacks/skills, and reuse team memory without requiring the developer to consciously manage Agora. Agora's Web UI is primarily for review, governance, debugging, and audit, not the main day-to-day operating surface.
 
+**Project manager role principle:** Agora must support a project manager / tech lead / team lead role that intentionally curates team memory. This role reviews uploaded ContextPacks, validates or rejects project understanding, promotes repeated writebacks into skills, manages skill approval/deprecation, watches stale or conflicting context versions, and uses the Web UI for governance, audit, and team-level quality control. Developers should experience Agora ambiently; project managers need explicit control surfaces.
+
 ---
 
 ## Current Implementation Snapshot
