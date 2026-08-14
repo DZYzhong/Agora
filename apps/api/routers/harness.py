@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.dependencies import get_db_session, get_keyword_index, get_vector_index
 from packages.core.services.runtime import CoreRuntime
+from packages.core.uow import SqlAlchemyUnitOfWork
 from packages.harness.service import HarnessService
 from packages.harness.memory_writeback import MemoryWritebackService
 from packages.knowledge.context_engine import ContextEngine
@@ -70,21 +71,24 @@ def start_work(
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
-    result = _harness(session, keyword_index, vector_index).start_work(**payload.model_dump())
-    if result.next_action == "ask_user":
-        raise HTTPException(status_code=404, detail=result.clarification)
-    return {
-        "session_id": result.session_id,
-        "project": {
-            "id": result.project.id,
-            "org_id": result.project.org_id,
-            "name": result.project.name,
-            "slug": result.project.slug,
-        },
-        "task_id": result.task_id,
-        "intent": result.intent,
-        "next_action": result.next_action,
-    }
+    with SqlAlchemyUnitOfWork(session) as uow:
+        result = _harness(session, keyword_index, vector_index).start_work(**payload.model_dump())
+        if result.next_action == "ask_user":
+            raise HTTPException(status_code=404, detail=result.clarification)
+        response = {
+            "session_id": result.session_id,
+            "project": {
+                "id": result.project.id,
+                "org_id": result.project.org_id,
+                "name": result.project.name,
+                "slug": result.project.slug,
+            },
+            "task_id": result.task_id,
+            "intent": result.intent,
+            "next_action": result.next_action,
+        }
+        uow.commit()
+    return response
 
 
 @router.post("/plan-context")
@@ -94,8 +98,11 @@ def plan_context(
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
-    context = _harness(session, keyword_index, vector_index).plan_context(**payload.model_dump())
-    return context.__dict__
+    with SqlAlchemyUnitOfWork(session) as uow:
+        context = _harness(session, keyword_index, vector_index).plan_context(**payload.model_dump())
+        response = context.__dict__
+        uow.commit()
+    return response
 
 
 @router.post("/record-event")
@@ -105,8 +112,11 @@ def record_event(
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
-    event = _harness(session, keyword_index, vector_index).record_event(**payload.model_dump())
-    return {"ok": True, "event": event}
+    with SqlAlchemyUnitOfWork(session) as uow:
+        event = _harness(session, keyword_index, vector_index).record_event(**payload.model_dump())
+        response = {"ok": True, "event": event}
+        uow.commit()
+    return response
 
 
 @router.post("/fetch-context-ref")
@@ -131,9 +141,12 @@ def close_work(
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
     try:
-        return _harness(session, keyword_index, vector_index).close_work(**payload.model_dump())
+        with SqlAlchemyUnitOfWork(session) as uow:
+            response = _harness(session, keyword_index, vector_index).close_work(**payload.model_dump())
+            uow.commit()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return response
 
 
 @router.post("/prepare-writeback")
@@ -143,25 +156,29 @@ def prepare_writeback(
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
-    task_session = CoreRuntime(session).get_session(payload.session_id)
-    if task_session is None:
-        raise HTTPException(status_code=404, detail="Session not found")
-    service = MemoryWritebackService(core=CoreRuntime(session), keyword_index=keyword_index, vector_index=vector_index)
-    writeback = service.prepare_writeback(
-        org_id=task_session.org_id,
-        project_id=task_session.project_id,
-        session_id=payload.session_id,
-        type=payload.type,
-        title=payload.title,
-        content=payload.content,
-        asset_refs=payload.asset_refs,
-    )
-    return {
-        "id": writeback.id,
-        "project_id": writeback.project_id,
-        "session_id": writeback.session_id,
-        "type": writeback.type,
-        "title": writeback.title,
-        "content": writeback.content,
-        "status": writeback.status,
-    }
+    with SqlAlchemyUnitOfWork(session) as uow:
+        runtime = CoreRuntime(session)
+        task_session = runtime.get_session(payload.session_id)
+        if task_session is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+        service = MemoryWritebackService(core=runtime, keyword_index=keyword_index, vector_index=vector_index)
+        writeback = service.prepare_writeback(
+            org_id=task_session.org_id,
+            project_id=task_session.project_id,
+            session_id=payload.session_id,
+            type=payload.type,
+            title=payload.title,
+            content=payload.content,
+            asset_refs=payload.asset_refs,
+        )
+        response = {
+            "id": writeback.id,
+            "project_id": writeback.project_id,
+            "session_id": writeback.session_id,
+            "type": writeback.type,
+            "title": writeback.title,
+            "content": writeback.content,
+            "status": writeback.status,
+        }
+        uow.commit()
+    return response

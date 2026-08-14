@@ -31,7 +31,7 @@ class WritebackRepository:
             status=status,
         )
         self.session.add(writeback)
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(writeback)
         return writeback
 
@@ -72,6 +72,6 @@ class WritebackRepository:
             raise ValueError(f"Writeback not found: {writeback_id}")
         writeback.status = "accepted"
         writeback.accepted_asset_id = accepted_asset_id
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(writeback)
         return writeback

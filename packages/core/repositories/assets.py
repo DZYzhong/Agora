@@ -35,7 +35,7 @@ class AssetRepository:
             content_hash=content_hash,
         )
         self.session.add(asset)
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(asset)
         return asset
 
@@ -93,7 +93,7 @@ class AssetRepository:
         asset.summary = summary
         asset.asset_metadata = metadata or {}
         asset.content_hash = content_hash
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(asset)
         return asset
 
@@ -112,5 +112,5 @@ class AssetRepository:
         ]
         for asset in stale_assets:
             self.session.delete(asset)
-        self.session.commit()
+        self.session.flush()
         return len(stale_assets)

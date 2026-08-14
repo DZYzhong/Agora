@@ -26,7 +26,7 @@ class InitializationJobRepository:
             started_at=utc_now(),
         )
         self.session.add(job)
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(job)
         return job
 
@@ -53,7 +53,7 @@ class InitializationJobRepository:
         job.warnings = warnings
         job.error = None
         job.completed_at = utc_now()
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(job)
         return job
 
@@ -61,6 +61,6 @@ class InitializationJobRepository:
         job.status = "failed"
         job.error = error
         job.completed_at = utc_now()
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(job)
         return job

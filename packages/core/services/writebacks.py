@@ -35,6 +35,6 @@ class WritebackService:
         if writeback is None:
             raise ValueError(f"Writeback not found: {writeback_id}")
         writeback.status = "rejected"
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(writeback)
         return writeback

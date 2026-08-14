@@ -11,7 +11,7 @@ class TaskSessionRepository:
     def create(self, *, org_id: str, project_id: str, agent_type: str, intent: str, task_id: str | None = None) -> TaskSessionModel:
         task_session = TaskSessionModel(org_id=org_id, project_id=project_id, task_id=task_id, agent_type=agent_type, intent=intent)
         self.session.add(task_session)
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(task_session)
         return task_session
 
@@ -39,7 +39,7 @@ class TaskSessionRepository:
     def record_event(self, *, session_id: str, event_type: str, payload: dict) -> SessionEventModel:
         event = SessionEventModel(session_id=session_id, event_type=event_type, payload=payload)
         self.session.add(event)
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(event)
         return event
 

@@ -27,7 +27,7 @@ class ProjectRepository:
             default_branch=default_branch,
         )
         self.session.add(project)
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(project)
         return project
 
@@ -45,7 +45,7 @@ class ProjectRepository:
         if project is None:
             raise ValueError(f"Project not found: {project_id}")
         project.status = "archived"
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(project)
         return project
 

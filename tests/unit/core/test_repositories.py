@@ -1,9 +1,17 @@
+import ast
+from pathlib import Path
+
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from packages.core.database import Base
 from packages.core.repositories.assets import AssetRepository
 from packages.core.repositories.projects import ProjectRepository
+from packages.core.uow import SqlAlchemyUnitOfWork
+
+
+PROJECT_ROOT = Path(__file__).parents[3]
 
 
 def make_session():
@@ -89,3 +97,46 @@ def test_asset_repository_upserts_by_project_and_source_uri():
     assert len(assets) == 1
     assert assets[0].content == "New content"
     assert assets[0].content_hash == "new"
+
+
+def test_repository_writes_roll_back_with_the_command_unit_of_work():
+    session = make_session()
+
+    with pytest.raises(RuntimeError, match="command failed"):
+        with SqlAlchemyUnitOfWork(session):
+            project = ProjectRepository(session).create(
+                org_id="org_1",
+                name="Payment",
+                slug="payment",
+            )
+            AssetRepository(session).create(
+                org_id="org_1",
+                project_id=project.id,
+                type="doc",
+                source="git",
+                source_uri="README.md",
+                title="README",
+                content="Payment service",
+            )
+            raise RuntimeError("command failed")
+
+    assert ProjectRepository(session).list(include_archived=True) == []
+    assert AssetRepository(session).list_all() == []
+
+
+def test_repositories_and_domain_services_do_not_commit_transactions():
+    guarded_roots = [
+        PROJECT_ROOT / "packages/core/repositories",
+        PROJECT_ROOT / "packages/core/services",
+        PROJECT_ROOT / "packages/domain",
+        PROJECT_ROOT / "packages/harness",
+    ]
+    offenders = []
+    for root in guarded_roots:
+        for path in root.rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "commit":
+                    offenders.append(f"{path.relative_to(PROJECT_ROOT)}:{node.lineno}")
+
+    assert offenders == [], f"Direct commit is forbidden outside application UoW boundaries: {offenders}"

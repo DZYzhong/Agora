@@ -7,5 +7,18 @@ BUILT_IN_SKILLS = {
 }
 
 
+def ensure_builtin_skills(runtime, *, org_id: str) -> None:
+    for slug, definition in BUILT_IN_SKILLS.items():
+        if runtime.get_skill_by_slug(slug) is None:
+            runtime.create_skill(
+                org_id=org_id,
+                project_id=None,
+                slug=slug,
+                name=definition["name"],
+                status="approved",
+                definition={"builtin": True, "version": "1.0.0"},
+            )
+
+
 def get_builtin_skill(slug: str) -> dict | None:
     return BUILT_IN_SKILLS.get(slug)

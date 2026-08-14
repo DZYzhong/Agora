@@ -9,6 +9,7 @@ from packages.core.database import Base
 import packages.core.models  # noqa: F401
 from packages.core.repositories.assets import AssetRepository
 from packages.core.repositories.projects import ProjectRepository
+from packages.core.uow import SqlAlchemyUnitOfWork
 
 
 def test_admin_cli_rebuild_indexes_reports_persisted_asset_count(tmp_path):
@@ -16,21 +17,23 @@ def test_admin_cli_rebuild_indexes_reports_persisted_asset_count(tmp_path):
     engine = create_app_engine(database_url)
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
-    project = ProjectRepository(session).create(
-        org_id="org_1",
-        name="会员中心研发协作平台",
-        slug="member-center-rd",
-        git_remotes=["git@example.com:member-center-rd.git"],
-    )
-    AssetRepository(session).create(
-        org_id="org_1",
-        project_id=project.id,
-        type="code_file",
-        source="git",
-        source_uri="src/member/coupon.py",
-        title="coupon.py",
-        content="修复优惠券支付后状态刷新缺陷",
-    )
+    with SqlAlchemyUnitOfWork(session) as uow:
+        project = ProjectRepository(session).create(
+            org_id="org_1",
+            name="会员中心研发协作平台",
+            slug="member-center-rd",
+            git_remotes=["git@example.com:member-center-rd.git"],
+        )
+        AssetRepository(session).create(
+            org_id="org_1",
+            project_id=project.id,
+            type="code_file",
+            source="git",
+            source_uri="src/member/coupon.py",
+            title="coupon.py",
+            content="修复优惠券支付后状态刷新缺陷",
+        )
+        uow.commit()
     session.close()
 
     result = subprocess.run(
@@ -56,12 +59,14 @@ def test_admin_cli_reset_local_recreates_empty_schema(tmp_path):
     engine = create_app_engine(database_url)
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
-    ProjectRepository(session).create(
-        org_id="org_1",
-        name="需求交付平台",
-        slug="delivery-platform",
-        git_remotes=[],
-    )
+    with SqlAlchemyUnitOfWork(session) as uow:
+        ProjectRepository(session).create(
+            org_id="org_1",
+            name="需求交付平台",
+            slug="delivery-platform",
+            git_remotes=[],
+        )
+        uow.commit()
     session.close()
 
     result = subprocess.run(

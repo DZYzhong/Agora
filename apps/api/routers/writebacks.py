@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from apps.api.dependencies import get_db_session, get_keyword_index, get_vector_index
 from packages.core.services.runtime import CoreRuntime
 from packages.core.services.writebacks import WritebackService
+from packages.core.uow import SqlAlchemyUnitOfWork
 from packages.harness.memory_writeback import MemoryWritebackService
 from packages.storage.opensearch.fake import FakeKeywordIndex
 from packages.storage.qdrant.fake import FakeVectorIndex
@@ -37,17 +38,28 @@ def accept_writeback(
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
     try:
-        service = MemoryWritebackService(core=CoreRuntime(session), keyword_index=keyword_index, vector_index=vector_index)
-        writeback = service.accept_writeback(writeback_id)
+        with SqlAlchemyUnitOfWork(session) as uow:
+            service = MemoryWritebackService(core=CoreRuntime(session), keyword_index=keyword_index, vector_index=vector_index)
+            writeback = service.accept_writeback(writeback_id)
+            response = {
+                "id": writeback.id,
+                "project_id": project_id,
+                "status": writeback.status,
+                "accepted_asset_id": writeback.accepted_asset_id,
+            }
+            uow.commit()
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {"id": writeback.id, "project_id": project_id, "status": writeback.status, "accepted_asset_id": writeback.accepted_asset_id}
+    return response
 
 
 @router.post("/{writeback_id}/reject")
 def reject_writeback(project_id: str, writeback_id: str, session: Session = Depends(get_db_session)):
     try:
-        writeback = WritebackService(session).reject(writeback_id)
+        with SqlAlchemyUnitOfWork(session) as uow:
+            writeback = WritebackService(session).reject(writeback_id)
+            response = {"id": writeback.id, "project_id": project_id, "status": writeback.status}
+            uow.commit()
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {"id": writeback.id, "project_id": project_id, "status": writeback.status}
+    return response

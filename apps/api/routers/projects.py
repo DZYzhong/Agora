@@ -9,6 +9,9 @@ from apps.workers.workflows.initialize_project import initialize_project_from_lo
 from packages.core.repositories.assets import AssetRepository
 from packages.core.repositories.initialization_jobs import InitializationJobRepository
 from packages.core.repositories.projects import ProjectRepository
+from packages.core.services.runtime import CoreRuntime
+from packages.core.services.skills import ensure_builtin_skills
+from packages.core.uow import SqlAlchemyUnitOfWork
 from packages.domain.schemas import ProjectCreate, ProjectRead
 from packages.integrations.git.clone import GitCloneError, clone_repository
 from packages.storage.opensearch.fake import FakeKeywordIndex
@@ -41,17 +44,21 @@ def _serialize_initialization_job(job) -> dict:
 
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 def create_project(payload: ProjectCreate, session: Session = Depends(get_db_session)):
-    project = ProjectRepository(session).create(**payload.model_dump())
-    return ProjectRead(
-        id=project.id,
-        org_id=project.org_id,
-        name=project.name,
-        slug=project.slug,
-        description=project.description,
-        git_remotes=project.git_remotes,
-        default_branch=project.default_branch,
-        status=project.status,
-    )
+    with SqlAlchemyUnitOfWork(session) as uow:
+        project = ProjectRepository(session).create(**payload.model_dump())
+        ensure_builtin_skills(CoreRuntime(session), org_id=project.org_id)
+        response = ProjectRead(
+            id=project.id,
+            org_id=project.org_id,
+            name=project.name,
+            slug=project.slug,
+            description=project.description,
+            git_remotes=project.git_remotes,
+            default_branch=project.default_branch,
+            status=project.status,
+        )
+        uow.commit()
+    return response
 
 
 @router.get("", response_model=list[ProjectRead])
@@ -92,19 +99,22 @@ def get_project(project_id: str, session: Session = Depends(get_db_session)):
 @router.post("/{project_id}/archive", response_model=ProjectRead)
 def archive_project(project_id: str, session: Session = Depends(get_db_session)):
     try:
-        project = ProjectRepository(session).archive(project_id)
+        with SqlAlchemyUnitOfWork(session) as uow:
+            project = ProjectRepository(session).archive(project_id)
+            response = ProjectRead(
+                id=project.id,
+                org_id=project.org_id,
+                name=project.name,
+                slug=project.slug,
+                description=project.description,
+                git_remotes=project.git_remotes,
+                default_branch=project.default_branch,
+                status=project.status,
+            )
+            uow.commit()
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return ProjectRead(
-        id=project.id,
-        org_id=project.org_id,
-        name=project.name,
-        slug=project.slug,
-        description=project.description,
-        git_remotes=project.git_remotes,
-        default_branch=project.default_branch,
-        status=project.status,
-    )
+    return response
 
 
 @router.post("/{project_id}/initialize-local")
@@ -115,26 +125,35 @@ def initialize_local_project(
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
-    project = ProjectRepository(session).get(project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
+    failure = None
+    with SqlAlchemyUnitOfWork(session) as uow:
+        project = ProjectRepository(session).get(project_id)
+        if project is None:
+            raise HTTPException(status_code=404, detail="Project not found")
 
-    job_repo = InitializationJobRepository(session)
-    git_remote = project.git_remotes[0] if project.git_remotes else None
-    job = job_repo.create(
-        org_id=project.org_id,
-        project_id=project.id,
-        repo_path=payload.repo_path,
-        git_remote=git_remote,
-    )
-    return _run_initialization_job(
-        project=project,
-        job=job,
-        session=session,
-        job_repo=job_repo,
-        keyword_index=keyword_index,
-        vector_index=vector_index,
-    )
+        job_repo = InitializationJobRepository(session)
+        git_remote = project.git_remotes[0] if project.git_remotes else None
+        job = job_repo.create(
+            org_id=project.org_id,
+            project_id=project.id,
+            repo_path=payload.repo_path,
+            git_remote=git_remote,
+        )
+        try:
+            response = _run_initialization_job(
+                project=project,
+                job=job,
+                session=session,
+                job_repo=job_repo,
+                keyword_index=keyword_index,
+                vector_index=vector_index,
+            )
+        except HTTPException as exc:
+            failure = exc
+        uow.commit()
+    if failure is not None:
+        raise failure
+    return response
 
 
 @router.post("/{project_id}/initialization-jobs/{job_id}/retry")
@@ -145,33 +164,42 @@ def retry_initialization_job(
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
-    project = ProjectRepository(session).get(project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
+    failure = None
+    with SqlAlchemyUnitOfWork(session) as uow:
+        project = ProjectRepository(session).get(project_id)
+        if project is None:
+            raise HTTPException(status_code=404, detail="Project not found")
 
-    job_repo = InitializationJobRepository(session)
-    previous_job = job_repo.get(job_id)
-    if previous_job is None or previous_job.project_id != project_id:
-        raise HTTPException(status_code=404, detail="Initialization job not found")
-    if previous_job.status != "failed":
-        raise HTTPException(status_code=400, detail="Only failed initialization jobs can be retried")
+        job_repo = InitializationJobRepository(session)
+        previous_job = job_repo.get(job_id)
+        if previous_job is None or previous_job.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Initialization job not found")
+        if previous_job.status != "failed":
+            raise HTTPException(status_code=400, detail="Only failed initialization jobs can be retried")
 
-    retry_job = job_repo.create(
-        org_id=project.org_id,
-        project_id=project.id,
-        repo_path=previous_job.repo_path,
-        git_remote=previous_job.git_remote,
-    )
-    result = _run_initialization_job(
-        project=project,
-        job=retry_job,
-        session=session,
-        job_repo=job_repo,
-        keyword_index=keyword_index,
-        vector_index=vector_index,
-    )
-    result["retry_of_job_id"] = previous_job.id
-    return result
+        retry_job = job_repo.create(
+            org_id=project.org_id,
+            project_id=project.id,
+            repo_path=previous_job.repo_path,
+            git_remote=previous_job.git_remote,
+        )
+        try:
+            response = _run_initialization_job(
+                project=project,
+                job=retry_job,
+                session=session,
+                job_repo=job_repo,
+                keyword_index=keyword_index,
+                vector_index=vector_index,
+            )
+        except HTTPException as exc:
+            failure = exc
+        if failure is None:
+            response["retry_of_job_id"] = previous_job.id
+        uow.commit()
+    if failure is not None:
+        raise failure
+    return response
 
 
 def _run_initialization_job(

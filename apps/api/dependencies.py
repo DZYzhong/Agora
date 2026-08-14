@@ -42,6 +42,7 @@ def get_engine():
 
 
 def get_db_session() -> Generator[Session, None, None]:
+    """Own only session lifetime; application commands own transactions."""
     session_factory = sessionmaker(bind=get_engine())
     session = session_factory()
     try:

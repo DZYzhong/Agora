@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.dependencies import get_db_session
 from packages.core.services.runtime import CoreRuntime
-from packages.core.services.skills import BUILT_IN_SKILLS
+from packages.core.uow import SqlAlchemyUnitOfWork
 from packages.domain.enums import SkillStatus
 from packages.harness.skill_orchestrator import SkillOrchestrator
 from packages.llm.fake_gateway import FakeLlmGateway
@@ -102,24 +102,10 @@ def _ensure_project_skill(skill, project_id: str) -> None:
         raise HTTPException(status_code=404, detail="Skill not found")
 
 
-def _ensure_builtin_skills(runtime: CoreRuntime, *, org_id: str) -> None:
-    for slug, definition in BUILT_IN_SKILLS.items():
-        if runtime.get_skill_by_slug(slug) is None:
-            runtime.create_skill(
-                org_id=org_id,
-                project_id=None,
-                slug=slug,
-                name=definition["name"],
-                status=SkillStatus.APPROVED.value,
-                definition={"builtin": True, "version": "1.0.0"},
-            )
-
-
 @router.get("/skills")
 def list_skills(project_id: str, session: Session = Depends(get_db_session)):
     runtime = CoreRuntime(session)
-    project = _ensure_project(runtime, project_id)
-    _ensure_builtin_skills(runtime, org_id=project.org_id)
+    _ensure_project(runtime, project_id)
     return [
         _serialize_skill(skill, runtime=runtime, builtin=bool((skill.definition or {}).get("builtin")))
         for skill in runtime.list_skills_by_project(project_id)
@@ -128,112 +114,132 @@ def list_skills(project_id: str, session: Session = Depends(get_db_session)):
 
 @router.post("/skills", status_code=status.HTTP_201_CREATED)
 def create_skill(project_id: str, payload: SkillCreateRequest, session: Session = Depends(get_db_session)):
-    runtime = CoreRuntime(session)
-    project = _ensure_project(runtime, project_id)
-    skill = runtime.create_skill(
-        org_id=project.org_id,
-        project_id=project.id,
-        slug=payload.slug,
-        name=payload.name,
-        status=payload.status.value,
-        definition=payload.definition,
-    )
-    return _serialize_skill(skill, runtime=runtime)
+    with SqlAlchemyUnitOfWork(session) as uow:
+        runtime = CoreRuntime(session)
+        project = _ensure_project(runtime, project_id)
+        skill = runtime.create_skill(
+            org_id=project.org_id,
+            project_id=project.id,
+            slug=payload.slug,
+            name=payload.name,
+            status=payload.status.value,
+            definition=payload.definition,
+        )
+        response = _serialize_skill(skill, runtime=runtime)
+        uow.commit()
+    return response
 
 
 @router.patch("/skills/{skill_id}")
 def update_skill(project_id: str, skill_id: str, payload: SkillUpdateRequest, session: Session = Depends(get_db_session)):
-    runtime = CoreRuntime(session)
-    _ensure_project(runtime, project_id)
     try:
-        skill = runtime.get_skill(skill_id)
+        with SqlAlchemyUnitOfWork(session) as uow:
+            runtime = CoreRuntime(session)
+            _ensure_project(runtime, project_id)
+            skill = runtime.get_skill(skill_id)
+            if skill is None:
+                raise HTTPException(status_code=404, detail="Skill not found")
+            _ensure_project_skill(skill, project_id)
+            skill = runtime.update_skill(
+                skill_id,
+                name=payload.name,
+                status=payload.status.value if payload.status else None,
+                definition=payload.definition,
+            )
+            response = _serialize_skill(skill, runtime=runtime, builtin=bool((skill.definition or {}).get("builtin")))
+            uow.commit()
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    if skill is None:
-        raise HTTPException(status_code=404, detail="Skill not found")
-    _ensure_project_skill(skill, project_id)
-    skill = runtime.update_skill(
-        skill_id,
-        name=payload.name,
-        status=payload.status.value if payload.status else None,
-        definition=payload.definition,
-    )
-    return _serialize_skill(skill, runtime=runtime, builtin=bool((skill.definition or {}).get("builtin")))
+    return response
 
 
 @router.post("/skills/{skill_id}/approve")
 def approve_skill(project_id: str, skill_id: str, session: Session = Depends(get_db_session)):
-    runtime = CoreRuntime(session)
-    _ensure_project(runtime, project_id)
     try:
-        skill = runtime.get_skill(skill_id)
+        with SqlAlchemyUnitOfWork(session) as uow:
+            runtime = CoreRuntime(session)
+            _ensure_project(runtime, project_id)
+            skill = runtime.get_skill(skill_id)
+            if skill is None:
+                raise HTTPException(status_code=404, detail="Skill not found")
+            _ensure_project_skill(skill, project_id)
+            skill = runtime.update_skill(skill_id, status=SkillStatus.APPROVED.value)
+            response = _serialize_skill(skill, runtime=runtime, builtin=bool((skill.definition or {}).get("builtin")))
+            uow.commit()
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    if skill is None:
-        raise HTTPException(status_code=404, detail="Skill not found")
-    _ensure_project_skill(skill, project_id)
-    skill = runtime.update_skill(skill_id, status=SkillStatus.APPROVED.value)
-    return _serialize_skill(skill, runtime=runtime, builtin=bool((skill.definition or {}).get("builtin")))
+    return response
 
 
 @router.post("/skills/{skill_id}/deprecate")
 def deprecate_skill(project_id: str, skill_id: str, session: Session = Depends(get_db_session)):
-    runtime = CoreRuntime(session)
-    _ensure_project(runtime, project_id)
     try:
-        skill = runtime.get_skill(skill_id)
+        with SqlAlchemyUnitOfWork(session) as uow:
+            runtime = CoreRuntime(session)
+            _ensure_project(runtime, project_id)
+            skill = runtime.get_skill(skill_id)
+            if skill is None:
+                raise HTTPException(status_code=404, detail="Skill not found")
+            _ensure_project_skill(skill, project_id)
+            skill = runtime.update_skill(skill_id, status=SkillStatus.DEPRECATED.value)
+            response = _serialize_skill(skill, runtime=runtime, builtin=bool((skill.definition or {}).get("builtin")))
+            uow.commit()
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    if skill is None:
-        raise HTTPException(status_code=404, detail="Skill not found")
-    _ensure_project_skill(skill, project_id)
-    skill = runtime.update_skill(skill_id, status=SkillStatus.DEPRECATED.value)
-    return _serialize_skill(skill, runtime=runtime, builtin=bool((skill.definition or {}).get("builtin")))
+    return response
 
 
 @router.post("/skills/{skill_id}/run")
 def run_skill(project_id: str, skill_id: str, payload: SkillRunRequest, session: Session = Depends(get_db_session)):
-    runtime = CoreRuntime(session)
-    project = _ensure_project(runtime, project_id)
-    skill = runtime.get_skill(skill_id)
-    if skill is None or skill.project_id not in (project_id, None):
-        raise HTTPException(status_code=404, detail="Skill not found")
-    if skill.status != SkillStatus.APPROVED.value:
-        error = f"Skill is not approved: {skill.slug}"
-        runtime.create_skill_run(
-            org_id=project.org_id,
-            project_id=project.id,
-            session_id=payload.session_id,
-            skill_id=skill.id,
-            input=payload.input,
-            output={"error": error},
-            warnings=[error],
-            status="failed",
-        )
-        raise HTTPException(status_code=400, detail=error)
-    try:
-        result = SkillOrchestrator(core=runtime, llm=FakeLlmGateway()).run_skill(
-            session_id=payload.session_id,
-            org_id=project.org_id,
-            project_id=project.id,
-            skill_slug=skill.slug,
-            input=payload.input,
-            context=payload.context,
-        )
-    except ValueError as exc:
-        runtime.create_skill_run(
-            org_id=project.org_id,
-            project_id=project.id,
-            session_id=payload.session_id,
-            skill_id=skill.id,
-            input=payload.input,
-            output={"error": str(exc)},
-            warnings=[str(exc)],
-            status="failed",
-        )
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    run = next(run for run in runtime.list_skill_runs_by_project(project.id) if run.id == result.skill_run_id)
-    return _serialize_run(run)
+    failure = None
+    with SqlAlchemyUnitOfWork(session) as uow:
+        runtime = CoreRuntime(session)
+        project = _ensure_project(runtime, project_id)
+        skill = runtime.get_skill(skill_id)
+        if skill is None or skill.project_id not in (project_id, None):
+            raise HTTPException(status_code=404, detail="Skill not found")
+        if skill.status != SkillStatus.APPROVED.value:
+            error = f"Skill is not approved: {skill.slug}"
+            runtime.create_skill_run(
+                org_id=project.org_id,
+                project_id=project.id,
+                session_id=payload.session_id,
+                skill_id=skill.id,
+                input=payload.input,
+                output={"error": error},
+                warnings=[error],
+                status="failed",
+            )
+            failure = HTTPException(status_code=400, detail=error)
+        else:
+            try:
+                result = SkillOrchestrator(core=runtime, llm=FakeLlmGateway()).run_skill(
+                    session_id=payload.session_id,
+                    org_id=project.org_id,
+                    project_id=project.id,
+                    skill_slug=skill.slug,
+                    input=payload.input,
+                    context=payload.context,
+                )
+            except ValueError as exc:
+                runtime.create_skill_run(
+                    org_id=project.org_id,
+                    project_id=project.id,
+                    session_id=payload.session_id,
+                    skill_id=skill.id,
+                    input=payload.input,
+                    output={"error": str(exc)},
+                    warnings=[str(exc)],
+                    status="failed",
+                )
+                failure = HTTPException(status_code=400, detail=str(exc))
+            else:
+                run = next(run for run in runtime.list_skill_runs_by_project(project.id) if run.id == result.skill_run_id)
+                response = _serialize_run(run)
+        uow.commit()
+    if failure is not None:
+        raise failure
+    return response
 
 
 @router.get("/skill-runs")

@@ -29,7 +29,7 @@ class ContextPackRepository:
             source_refs=source_refs,
         )
         self.session.add(context_pack)
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(context_pack)
         return context_pack
 

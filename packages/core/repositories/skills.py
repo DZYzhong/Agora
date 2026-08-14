@@ -27,7 +27,7 @@ class SkillRepository:
             definition=definition or {},
         )
         self.session.add(skill)
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(skill)
         return skill
 
@@ -61,7 +61,7 @@ class SkillRepository:
             skill.status = status
         if definition is not None:
             skill.definition = definition
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(skill)
         return skill
 
@@ -88,7 +88,7 @@ class SkillRepository:
             status=status,
         )
         self.session.add(run)
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(run)
         return run
 
