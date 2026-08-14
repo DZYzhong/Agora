@@ -1,5 +1,7 @@
 # Agora P4 Skill Lifecycle Implementation Plan
 
+> Historical pre-realignment plan. Its delivered work remains valid implementation evidence, but it does not define the current P4 phase. See `2026-08-13-agora-p1-p9-roadmap.md`.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Turn Agora skills from a static built-in list into reviewable, versioned workflow assets that can be created, approved, run, and inspected through API/Web.

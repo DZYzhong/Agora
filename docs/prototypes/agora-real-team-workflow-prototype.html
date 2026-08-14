@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Agora 产品原型 - 团队 AI 协作记忆层</title>
+  <title>Agora 产品原型 - 团队 AI Project Harness</title>
   <style>
     :root {
       color: #172033;
@@ -524,6 +524,60 @@
         flex-direction: column;
       }
     }
+
+    @media (max-width: 700px) {
+      .sidebar {
+        gap: 12px;
+        padding: 16px;
+      }
+
+      .brand {
+        padding: 0 4px 6px;
+      }
+
+      .nav {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .nav button {
+        font-size: 13px;
+        gap: 7px;
+        min-width: 0;
+        padding: 9px;
+      }
+
+      .nav .icon {
+        flex: 0 0 22px;
+        height: 22px;
+        width: 22px;
+      }
+
+      .sidebar-footer {
+        display: none;
+      }
+
+      .topbar,
+      .content {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      .project-picker {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      .project-picker select,
+      .project-picker input,
+      .primary-action {
+        min-width: 0;
+        width: 100%;
+      }
+
+      .user-pill {
+        justify-content: center;
+      }
+    }
   </style>
 </head>
 <body>
@@ -531,12 +585,12 @@
     <aside class="sidebar">
       <div class="brand">
         <strong>Agora</strong>
-        <span>团队 AI 协作记忆层</span>
+        <span>团队 AI Project Harness</span>
       </div>
       <nav class="nav" aria-label="主导航">
         <button class="active" data-screen="dashboard"><span class="icon">总</span>项目驾驶舱</button>
         <button data-screen="context"><span class="icon">上</span>上下文治理</button>
-        <button data-screen="tasks"><span class="icon">任</span>任务流程审计</button>
+        <button data-screen="tasks"><span class="icon">任</span>工作项与流程</button>
         <button data-screen="skills"><span class="icon">技</span>技能包审批</button>
         <button data-screen="quality"><span class="icon">质</span>质量视图</button>
         <button data-screen="ai"><span class="icon">AI</span>AI 工具接入</button>
@@ -555,7 +609,7 @@
             <option>支付结算服务</option>
             <option>营销活动后台</option>
           </select>
-          <input aria-label="搜索任务或资产" placeholder="搜索任务、模块、上下文、skill">
+          <input aria-label="搜索工作项或资产" placeholder="搜索工作项、模块、上下文、skill">
         </div>
         <span class="user-pill">项目经理 · 李明</span>
       </header>
@@ -573,18 +627,18 @@
           <div class="kpi-grid">
             <div class="kpi">
               <span>上下文状态</span>
-              <strong>Fresh</strong>
-              <p>覆盖 main@8f34c2a，最新更新来自任务 BUG-128。</p>
+              <strong>Fresh · clean</strong>
+              <p>main ContextStream · r12 · 覆盖 8f34c2a。</p>
             </div>
             <div class="kpi">
-              <span>活跃任务</span>
+              <span>活跃工作项</span>
               <strong>18</strong>
-              <p>4 个任务等待评审，2 个任务存在阻塞。</p>
+              <p>4 个工作项等待评审，2 个工作项存在阻塞。</p>
             </div>
             <div class="kpi">
               <span>待审批</span>
               <strong>7</strong>
-              <p>3 个 ContextUpdate，4 个候选 skill。</p>
+              <p>3 个 ContextProposal，4 个 SkillCandidate。</p>
             </div>
             <div class="kpi">
               <span>质量风险</span>
@@ -597,13 +651,13 @@
             <section class="panel">
               <div class="panel-header">
                 <div>
-                  <h2>当前任务状态</h2>
-                  <p>Agora 汇总 AI 工具上传的任务过程和人工确认记录。</p>
+                  <h2>当前工作项状态</h2>
+                  <p>一个工作项可以关联多人和多次 AI 工作会话。</p>
                 </div>
                 <span class="badge info">18 active</span>
               </div>
               <div class="table">
-                <div class="row header"><span>任务</span><span>阶段</span><span>负责人</span><span>状态</span></div>
+                <div class="row header"><span>工作项</span><span>阶段</span><span>负责人</span><span>状态</span></div>
                 <div class="row">
                   <div><strong>BUG-128 优惠券支付后状态未刷新</strong><small>会员中心 / coupon-service</small></div>
                   <span>自测</span><span>张伟</span><span class="badge warn">待上传</span>
@@ -627,7 +681,7 @@
               </div>
               <div class="tool-step">
                 <strong>2. 自动获取团队记忆</strong>
-                <p>拉取 accepted ContextPack、项目流程、approved skills 和历史任务经验。</p>
+                <p>Harness 按任务和 token budget 返回 ContextBundle、流程和 approved SkillVersion。</p>
               </div>
               <div class="tool-step">
                 <strong>3. 按流程引导开发</strong>
@@ -635,7 +689,7 @@
               </div>
               <div class="tool-step">
                 <strong>4. 自动沉淀资产</strong>
-                <p>任务结束后上传 ContextUpdate、过程文档、自测结果和候选 skill。</p>
+                <p>工作结束后提交 ContextProposal、过程产物、质量证据和 SkillCandidate。</p>
               </div>
             </section>
           </div>
@@ -645,16 +699,16 @@
           <div class="page-head">
             <div>
               <h1>上下文治理</h1>
-              <p>项目经理审核 AI 工具上传的 ContextPack 和 ContextUpdate，确保团队共享的项目理解不跑偏。</p>
+              <p>技术负责人治理 ContextStream、不可变 ContextRevision 和 AI 工具提交的 ContextProposal。</p>
             </div>
-            <button class="primary-action">发布新版本</button>
+            <button class="primary-action">新建修正提案</button>
           </div>
           <div class="grid-two">
             <section class="panel">
               <div class="panel-header">
                 <div>
-                  <h2>待审核 ContextUpdate</h2>
-                  <p>来自开发任务完成后的上下文增量。</p>
+                  <h2>待审核 ContextProposal</h2>
+                  <p>包含首次生成、代码刷新、任务增量和事实修正。</p>
                 </div>
                 <span class="badge warn">3 pending</span>
               </div>
@@ -674,10 +728,10 @@
                   <div>
                     <h3>FEAT-204 新增会员等级权益灰度流程</h3>
                     <p>新增模块 member-level-rollout，补充灰度策略、监控指标和回滚路径。</p>
-                    <p>基线：feature/member-rollout@1a2b77e · 来源：Cursor · 上传人：王芳</p>
+                    <p>目标：feature/member-rollout stream · main 尚未包含 1a2b77e，不能直接进入 main ContextStream。</p>
                   </div>
                   <div class="actions">
-                    <button class="primary-action">合并</button>
+                    <button class="primary-action">接受到分支</button>
                     <button class="secondary-action">拒绝</button>
                   </div>
                 </div>
@@ -687,8 +741,8 @@
             <section class="panel">
               <div class="panel-header">
                 <div>
-                  <h2>ContextPack 版本</h2>
-                  <p>团队共享上下文的版本血缘。</p>
+                  <h2>ContextRevision 版本</h2>
+                  <p>main ContextStream 的不可变版本血缘。</p>
                 </div>
               </div>
               <div class="timeline">
@@ -712,8 +766,8 @@
         <section class="screen" id="tasks">
           <div class="page-head">
             <div>
-              <h1>任务流程审计</h1>
-              <p>查看每个任务是否按项目流程完成分析、设计、评审、开发、自测和上传。</p>
+              <h1>工作项与流程</h1>
+              <p>查看每个 WorkItem 的参与者、WorkSession、流程步骤、产物、证据和人工确认。</p>
             </div>
             <button class="primary-action">配置流程模板</button>
           </div>
@@ -748,7 +802,7 @@
                 <div class="timeline-item done"><h3>评审</h3><p>评审意见已处理。</p></div>
                 <div class="timeline-item done"><h3>开发</h3><p>代码变更已完成。</p></div>
                 <div class="timeline-item review"><h3>自测</h3><p>等待补充并发回调场景。</p></div>
-                <div class="timeline-item"><h3>上传</h3><p>等待 ContextUpdate 和候选 skill 确认。</p></div>
+                <div class="timeline-item"><h3>交付</h3><p>等待 ContextProposal 和 SkillCandidate 确认。</p></div>
               </div>
             </section>
           </div>
@@ -806,8 +860,8 @@
           </div>
           <div class="mini-grid">
             <div class="quality-card">
-              <h3>任务质量</h3>
-              <p>18 个活跃任务中，13 个完成自测，4 个缺少回归证据，1 个阻塞。</p>
+              <h3>工作项质量</h3>
+              <p>18 个活跃工作项中，13 个具有通过证据，4 个缺少回归证据，1 个阻塞。</p>
             </div>
             <div class="quality-card">
               <h3>高风险模块</h3>
@@ -822,7 +876,7 @@
             <div class="panel-header">
               <div>
                 <h2>风险清单</h2>
-                <p>来自任务自测、评审产物和 ContextUpdate。</p>
+                <p>来自结构化测试、CI、评审和风险证据，不以 AI 摘要代替事实。</p>
               </div>
             </div>
             <div class="table">
@@ -837,7 +891,7 @@
           <div class="page-head">
             <div>
               <h1>AI 工具接入状态</h1>
-              <p>Agora 通过 MCP/API 为 AI 工具提供项目解析、上下文、流程、skill、任务产物上传和状态查询。</p>
+              <p>Local Connector 通过 MCP/API 调用 Harness；开发者不需要手工管理 Agora 工具链。</p>
             </div>
             <button class="primary-action">生成接入说明</button>
           </div>
@@ -850,17 +904,17 @@
                 </div>
               </div>
               <div class="doc-list">
-                <div class="doc-card"><h3>resolve_project</h3><p>根据本地 git remote、branch、commit、路径指纹解析 Agora 项目。</p></div>
-                <div class="doc-card"><h3>check_context_freshness</h3><p>返回 fresh、missing、stale、ahead、dirty_workspace、conflict。</p></div>
-                <div class="doc-card"><h3>get_team_memory</h3><p>获取 accepted ContextPack、项目流程、approved skill 和历史任务经验。</p></div>
-                <div class="doc-card"><h3>upload_task_artifacts</h3><p>上传分析、设计、评审、开发、自测、上传等任务产物。</p></div>
-                <div class="doc-card"><h3>upload_context_update</h3><p>上传本次任务对项目上下文的增量理解。</p></div>
-                <div class="doc-card"><h3>upload_skill_candidate</h3><p>上传候选 skill，等待项目经理审批。</p></div>
+                <div class="doc-card"><h3>agora_start_work</h3><p>自动解析 Project 和 WorkItem，创建 WorkSession 并固定上下文、流程和 Skill 版本。</p></div>
+                <div class="doc-card"><h3>agora_prepare_context</h3><p>返回多维 freshness 和受 token budget 控制的 ContextBundle。</p></div>
+                <div class="doc-card"><h3>agora_complete_workflow_step</h3><p>同步步骤产物、质量证据和人工确认，并校验流程前置条件。</p></div>
+                <div class="doc-card"><h3>agora_submit_context_proposal</h3><p>提交首次、刷新、任务增量或事实修正候选，等待治理审批。</p></div>
+                <div class="doc-card"><h3>agora_submit_skill_candidate</h3><p>提交有来源依据的候选 Skill，不直接发布团队版本。</p></div>
+                <div class="doc-card"><h3>agora_close_work</h3><p>检查流程和证据，关闭 WorkSession 并整理待沉淀资产。</p></div>
               </div>
             </section>
             <section class="tool-panel">
               <h2>AI 工具中的用户体验</h2>
-              <div class="tool-step"><strong>自动提示</strong><p>检测到 Agora 上下文已过期，后台分析本地 diff 并生成 ContextUpdate。</p></div>
+              <div class="tool-step"><strong>自动提示</strong><p>检测到 main 出现新 revision，当前 ContextStream potentially stale；已基于本地变更生成 refresh Proposal。</p></div>
               <div class="tool-step"><strong>人工审查</strong><p>分析文档已生成，请确认任务理解是否正确。</p></div>
               <div class="tool-step"><strong>规范执行</strong><p>当前项目要求先完成设计评审，再进入开发。</p></div>
               <div class="tool-step"><strong>资产沉淀</strong><p>发现可复用经验：支付回调状态一致性检查清单，是否上传候选 skill？</p></div>

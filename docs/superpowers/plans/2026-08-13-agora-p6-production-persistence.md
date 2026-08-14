@@ -1,5 +1,7 @@
 # Agora P6 Production Persistence Implementation Plan
 
+> Historical pre-realignment plan. Its delivered work remains valid implementation evidence, but it does not define the current P6 phase. See `2026-08-13-agora-p1-p9-roadmap.md`.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Prepare Agora persistence for a production-like deployment path while keeping local SQLite development fast and reversible.

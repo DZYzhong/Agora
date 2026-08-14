@@ -12,8 +12,9 @@
 
 ## Reference Specs
 
-- `docs/superpowers/specs/2026-08-10-agora-team-ai-project-harness-design.zh-CN.md`
-- `docs/superpowers/specs/2026-08-10-agora-team-ai-project-harness-detailed-design.zh-CN.md`
+- This is a historical P0 implementation plan. Its original 2026-08-10 design references were removed after their durable concepts were consolidated into the canonical product and technical architecture on 2026-08-14; the deleted files remain available in Git history.
+- Current product source: `docs/superpowers/specs/2026-08-14-agora-product-functional-design.zh-CN.md`
+- Current architecture source: `docs/superpowers/specs/2026-08-14-agora-technical-architecture-design.zh-CN.md`
 
 ## Scope
 

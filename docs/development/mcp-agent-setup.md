@@ -1,4 +1,6 @@
-# MCP Agent Setup
+# MCP Agent Setup (Legacy P0/P1 Runtime)
+
+> This guide documents the currently implemented MCP tools for historical/local verification. It is not the target P2 protocol. Use the canonical product design, technical architecture and P1-P9 Roadmap for new development.
 
 P0 exposes a stdio MCP server in `apps/mcp/server.py`.
 

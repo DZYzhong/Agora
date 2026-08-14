@@ -1,59 +1,93 @@
 # Agora P1-P9 Roadmap and Execution Log
 
-> **Purpose:** This file is the durable roadmap and recovery log for Agora after chat history loss. When work is completed, update this document with what changed, which commit was created, and which verification commands passed or failed.
+> **Purpose:** This is Agora's durable implementation roadmap and recovery log. It must be sufficient to recover product direction, completed work and verification evidence after chat history is lost.
 
 **Current branch:** `codex/agora-p0`
 
-**Current baseline:** P0 is implemented. P1 local team trial is implemented. The next recommended phase is P2.
+**Current baseline:** P0 and the original P1 local trial are implemented. Their code remains a useful foundation, but P2-P9 have been realigned to the Agent-first, Harness-first product design. The next phase is the realigned P2.
 
-**Log rule:** Every implementation task should append an entry under "Execution Log" before the final response. Include date, scope, files changed, commit SHA if available, and exact verification commands/results.
+**Canonical product design:** `docs/superpowers/specs/2026-08-14-agora-product-functional-design.zh-CN.md`
 
-**Black-box validation rule:** User-facing validation must use realistic software R&D team workflows and real connected tools/services when the environment is available. Fake LLM gateways, fake indexes, synthetic harness objects, and helper-only fixtures may remain in automated unit/integration tests, but they do not count as black-box acceptance for product behavior. Context quality validation must include a real AI-tool path, where the AI tool participates in producing the final ContextPack from Agora-provided source candidates, session memory, accepted writebacks, and project metadata, then uses that generated context for analysis, implementation, review, or close-work against a real or realistic repository.
+**Canonical technical architecture:** `docs/superpowers/specs/2026-08-14-agora-technical-architecture-design.zh-CN.md`
 
-**Context generation principle:** Agora should not pretend to be the AI analyst. Agora is responsible for durable project memory, source candidate retrieval, audit trails, and writeback storage. A real AI tool should synthesize the final reviewer/agent-facing context from those materials, and Agora should persist the generated ContextPack plus source references for audit and reuse.
+**Product prototype:** `docs/prototypes/agora-real-team-workflow-prototype.html`
 
-**Customer-local project principle:** In the target workflow, customer source code and documents live in the customer's local workspace. Agora should not assume it can clone or pull customer repositories as the primary path. A customer's AI development tool first asks Agora for an existing project context and skill package. If the project exists but has no reusable context yet, the customer's AI tool scans the local project, analyzes code and documents locally, generates the project ContextPack, and uploads that ContextPack plus source references to Agora. Later users reuse the stored context instead of re-analyzing the whole project.
+## Durable Rules
 
-**Ambient memory principle:** Agora should be felt as little as possible in the developer's daily workflow. Developers should keep working inside their AI development tool and local IDE/terminal. The AI tool should automatically resolve projects, check freshness, fetch or generate context, upload useful context/writebacks/skills, and reuse team memory without requiring the developer to consciously manage Agora. Agora's Web UI is primarily for review, governance, debugging, and audit, not the main day-to-day operating surface.
+### Execution log
 
-**Project manager role principle:** Agora must support a project manager / tech lead / team lead role that intentionally curates team memory. This role reviews uploaded ContextPacks, validates or rejects project understanding, promotes repeated writebacks into skills, manages skill approval/deprecation, watches stale or conflicting context versions, and uses the Web UI for governance, audit, and team-level quality control. Developers should experience Agora ambiently; project managers need explicit control surfaces.
+Every implementation batch must append an entry under `Execution Log` before the final response. Record date, scope, files changed, commit SHA, automated verification, black-box path and user result when available. Existing historical entries are never rewritten merely to match a newer roadmap.
 
-**Canonical real workflow spec:** `docs/superpowers/specs/2026-08-14-agora-real-team-workflow.zh-CN.md` is the current product north star. Future roadmap work should be interpreted against that spec rather than the earlier P0/P1 assumption that Agora Web UI and server-side repository analysis are the main user-facing workflow.
+### Real black-box acceptance
+
+Product acceptance uses a real AI tool, a real local software project and running Agora services. Fake models, fake indexes, synthetic Harness objects and fixtures remain valid test doubles for automated tests, but do not count as product acceptance.
+
+Black-box checks must exercise user-level behavior through an AI tool and Web UI. The user is not asked to call raw APIs.
+
+### Customer-local source
+
+Customer source code and uncommitted changes remain in the developer workspace or CI runner by default. Agora server-side repository initialization is an explicitly authorized import/testing capability, not the customer primary path.
+
+### Harness and context
+
+- AI tools call high-level Harness capabilities.
+- Harness returns task-aware ContextBundles under a token budget.
+- The customer's AI tool reads local code and generates ContextProposals.
+- Agora governs immutable ContextRevisions, versions, approvals and distribution.
+- Web UI is for governance, approval, audit and status, not daily coding.
+
+### Work and governance
+
+- WorkItem represents the real project task.
+- WorkSession represents one user and AI tool execution.
+- Project managers view WorkItems and delivery state.
+- Technical leads or Context Stewards govern technical context and Skills.
+- Quality conclusions must link to QualityEvidence.
+
+### Development batch size
+
+Implement and self-test a meaningful end-to-end capability before asking the user for black-box verification. Prepare temporary repositories, data and running services without asking the user to do setup that Agora or the development agent can do.
 
 ---
 
 ## Current Implementation Snapshot
 
-As of 2026-08-13, the codebase is a local team-trial build:
+As of 2026-08-14, the codebase is an original local team-trial build being migrated toward the canonical product:
 
 - FastAPI backend with SQLAlchemy repositories.
 - SQLite file database by default at `.agora/agora.db`.
 - In-memory fake keyword/vector indexes, rebuilt from persisted assets on API startup.
-- Project creation, listing, initialization, initialization job tracking, and archiving.
-- Git local repository analysis with fallback clone from the first configured remote.
-- Asset normalization for repository knowledge, including generated project overview assets.
-- ContextPack planning through fake keyword/vector retrieval.
+- Project creation, listing, initialization, initialization job tracking and archiving.
+- A legacy server-side local repository analysis path with remote fallback.
+- Asset normalization and generated project overview assets.
+- Token-budgeted ContextPack planning with source references through test indexes.
 - Harness work lifecycle: start work, plan context, record events, close work.
 - Development update capture from agent summaries, tests, and optional git diffs.
 - Writeback draft, accept/reject review, accepted writeback re-indexing.
 - Stdio MCP adapter for agent calls.
 - Minimal Next.js admin UI for projects, assets, skills, sessions, context testing, and writeback review.
 
-Known limits:
+Important migration gaps:
 
-- No production auth, user model, org membership, or RBAC.
-- No Alembic migration workflow yet.
+- No WorkItem model separate from TaskSession.
+- No ContextStream, immutable ContextRevision or ContextProposal concurrency model.
+- No structured multi-dimensional freshness or Git/CI RevisionSignal.
+- No WorkflowVersion, WorkflowExecution, WorkArtifact or QualityEvidence model.
+- No production auth, project membership, scoped AI credential or RBAC.
 - No real Qdrant/OpenSearch/Neo4j adapters wired into runtime.
 - No background job queue or real Temporal worker.
-- No robust Git credential management, scheduled sync, or incremental sync.
-- MCP `agora_fetch_context_ref` is still a shallow placeholder in the local tool class.
+- No outbox-based reliable projection pipeline.
+- MCP tools do not yet implement the canonical Local Connector/Harness protocol.
 - External task systems, docs systems, PR metadata, and CI integrations are not implemented.
 
-Baseline verification:
+Last recorded full baseline verification:
 
 ```bash
 .venv/bin/pytest -q
-# 42 passed
+# 67 passed
+
+cd apps/web && npm run build
+# passed
 ```
 
 ---
@@ -83,169 +117,235 @@ Reference plan:
 
 ---
 
-## P2: Real Repository Trial Hardening
+## P2: Real AI Tool Harness Foundation
 
-**Goal:** Make Agora reliable enough to trial against real team repositories, not only sample fixtures.
+**Goal:** Replace the legacy server-scanning demo as the primary experience with a real AI-tool-to-Harness path against customer-local projects.
 
-Recommended scope:
+**Status:** Next.
 
-- Add explicit repository source records for local paths and remotes.
-- Support re-initializing a project without blindly duplicating assets.
-- Add content hash based upsert/update behavior for ingested assets.
-- Add incremental re-sync for changed files where feasible.
-- Improve ignore rules for `.git`, dependencies, build output, binary files, large files, and hidden local artifacts.
-- Persist initialization diagnostics: scanned file count, skipped file count, warnings, and failure reason.
-- Add retry/re-run semantics for failed initialization jobs.
-- Expose initialization history and re-run actions in Web.
-- Add tests using a richer fixture repository with nested packages and ignored files.
+Scope:
+
+- Define protocol versioning, stable error codes and idempotency keys.
+- Add a minimal authenticated principal, ProjectMembership and separate human/AI-tool credentials for local team use.
+- Derive org/user/project access from the authenticated principal; do not trust tenant identity from request payloads.
+- Refactor repository writes behind command-level Unit of Work boundaries so one Harness command owns commit/rollback.
+- Upgrade the stdio MCP adapter into the first Local Connector path.
+- Add normalized RepositoryIdentity and sanitized LocalWorkspaceObservation.
+- Add WorkItem and migrate TaskSession semantics to WorkSession.
+- Upgrade `agora_start_work` to resolve Project and WorkItem and create/resume WorkSession. Version references are nullable and capability-gated until their owning phases land.
+- Add multi-dimensional freshness response.
+- Upgrade `agora_plan_context` to canonical `agora_prepare_context` while preserving query, intent, token budget and source refs.
+- Apply token budget to the complete serialized L0/L1 ContextBundle, with deterministic trimming and separate L2 expansion budgets.
+- Ensure local absolute paths and credential-bearing remotes are not sent or stored.
+- Add a minimal real AI-tool black-box path and prepare all required local test data automatically.
+
+Out of scope:
+
+- Context approval and branch head merging; delivered in P3.
+- Full configurable workflow execution; delivered in P4.
+- SSO, configurable approval policy, retention and enterprise identity hardening; delivered in P7.
+- Accepted ContextRevision, WorkflowVersion and SkillVersion pinning; introduced in P3, P4 and P5.
 
 Exit criteria:
 
-- A project can be initialized, re-initialized, and queried without duplicate knowledge pollution.
-- A failed initialization can be inspected and retried.
-- Large/generated/binary files are skipped deterministically.
-- Full Python tests and Web build pass.
+- A real AI tool opens a real local repository and calls Agora without manual project selection when identity is unambiguous.
+- Harness returns Project, WorkItem, WorkSession, nullable version capabilities, structured context state and next actions.
+- Existing P1 context can be returned only as explicitly provisional ContextBundle material; canonical accepted ContextRevision begins in P3.
+- A missing/stale result asks the AI tool to generate locally; Agora does not read the local path.
+- Retries do not duplicate WorkItem or WorkSession.
+- Unit of Work tests prove failed Harness commands do not leave partial domain state.
+- Full serialized L0/L1 responses remain within budget; each L2 fetch uses a separate limit.
+- Full Python tests, Web build and the grouped real AI-tool black-box pass.
 
 ---
 
-## P3: Context Quality Upgrade
+## P3: Context Governance and Automatic Freshness
 
-**Goal:** Make agent context more precise, traceable, and useful for implementation/review work.
+**Goal:** Establish trusted, versioned team context that remains correct under multiple developers, branches and concurrent updates.
 
-Recommended scope:
+Scope:
 
-- Implement real `agora_fetch_context_ref`.
-- Add stable chunk IDs and source spans.
-- Improve chunking by asset type.
-- Add ContextPack levels, such as project overview, module detail, source snippets, and accepted writebacks.
-- Add intent-aware retrieval boosts for implementation, review, testing, docs, and risk work.
-- Include richer source references with asset ID, source URI, chunk ID, and preview.
-- Add retrieval evaluation fixtures.
+- Add ContextStream per project/repository/branch.
+- Add immutable ContextRevision with schema version, provenance and structured SourceAnchor.
+- Add ContextProposal types: initial, refresh, task_update and correction.
+- Add Proposal review states including request_changes and needs_rebase.
+- Accept Proposal using expected head, target-stream branch validation, commit reachability evidence and optimistic concurrency.
+- Keep feature-branch knowledge in a feature ContextStream or session-local context; update the default stream only after merge through a refresh Proposal.
+- Add revision diff and lineage views in Web.
+- Add Local Connector RevisionObservation processing and the normalized RevisionSignal contract.
+- Leave real provider webhook/CI adapters and signed Push-path acceptance to P8.
+- Add a local-AI-generated ContextProposal upload path.
+- Add outbox events plus a minimal retrying, idempotent consumer for context head changes and rebuildable search projections.
 
 Exit criteria:
 
-- Agents can fetch full source refs from ContextPack output.
-- Broad queries prefer overview assets; specific queries prefer source/writeback details.
-- Retrieval tests cover broad, specific, and accepted-writeback cases.
+- A real AI tool can generate an initial ContextProposal from a local repository and upload it.
+- An authenticated human technical reviewer can approve it in Web and create the first accepted ContextRevision.
+- A second AI tool reuses the accepted revision instead of repeating full analysis.
+- A Local Connector observation updates freshness; the normalized RevisionSignal contract is integration-tested without claiming a real provider adapter.
+- Two concurrent Proposals cannot silently overwrite each other.
+- A feature-branch Proposal cannot update the default-branch ContextStream before merge reachability is proven.
+- Revision content, provenance, approval and source anchors are auditable.
+- An outbox consumer failure is retryable without duplicating projections or losing the committed context head.
 
 ---
 
-## P4: Skill Lifecycle
+## P4: Workflow Harness and Work Audit
 
-**Goal:** Turn built-in skills into reviewable, versioned team workflow assets.
+**Goal:** Make project processes executable through AI tools while retaining human control and complete WorkItem-level audit.
 
-Recommended scope:
+Scope:
 
-- Add Skill CRUD APIs.
-- Support candidate, draft, approved, and deprecated skill states.
-- Persist skill definitions with input schema, triggers, instructions, and version metadata.
-- Add Web pages for skill review and approval.
-- Record SkillRun input, output, status, warnings, and errors.
-- Add candidate skill creation from repeated accepted writebacks.
+- Add WorkflowDefinition and immutable WorkflowVersion.
+- Add WorkflowExecution and WorkflowStepRun state machines.
+- Make one WorkItem-level WorkflowExecution authoritative for stage and status; WorkSessions contribute step attempts, artifacts and evidence but cannot overwrite WorkItem stage independently.
+- Support lightweight, standard and high-risk project workflows.
+- Add WorkArtifact, HumanConfirmation and artifact upload policies.
+- Pin WorkflowVersion and ContextRevision when a WorkSession starts.
+- Add `agora_complete_workflow_step` with prerequisite and role checks.
+- Add close-work validation, local pending sync and idempotent resume.
+- Build Web WorkItem detail with WorkSessions, steps, artifacts and confirmations.
+- Migrate useful SessionEvent and development writeback data without losing history.
 
 Exit criteria:
 
-- A team can create, edit, approve, run, and inspect a skill through API/Web.
-- SkillRun history is visible and test-covered.
+- A real AI tool executes analysis, design, review, implementation, self-test and delivery for a realistic WorkItem.
+- Required artifacts are saved locally and synchronized to Agora according to policy.
+- Human gates cannot be bypassed by a normal agent credential.
+- The same WorkItem can contain multiple users and WorkSessions.
+- Concurrent WorkSessions cannot independently advance the WorkItem beyond unmet WorkflowExecution prerequisites.
+- A project manager can understand task progress without interpreting raw Session events.
 
 ---
 
-## P5: Session Memory and Work Audit
+## P5: Skill and Team Memory Governance
 
-**Goal:** Make each AI work session auditable and reusable as project memory.
+**Goal:** Turn approved team methods and repeated experience into versioned, reusable AI work capabilities.
 
-Recommended scope:
+Scope:
 
-- Add a richer session timeline in Web.
-- Standardize event types for context planned, skill run, file changed, tests run, writeback drafted, and close work.
-- Structure development update content into summary, files changed, tests, risks, and follow-ups.
-- Link sessions to accepted writebacks and created assets.
-- Add session search/filter by project, intent, status, and date.
+- Separate logical Skill from immutable SkillVersion.
+- Migrate current candidate/draft/approved/deprecated behavior.
+- Add SkillCandidate provenance from WorkItem, ContextProposal and artifacts.
+- Add versioned trigger, input/output schema, instructions and risk constraints.
+- Pin used SkillVersions to WorkSession and record SkillRun evidence.
+- Add duplicate detection and repeated-experience suggestions.
+- Add Web review, diff, publish, deprecate and usage history.
+- Make ContextPlanner select only approved, applicable SkillVersions.
 
 Exit criteria:
 
-- A reviewer can open a session and understand what context was used, what the agent did, what tests ran, and what knowledge was produced.
+- A developer can submit a SkillCandidate during a real task.
+- A reviewer can edit and approve it into a new SkillVersion.
+- A later AI-tool task automatically receives and uses the approved version.
+- Historical WorkSessions remain linked to the exact SkillVersion used.
 
 ---
 
-## P6: Production Persistence Baseline
+## P6: Quality and Project Management
 
-**Goal:** Prepare persistence and indexes for a production-like deployment path.
+**Goal:** Give quality personnel and project managers trustworthy project status through AI tools and Web UI.
 
-Recommended scope:
+Scope:
 
-- Introduce Alembic migrations.
-- Add Postgres runtime configuration.
-- Add repository tests that run against SQLite and optionally Postgres.
-- Implement initial Qdrant and OpenSearch adapters behind current fake interfaces.
-- Add index rebuild CLI/script.
-- Add safe reset/rebuild commands for local development.
-- Decide whether Neo4j remains deferred or gets a minimal adapter.
+- Add structured QualityEvidence for local tests, CI, review and risk findings.
+- Distinguish evidence, AI inference and unverified claims.
+- Aggregate project and WorkItem quality state.
+- Add WorkItem dashboard, ownership, blockers, stage and pending approvals.
+- Add `agora_get_project_status` and `agora_get_quality_status` Harness queries.
+- Add quality gaps, missing evidence and regression risk views.
+- Link ContextProposal, SkillCandidate, Workflow and QualityEvidence to WorkItem.
 
 Exit criteria:
 
-- Database schema changes are migration-managed.
-- Runtime can use Postgres and real search adapters behind config flags.
-- Local fake mode remains fast and testable.
+- A project manager can ask an AI tool for current WorkItems, stages, blockers and approvals.
+- A quality user can ask for task/project quality and trace every result to evidence.
+- Web and AI-tool views agree because both use the same WorkItem and evidence model.
+- An AI summary cannot turn a failed or absent test into a passed state.
 
 ---
 
-## P7: Team Governance and Access
+## P7: Team Governance and Security
 
-**Goal:** Add basic team boundaries and control surfaces needed before broader use.
+**Goal:** Harden the minimal identity boundary from P2 into enterprise-grade tenant, project, approval and audit governance.
 
-Recommended scope:
+Scope:
 
-- Add User, Organization, Membership, and ProjectMembership models.
-- Add API authentication boundary.
-- Add simple role model for admin, maintainer, reviewer, and viewer.
-- Restrict writeback approval and project archive/delete operations by role.
-- Add audit log entries for sensitive actions.
-- Add Web affordances for current user/org/project role.
+- Add SSO and enterprise identity lifecycle on top of the existing User, Membership and ProjectMembership boundary.
+- Harden Web authentication, token rotation, revocation and session management.
+- Add production-scoped AI-tool tokens and CI service accounts.
+- Add tenant administration, lifecycle and audit controls around the principal-derived boundary established in P2.
+- Expand project roles and configurable ApprovalPolicy beyond the minimal human/agent separation.
+- Restrict Context, Skill, Workflow and high-risk actions by role.
+- Add secret-safe logging, audit metadata, retention and export controls.
+- Add webhook signature validation and replay protection.
+- Add optional tamper-evident audit export for enterprise deployment.
 
 Exit criteria:
 
-- Project access is scoped by org and membership.
-- Review and archive actions are auditable.
+- Cross-organization and unauthorized project access are rejected and tested.
+- AI credentials cannot approve team knowledge.
+- Technical and process approvals follow project policy.
+- Sensitive actions include actor, tool, request, target and decision audit data.
 
 ---
 
-## P8: Integrations
+## P8: Integrations and Quiet Automation
 
-**Goal:** Connect Agora to real team workflow surfaces.
+**Goal:** Connect Agora to repository, CI, task and PR signals so context and project status stay current with minimal user interruption.
 
-Recommended scope:
+Scope:
 
-- GitHub/GitLab PR metadata ingestion.
-- Task system integration, starting with a mock adapter and then Linear/Jira-style adapters.
-- Docs ingestion for Markdown directories or external docs exports.
-- OpenAPI ingestion for service/API context.
-- CI/test result import.
-- Project resolution from task URL, PR URL, branch name, or repository remote.
+- GitHub/GitLab/Gitee/self-hosted Git push and PR/MR signals.
+- CI QualitySignal and signed test result import.
+- Task-system WorkItem mapping, beginning with one real adapter.
+- Resolve Project/WorkItem from task URL, PR, branch and repository identity.
+- Optional docs/OpenAPI source anchors without making Agora a general document crawler.
+- Background stale detection, approval routing and actionable notifications.
+- Local Connector offline queue and sync diagnostics.
+- Policy-controlled CI Agent generation of refresh Proposals.
 
 Exit criteria:
 
-- An agent can start from a task/PR reference and get project-specific context without manual project selection.
+- A merge changes ContextStream freshness automatically.
+- The freshness change is driven by a real signed provider webhook or authenticated CI signal, not a synthetic contract call.
+- An AI tool starting from a task or PR resolves the correct Project and WorkItem.
+- CI evidence appears on the correct WorkItem without manual upload.
+- Normal developer work remains silent unless a decision or conflict is required.
 
 ---
 
-## P9: Hosted Beta and Ops Readiness
+## P9: Production and Operations Readiness
 
-**Goal:** Make Agora practical to run for a small team over time.
+**Goal:** Make Agora reliable to deploy, operate, upgrade and recover for a real software team.
 
-Recommended scope:
+Scope:
 
-- Dockerized deploy path for API, Web, database, and index services.
-- Health/readiness endpoints.
-- Structured logging and request IDs.
-- Backup/restore documentation for database and indexes.
-- Admin scripts for reindex, reset, data export, and diagnostics.
-- Smoke test script for deployed environments.
-- Upgrade path documentation.
+- Postgres and S3-compatible production configuration.
+- Scale and operate the existing transactional outbox with worker concurrency, dead-letter diagnostics and rebuild tools.
+- Containerized API, Web, worker and Local Connector distribution.
+- Health, readiness, structured logs, request/trace IDs and metrics.
+- Backup/restore, migration, rollback, data export and disaster recovery docs.
+- Object retention, cleanup and audit archival.
+- Performance and concurrency tests for Context head and Workflow commands.
+- Evaluate Postgres FTS/pgvector with real retrieval data; add OpenSearch/Qdrant only if metrics require them.
+- Upgrade and compatibility policy for Local Connector and MCP protocol.
+- Deployed-environment smoke and full role-based black-box suite.
 
 Exit criteria:
 
-- A small team can deploy Agora, onboard a repository, run agent workflows, review writebacks, and recover from common operational issues.
+- A small team can deploy, onboard, work, review, upgrade, back up and recover Agora.
+- Context and workflow concurrency invariants hold under load.
+- Search projections can be rebuilt without loss of governance state.
+- A production-like environment passes the complete Developer, Reviewer, Project Manager and Quality black-box journey.
+
+---
+
+## Historical Plan Files
+
+The dated P0-P6 implementation plans describe work completed before the 2026-08-14 product realignment. They remain as implementation and test evidence, but they do not define the meaning of the realigned P2-P9 phases.
+
+When a historical title conflicts with this Roadmap, this Roadmap and the canonical product/architecture documents take precedence.
 
 ---
 

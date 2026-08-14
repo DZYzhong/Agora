@@ -1,748 +1,709 @@
 # Agora 技术架构设计
 
-## 1. 架构目标
+> 文档状态：当前技术架构单一事实源
+>
+> 更新时间：2026-08-14
+>
+> 产品依据：`docs/superpowers/specs/2026-08-14-agora-product-functional-design.zh-CN.md`
+>
+> 实施顺序：`docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
 
-Agora 的技术架构要服务真实团队工作流：
+## 1. 架构结论
 
-- 开发者通过 AI 工具工作，而不是直接操作 Agora。
-- 客户代码和文档默认留在开发者本地或 CI runner，不由 Agora 主动拉取。
-- AI 工具负责本地扫描、项目分析、上下文生成、任务执行辅助。
-- Agora 负责项目身份、上下文版本、流程模板、技能包、任务过程、团队资产、审批治理和审计。
-- Agora Web UI 面向项目经理、技术负责人、质量人员和管理员。
+Agora 采用“本地执行平面 + 服务端控制平面”的模块化单体架构。
 
-## 2. 总体架构
+- AI 工具和 Local Connector 在客户本地或 CI runner 访问源码、Git 和模型。
+- Agora 服务端不依赖客户源码访问权，负责 Harness 编排、团队状态、版本治理、审批、审计和分发。
+- Harness Coordinator 是 AI 工具接入 Agora 的稳定任务级门面，也是产品技术核心。
+- Postgres 是事实源；对象存储保存大型内容；搜索和向量索引是可重建投影。
+- Accepted ContextRevision、WorkflowVersion 和 SkillVersion 不可变。
+- 多人并发通过 branch-scoped head、expected revision 和乐观锁处理。
+- Web UI 访问治理领域，不承担本地源码扫描和 AI 分析职责。
+
+首个可用版本保持模块化单体，不提前拆分微服务，不强制引入 OpenSearch、Qdrant、Neo4j、Temporal 或中心化 LLM Gateway。
+
+## 2. 架构目标
+
+- 支持不同 AI 工具自动接入同一个项目 Harness。
+- 在不上传完整源码的情况下共享可追溯项目上下文。
+- 让 Harness 返回任务相关、受 token budget 控制的 ContextBundle。
+- 支持多人、多 Session、并发分支和上下文更新。
+- 支持项目流程、人工确认、任务产物和质量证据。
+- 支持项目经理、技术负责人和质量人员查询可信状态。
+- 支持 Context、Skill、Workflow 的审批、版本和回滚。
+- 支持网络失败、客户端重试和异步索引失败，不产生重复或静默覆盖。
+- 支持本地开发、团队私有部署和后续托管部署。
+
+## 3. 非目标
+
+- Agora 服务端默认不克隆或分析客户仓库。
+- Harness 不直接调用客户 AI 模型替代本地 AI 工具完成项目分析。
+- 不把 Session Event 当作完整项目管理模型。
+- 不使用向量数据库作为项目上下文事实源。
+- 不在 P2 就拆成多个独立部署服务。
+- 不要求所有 AI 工具具备完全相同的高级能力。
+- 不把普通数据库 AuditEvent 描述成密码学意义的不可抵赖日志。
+
+## 4. 架构原则
+
+### 4.1 Locality by default
+
+源码、未提交变更和本地绝对路径默认停留在本地执行平面。上传内容必须经过项目策略、客户端清理和必要的人审。
+
+### 4.2 Harness as facade, domains as authority
+
+Harness 编排用户工作生命周期，但项目身份、上下文版本、工作流状态、Skill 生命周期和审批规则分别由领域模块维护。Harness 不复制领域规则，也不直接操作搜索基础设施。
+
+### 4.3 Immutable versions
+
+Accepted ContextRevision、WorkflowVersion 和 SkillVersion 创建后不可变。逻辑对象通过 head 或 active version 指针引用当前版本。
+
+### 4.4 Explicit provenance
+
+AI 生成内容必须携带 schema version、生成工具、模型信息、来源锚点和输入基线。事实、推断和未验证结论要能够区分。
+
+### 4.5 Idempotent commands
+
+所有创建、完成、提交和关闭命令都接受 idempotency key。客户端重试返回原结果，不重复写入。
+
+### 4.6 Database as source of truth
+
+Postgres 保存治理状态和版本关系。对象存储和搜索索引通过 outbox 异步更新，可以从数据库和对象存储重建。
+
+### 4.7 Progressive context
+
+Harness 先返回 L0/L1 ContextBundle，再通过 source ref 获取 L2 内容。协议不能把全部团队记忆一次性塞给 AI 工具。
+
+### 4.8 Graceful degradation
+
+Agora 不可用时允许用户继续本地工作，但客户端必须标记上下文未验证并保存待同步队列，不能伪造已同步状态。
+
+## 5. 运行时拓扑
 
 ```text
-开发者本地项目
-  ├─ 源码 / 文档 / Git
-  └─ AI 工具插件 / MCP Client
-        │
-        │ resolve project / fetch memory / upload artifacts
-        ▼
-Agora API / MCP Gateway
-        │
-        ├─ Harness Service
-        ├─ Project Service
-        ├─ Context Service
-        ├─ Workflow Service
-        ├─ Skill Service
-        ├─ Task Session Service
-        ├─ Quality Service
-        ├─ Approval Service
-        └─ Audit Service
-        │
-        ├─ Relational DB
-        ├─ Object/Artifact Store
-        ├─ Search / Vector Index
-        └─ Event Log
-        │
-        ▼
-Agora Web UI
-  ├─ 项目驾驶舱
-  ├─ 上下文治理
-  ├─ 任务流程审计
-  ├─ Skill 审批
-  ├─ 质量视图
-  └─ 团队和权限
+客户本地 / CI Runner
+┌──────────────────────────────────────────────────────────┐
+│ AI Tool                                                   │
+│  ├─ 本地文件、文档、Git 和模型能力                        │
+│  └─ Agora Local Connector / Agent Adapter                  │
+│      ├─ Project Detector / Git Observer                    │
+│      ├─ Policy Guard / Redaction                           │
+│      ├─ Context Schema Helper / Source Anchor Builder      │
+│      └─ Sync Queue / MCP Client                            │
+└───────────────────────┬──────────────────────────────────┘
+                        │ HTTPS / MCP over authenticated API
+                        ▼
+Agora 控制平面
+┌──────────────────────────────────────────────────────────┐
+│ API / MCP Gateway                                         │
+│  └─ AuthN / AuthZ / Rate Limit / Protocol Validation       │
+│                         │                                  │
+│                         ▼                                  │
+│ Harness Coordinator                                       │
+│  ├─ Project Resolver / Work Resolver                       │
+│  ├─ Context Planner / Workflow Orchestrator                │
+│  ├─ Skill Orchestrator / Policy Engine                     │
+│  └─ Session Recorder / Memory Writeback                    │
+│                         │                                  │
+│  ┌──────────────────────┴───────────────────────────────┐  │
+│  │ Project │ Work │ Workflow │ Context │ Skill │ Quality │  │
+│  │ Artifact │ Approval │ Audit │ Integration Signal      │  │
+│  └──────────────────────┬───────────────────────────────┘  │
+│                         │                                  │
+│  Postgres │ Object Store │ Outbox Workers │ Search Views   │
+└──────────────────────────────────────────────────────────┘
+                        ▲
+                        │ Git webhook / CI RevisionSignal
+                        │
+                 Git / CI / Task Systems
+
+Agora Web UI -> API Gateway -> Domain Query / Approval Commands
 ```
 
-## 3. 组件边界
+## 6. 本地执行平面
 
-## 3.1 AI 工具侧组件
+## 6.1 AI Tool
 
-AI 工具侧是日常工作主入口。
+AI Tool 提供：
 
-组件：
+- 本地文件和 Git 访问。
+- 用户已经配置的模型能力。
+- 人工交互界面。
+- 执行命令、修改代码和运行测试的能力。
 
-- Local Project Detector。
-- Agora Connector。
-- Context Generator。
-- Workflow Runner。
-- Artifact Syncer。
-- Skill Candidate Generator。
-- User Review Prompt。
+Agora 不假设所有工具都能自动执行命令。接入时通过 capability 声明最小能力集。
+
+## 6.2 Local Connector / Agent Adapter
+
+Local Connector 是轻量适配层，可以表现为 MCP stdio server、AI 工具 Plugin、Project Rule Adapter 或内部 Agent SDK。
 
 职责：
 
-- 读取本地 Git 状态。
-- 检测项目路径和仓库身份。
-- 调用 Agora 解析项目。
-- 判断上下文是否 fresh。
-- 在 missing/stale 时扫描本地代码和文档。
-- 调用 AI 模型生成 ContextPack 或 ContextUpdate。
-- 按 WorkflowTemplate 引导任务。
-- 保存文档到项目本地。
-- 上传任务产物到 Agora。
-- 让开发者在 AI 工具中确认关键节点。
+- 读取本地 repository、branch、commit 和 workspace 状态。
+- 规范化 Git remote，移除用户名、密码和 token。
+- 生成不暴露本地路径的 workspace fingerprint。
+- 调用 Agora Harness。
+- 将 Context schema、source anchor 要求和 workflow 指令交给 AI Tool。
+- 在上传前执行 ignore、secret scan、大小限制和内容策略。
+- 保存 idempotency key 和离线待同步队列。
+- 将服务端错误转成 AI 工具可执行的下一步。
 
-不应该做：
+Local Connector 不负责：
 
-- 绕过 Agora 审批直接覆盖 accepted ContextPack。
-- 在 dirty workspace 情况下自动更新团队全局上下文。
-- 上传未经用户确认的敏感内容。
+- 决定团队 accepted context。
+- 绕过 Agora 审批。
+- 将任意本地目录路径上传服务端。
+- 把未提交工作区自动发布成团队知识。
 
-## 3.2 Agora API / MCP Gateway
+## 6.3 客户端能力协商
 
-AI 工具通过 API 或 MCP 调用 Agora。
-
-职责：
-
-- 提供项目解析。
-- 提供上下文 freshness check。
-- 提供团队记忆读取。
-- 接收上下文、任务产物、候选 skill 上传。
-- 提供任务 session 记录。
-- 提供项目和质量状态查询。
-
-接口形式：
-
-- HTTP API：适合 Web UI、CI、后台集成。
-- MCP Tools：适合 AI 工具直接调用。
-
-## 3.3 Harness Service
-
-Harness 是 Agora 面向 AI 工具的工作流编排层，也是当前代码中已经存在且应该保留的核心概念。
-
-Harness 的定位不是“服务端替 AI 工具分析整个项目”，而是：
-
-- 作为 AI 工具开始任务的入口。
-- 解析项目和任务。
-- 获取项目流程、上下文和 skill。
-- 编排任务步骤。
-- 记录 AI 工具执行过程。
-- 保存每一步产物。
-- 生成或接收 writeback / ContextUpdate / skill candidate。
-- 在 close-work 时整理任务记忆。
-- 把所有过程写入 session audit。
-
-Harness 是 AI 工具和 Agora 各领域服务之间的稳定门面：
-
-```text
-AI Tool / MCP Client
-        ↓
-Harness Service
-        ├─ Project Service
-        ├─ Context Service
-        ├─ Workflow Service
-        ├─ Skill Service
-        ├─ Artifact Service
-        ├─ Approval Service
-        └─ Audit Service
-```
-
-当前代码里的 `HarnessService` 已经包含这些雏形：
-
-- `start_work`：解析项目和任务，创建 session。
-- `plan_context`：规划任务上下文。
-- `record_event`：记录 AI 工具事件。
-- `fetch_context_ref`：读取上下文引用。
-- `close_work`：关闭任务并捕获 development update。
-
-后续不是移除 Harness，而是把它升级为真实团队工作流的编排器。
-
-目标态 Harness 应提供：
-
-```text
-harness.start_work
-harness.resolve_project
-harness.check_context_freshness
-harness.get_team_memory
-harness.start_workflow_step
-harness.complete_workflow_step
-harness.upload_artifact
-harness.upload_context_pack
-harness.upload_context_update
-harness.upload_skill_candidate
-harness.close_work
-harness.get_task_status
-```
-
-Harness 与下游服务的分工：
-
-- Harness 负责“任务过程怎么走”和“AI 工具怎么接入”。
-- Project Service 负责项目身份和配置。
-- Context Service 负责上下文版本、freshness 和合并。
-- Workflow Service 负责流程模板和步骤规则。
-- Skill Service 负责技能包生命周期。
-- Artifact Service 负责文档产物。
-- Audit Service 负责不可抵赖的过程记录。
-
-不应该让 AI 工具直接散乱调用所有领域服务；AI 工具优先通过 Harness 完成任务工作流。Web UI 可以直接访问领域服务做治理和审批。
-
-## 3.4 Agora Web UI
-
-Web UI 是治理和审计入口。
-
-职责：
-
-- 展示项目上下文版本。
-- 审核 ContextUpdate。
-- 审核 skill candidate。
-- 管理项目流程模板。
-- 查看任务流程产物。
-- 查看项目质量状态。
-- 管理团队、权限和审计。
-
-不作为：
-
-- 开发者日常主入口。
-- 项目源码扫描入口。
-- 真实 AI 上下文生成入口。
-
-## 4. 核心服务设计
-
-## 4.1 Harness Service
-
-负责 AI 工具任务工作流编排。
-
-能力：
-
-- 开始任务。
-- 解析项目和任务名称。
-- 检查上下文 freshness。
-- 获取团队记忆。
-- 启动和完成 workflow step。
-- 上传或关联任务产物。
-- 上传 ContextPack / ContextUpdate。
-- 上传候选 skill。
-- 记录 AI 工具事件和人工确认。
-- close-work 时整理任务记忆。
-
-关键 API：
-
-```text
-POST /harness/start-work
-POST /harness/resolve-project
-POST /harness/check-context-freshness
-POST /harness/get-team-memory
-POST /harness/workflow-steps/start
-POST /harness/workflow-steps/complete
-POST /harness/artifacts
-POST /harness/context-packs
-POST /harness/context-updates
-POST /harness/skill-candidates
-POST /harness/record-event
-POST /harness/close-work
-```
-
-关键 MCP tools：
-
-```text
-agora_start_work
-agora_resolve_project
-agora_check_context_freshness
-agora_get_team_memory
-agora_start_workflow_step
-agora_complete_workflow_step
-agora_upload_artifact
-agora_upload_context_pack
-agora_upload_context_update
-agora_upload_skill_candidate
-agora_record_event
-agora_close_work
-```
-
-`start_work` 示例输出：
+客户端在握手时声明：
 
 ```json
 {
-  "session_id": "session_1",
-  "project_id": "project_1",
-  "task_name": "BUG-128 优惠券支付后状态未刷新",
-  "context_status": "fresh",
-  "workflow_template_id": "workflow_1",
-  "next_action": "get_team_memory"
+  "protocol_version": "1.0",
+  "agent_type": "codex",
+  "agent_version": "...",
+  "capabilities": {
+    "read_files": true,
+    "read_git": true,
+    "run_commands": true,
+    "human_prompt": true,
+    "offline_queue": true
+  }
 }
 ```
 
-## 4.2 Project Service
+Harness 根据能力调整 next actions，不要求不具备命令执行能力的工具伪造测试结果。
 
-负责项目身份和项目配置。
+## 7. API / MCP Gateway
 
-能力：
+Gateway 负责：
 
-- 创建项目。
-- 解析本地项目身份。
-- 管理 repo remote / fingerprint。
-- 管理项目成员和角色。
-- 管理默认 WorkflowTemplate。
-- 管理当前 accepted ContextPack。
+- 用户和 AI 工具认证。
+- 从 principal 推导 org、user 和授权项目，拒绝客户端自报租户身份。
+- scoped token 和 project scope 校验。
+- schema、协议版本、payload 大小和内容类型校验。
+- rate limit、request ID、trace ID 和幂等键透传。
+- 将 AI 工具调用路由到 Harness。
+- 将 Web UI 命令路由到对应领域模块。
 
-关键 API：
+MCP 是 AI 工具协议适配器，不是业务逻辑层。HTTP API 是唯一内部传输要求；MCP、Plugin 和 SDK 共享相同应用命令。
+
+## 8. Harness Coordinator
+
+## 8.1 定位
+
+Harness 是 Agora 面向 AI 工具的稳定任务级控制层。
+
+它回答：
+
+- 当前用户在哪个项目和哪个 WorkItem 工作？
+- 本次 WorkSession 应固定哪些 Context、Workflow 和 Skill 版本？
+- 当前步骤是什么，需要哪些上下文和人工确认？
+- AI 工具应该执行哪个 next action？
+- 工作结束后哪些内容应成为 ContextProposal、SkillCandidate 或 QualityEvidence？
+
+## 8.2 内部组件
+
+- `ProjectResolver`：用规范化 RepositoryIdentity 解析 Project。
+- `WorkResolver`：匹配外部任务、已有 WorkItem 或创建候选 WorkItem。
+- `ContextPlanner`：按任务、角色、阶段和 token budget 生成 ContextBundle。
+- `WorkflowOrchestrator`：推进 WorkflowExecution 和步骤状态。
+- `SkillOrchestrator`：选择已批准 SkillVersion 并记录 SkillRun。
+- `PolicyEngine`：计算上传、人工确认、审批和风险策略。
+- `SessionRecorder`：记录 WorkSession、调用和状态事件。
+- `MemoryWriteback`：把任务收尾材料组织为 ContextProposal 或 SkillCandidate。
+- `StatusQuery`：为 AI 工具聚合项目、WorkItem 和质量状态。
+
+## 8.3 职责上限
+
+Harness 只调用领域 command/query interface：
+
+- 不直接更新 ContextStream head。
+- 不直接发布 SkillVersion。
+- 不直接修改 WorkflowVersion。
+- 不直接访问客户源码。
+- 不依赖具体向量数据库协议。
+- 不将 AI 摘要直接标记为已验证质量事实。
+
+## 8.4 生命周期
 
 ```text
-POST /projects/resolve-local
-GET /projects/{project_id}
-PATCH /projects/{project_id}
-GET /projects/{project_id}/status
+start_work
+-> resolve project and WorkItem
+-> create/resume WorkSession
+-> pin context/workflow/skill versions
+-> prepare_context
+-> execute and complete workflow steps
+-> record artifacts/evidence/human confirmations
+-> submit context/skill proposals
+-> close_work
 ```
 
-`resolve-local` 输入：
+## 9. 领域模块
+
+## 9.1 Identity and Access
+
+管理 Organization、User、Membership、ProjectMembership、credential 和 role policy。
+
+首期角色：
+
+- admin。
+- project_manager。
+- tech_lead / context_steward。
+- developer。
+- quality。
+- product。
+- viewer。
+
+权限最终由 principal、organization membership、project membership 和 ApprovalPolicy 共同决定。
+
+P2 先实现最小可信边界：本地/私有部署用户、ProjectMembership、个人 AI-tool credential 与 human Web credential 分离，agent credential 可以工作和提交候选但不能审批。P7 再增加 SSO、生命周期、细粒度策略、轮换和企业审计硬化。
+
+## 9.2 Project and Repository
+
+管理 Project、RepositoryIdentity、默认分支、上传策略、集成和上下文通道。
+
+RepositoryIdentity 使用 provider、host、namespace、repository 组成稳定身份。SSH、HTTPS 和带用户名 remote 规范化为同一 canonical identity。
+
+## 9.3 Work Management
+
+管理 WorkItem 和 WorkSession。
+
+WorkItem 是项目状态聚合单位；WorkSession 是一次 AI 工具执行。多个用户和多个 Session 可以关联同一个 WorkItem。
+
+WorkItem 可以关联外部任务 ID、branch、commit、PR、负责人、参与者和风险等级。
+
+一个 WorkItem 只有一个 authoritative WorkflowExecution。WorkItem 的 stage/status 由该 execution、阻塞和审批状态事务性派生。WorkSession 只能贡献 step attempt、artifact、evidence 和 confirmation，不能独立覆盖 WorkItem stage。
+
+## 9.4 Workflow
+
+管理 WorkflowDefinition、WorkflowVersion、WorkflowExecution 和 WorkflowStepRun。
+
+规则：
+
+- WorkflowVersion 不可变。
+- WorkItem 开始执行时固定一个 WorkflowVersion。
+- 一个 WorkItem-level WorkflowExecution 是流程进度唯一事实源。
+- WorkSession 的 step attempt 必须关联该 execution；并发 Session 通过 execution version 做乐观并发。
+- Step 完成是带前置条件的命令，不是任意状态 PATCH。
+- 默认标准 WorkflowVersion 的每个步骤都包含 AI 工具内的人工确认；轻量版本必须由有权限的角色发布。
+- skip、waive、reopen 和 retry 必须记录原因、操作者和策略结果。
+- 人工确认作为独立记录，不仅保存布尔值。
+
+## 9.5 Context Governance
+
+管理 ContextStream、ContextRevision、ContextProposal、ContextBundle 和 SourceAnchor。
+
+职责：
+
+- 维护 branch-scoped accepted head。
+- 计算 freshness 状态。
+- 接收并校验 AI 生成 Proposal。
+- 生成差异和审批材料。
+- 使用 expected head 乐观合并。
+- 提供 task-aware ContextBundle。
+- 管理版本血缘、回滚和 deprecated revision。
+
+## 9.6 Skill Governance
+
+管理 Skill、SkillVersion、SkillCandidate 和 SkillRun。
+
+Skill 是逻辑身份，SkillVersion 是不可变内容。WorkSession 记录实际使用的版本，避免 Skill 修改后无法解释历史行为。
+
+## 9.7 Artifact and Quality
+
+管理 WorkArtifact、ArtifactBlob 和 QualityEvidence。
+
+质量证据至少记录：
+
+- 类型和来源。
+- 关联 commit/PR。
+- 命令或 CI run reference。
+- 结果、时间和生成者。
+- 原始证据位置和 hash。
+- 是否经过人工确认。
+
+Quality Service 聚合证据和风险，不把 AI 推断转成测试已通过。
+
+## 9.8 Approval
+
+管理 ApprovalPolicy、ApprovalRequest 和 ApprovalDecision。
+
+支持：
+
+- 单人或多人审批。
+- 指定角色或 code owner。
+- approve、reject、request changes。
+- 低风险自动接受策略。
+- ContextProposal、SkillCandidate、WorkflowVersion 和高风险产物审批。
+
+## 9.9 Audit
+
+记录关键命令、审批和状态变化：
+
+- actor principal 和 actor tool。
+- organization、project、WorkItem 和 WorkSession。
+- request ID、trace ID、idempotency key。
+- event type、target、before/after reference。
+- payload hash 和 timestamp。
+
+默认实现为 append-only application audit。企业防篡改要求可以增加 hash chain 或外部 WORM sink。
+
+## 9.10 Integration Signal
+
+接收 Git webhook、CI、任务系统和 PR 事件，规范化为：
+
+- RevisionSignal。
+- TaskSignal。
+- PullRequestSignal。
+- QualitySignal。
+
+Signal 只更新 Agora 可证明的状态，不在无源码情况下生成 ContextRevision。
+
+## 10. 核心数据模型
+
+以下为逻辑模型，具体表字段在阶段实施计划中细化。
+
+## 10.1 租户和项目
+
+```text
+Organization
+User
+Membership
+Project
+ProjectMembership
+RepositoryIdentity
+ProjectPolicy
+```
+
+约束：
+
+- Project slug 在 organization 内唯一。
+- RepositoryIdentity canonical key 在授权范围内唯一。
+- 所有领域查询必须包含 tenant boundary。
+- org_id 从认证 principal 推导，不接受客户端任意指定。
+
+## 10.2 工作管理
+
+```text
+WorkItem
+  id, project_id, external_ref, title, description
+  status, derived_stage, risk_level, owner_id
+  workflow_version_id, branch, created_at, updated_at
+
+WorkSession
+  id, work_item_id, user_id, agent_type, agent_version
+  pinned_context_revision_id, pinned_workflow_version_id
+  status, active_step_run_id, started_at, closed_at
+
+SessionEvent
+HumanConfirmation
+```
+
+## 10.3 工作流
+
+```text
+WorkflowDefinition
+WorkflowVersion
+  id, definition_id, version, schema_version, steps, status
+
+WorkflowExecution
+  id, work_item_id, workflow_version_id, status
+
+WorkflowStepRun
+  id, execution_id, step_key, attempt, status
+  started_at, completed_at, waiver_id
+```
+
+## 10.4 上下文
+
+```text
+ContextStream
+  id, project_id, repository_id, branch, head_revision_id
+
+ContextRevision
+  id, stream_id, version, parent_revision_id
+  base_commit_sha, schema_version, content_ref
+  provenance, status, accepted_at
+
+ContextProposal
+  id, stream_id, work_item_id, session_id
+  type, target_branch, expected_head_revision_id
+  source_branch, from_commit_sha, to_commit_sha
+  content_ref, source_anchors, provenance
+  status, created_at
+
+ContextBundle
+  id, session_id, revision_id, query, intent
+  token_budget, level, content, source_refs, created_at
+
+SourceAnchor
+  repository_id, commit_sha, path
+  start_line, end_line, content_hash
+  optional_excerpt_ref
+```
+
+ContextProposal 状态：
+
+```text
+draft -> pending_review -> accepted
+                      ├-> request_changes
+                      ├-> rejected
+                      └-> needs_rebase
+```
+
+## 10.5 Skill
+
+```text
+Skill
+SkillVersion
+SkillCandidate
+SkillRun
+```
+
+SkillVersion 包含 schema version、trigger、instructions、input/output schema、来源和审批信息。
+
+## 10.6 产物、质量和治理
+
+```text
+WorkArtifact
+ArtifactBlob
+QualityEvidence
+ApprovalPolicy
+ApprovalRequest
+ApprovalDecision
+AuditEvent
+OutboxEvent
+IdempotencyRecord
+RevisionObservation
+```
+
+## 11. Freshness 架构
+
+## 11.1 输入信号
+
+Local Connector 上报 `RevisionObservation`：
 
 ```json
 {
-  "org_id": "org_1",
-  "local_path_hint": "/workspace/member-center",
-  "git_remote": "git@example.com:team/member-center.git",
+  "repository_key": "gitlab.example.com/team/member-center",
   "branch": "main",
-  "commit_sha": "8f34c2a",
-  "dirty_workspace": false,
-  "detected_project_name": "member-center"
+  "commit_sha": "9a01d44",
+  "workspace_state": "clean",
+  "relationship_to_context_base": "descendant",
+  "changed_paths_digest": "...",
+  "observed_at": "..."
 }
+```
+
+Git/CI 上报 `RevisionSignal`：
+
+```json
+{
+  "repository_key": "gitlab.example.com/team/member-center",
+  "branch": "main",
+  "new_head_sha": "9a01d44",
+  "previous_head_sha": "8f34c2a",
+  "event": "push"
+}
+```
+
+## 11.2 多维结果
+
+Freshness 不使用单个互斥字符串，返回：
+
+```json
+{
+  "repository_relation": "descendant",
+  "workspace_state": "clean",
+  "context_coverage": "stale",
+  "proposal_state": "none",
+  "accepted_revision_id": "ctx_r12",
+  "observed_commit_sha": "9a01d44",
+  "recommended_action": "generate_refresh_proposal"
+}
+```
+
+维度：
+
+- `repository_relation`：exact、descendant、ancestor、diverged、unknown。
+- `workspace_state`：clean、dirty、unknown。
+- `context_coverage`：missing、fresh、potentially_stale、stale、unknown。
+- `proposal_state`：none、pending、needs_rebase、conflict。
+
+## 11.3 判断规则
+
+- 没有 accepted head：context missing。
+- observation commit 等于 accepted base commit：fresh。
+- Git/CI 宣布新 branch head，但尚无本地 diff 证据：potentially_stale。
+- 本地工具证明 observation commit 是 accepted base 的 descendant：stale。
+- 本地 commit 是 accepted base 的 ancestor：本地代码 behind，Context 可能 ahead。
+- repository diverged：要求用户或工具处理 branch，不能自动覆盖。
+- dirty workspace 是独立维度，只限制团队知识提交，不阻止 session-local 分析。
+- 同一 expected head 存在重叠 Proposal 时标记潜在冲突，但只有合并时做最终 CAS 判断。
+
+## 11.4 自动更新边界
+
+Agora 可以自动检测过期、触发生成请求、管理审批和分发新版本；只有具备代码访问能力的 Local Connector 或 CI Agent 才能生成真实 ContextProposal。
+
+低风险、策略允许且有可信 CI Agent 的 refresh Proposal 可以自动接受。默认仍进入审批。
+
+## 12. Context 架构
+
+## 12.1 ContextRevision schema
+
+ContextRevision 内容采用版本化 JSON schema，至少包含：
+
+- project overview。
+- domains and modules。
+- business and technical flows。
+- constraints and decisions。
+- risks。
+- test strategy。
+- source anchors。
+- provenance。
+
+Provenance 至少包含：
+
+- generating tool 和 version。
+- model/provider 标识或组织允许的匿名标识。
+- schema version。
+- input ContextRevision。
+- repository commit。
+- generation timestamp。
+- project workflow/skill versions。
+
+## 12.2 ContextBundle 规划
+
+输入：
+
+```text
+principal role
+project and WorkItem
+session intent and workflow step
+pinned ContextRevision
+approved SkillVersions
+query and token budget
 ```
 
 输出：
 
-```json
-{
-  "project_id": "project_1",
-  "project_name": "会员中心研发协作平台",
-  "context_status": "fresh",
-  "current_context_version": "ctx_v12",
-  "workflow_template_id": "workflow_default",
-  "available_skill_ids": ["skill_payment_callback_checklist"]
-}
-```
-
-## 4.3 Context Service
-
-负责 ContextPack、ContextUpdate、版本、freshness 和合并。
-
-能力：
-
-- 检查上下文 freshness。
-- 获取 accepted ContextPack。
-- 上传新 ContextPack。
-- 上传 ContextUpdate。
-- 评审和合并 ContextUpdate。
-- 管理版本血缘。
-- 管理 source_refs。
-
-关键 API：
-
 ```text
-POST /projects/{project_id}/context/freshness-check
-GET /projects/{project_id}/context/current
-GET /projects/{project_id}/context/versions
-POST /projects/{project_id}/context/packs
-POST /projects/{project_id}/context/updates
-POST /projects/{project_id}/context/updates/{update_id}/accept
-POST /projects/{project_id}/context/updates/{update_id}/reject
+L0 brief
+L1 selected facts, constraints, risks and skills
+L2 source refs for optional expansion
+quality and workflow requirements
 ```
 
-freshness 状态：
+ContextPlanner 必须：
 
-- `fresh`：当前 accepted ContextPack 覆盖本地 commit。
-- `missing`：项目没有 accepted ContextPack。
-- `stale`：本地 commit 晚于 accepted ContextPack。
-- `ahead`：accepted ContextPack 对应 commit 晚于本地 commit。
-- `dirty_workspace`：本地有未提交变更。
-- `conflict`：存在多个候选更新或分支上下文冲突。
+- 对完整序列化 L0/L1 payload 遵守 token budget。预算包含 envelope、facts、constraints、risks、workflow requirements、Skill 摘要和 source-ref metadata；不包含传输协议 header 和尚未获取的 L2 内容。
+- 优先 accepted ContextRevision 和 approved SkillVersion。
+- 标记 session-local、pending 和 unverified 内容。
+- 为关键事实保留 source ref。
+- 记录本次 Bundle 使用了哪些版本和检索信号。
 
-## 4.4 Workflow Service
+预算计算使用带版本号的 tokenizer/estimator，并返回 `budget_limit`、`estimated_tokens` 和 `estimator_version`。超出预算时按确定性顺序裁剪：先移除低相关历史和可选 Skill，再减少低相关事实及 source-ref metadata；项目安全约束、当前 workflow gate 和 L0 identity 不得被裁掉。source refs 有数量和 metadata 大小上限。
 
-负责项目流程模板和任务流程执行状态。
+每次 L2 `fetch_context_ref` 使用独立 `max_tokens`，不借用或扩大 L0/L1 预算。测试对最终序列化 payload 计数，而不是只检查 summary 字符数。
 
-能力：
+## 12.3 ContextProposal 合并
 
-- 定义 WorkflowTemplate。
-- 定义步骤。
-- 定义必填产物。
-- 定义人工确认节点。
-- 记录每个 TaskSession 的步骤状态。
+审批接受时执行单事务命令：
 
-关键 API：
+1. 锁定 ContextStream。
+2. 校验 Proposal 的 repository 和 `target_branch` 与目标 ContextStream 一致。
+3. 使用受信任 RevisionObservation、CI 或 provider signal 证明 `to_commit_sha` 可达目标 branch head。
+4. feature branch 未合并时只能更新对应 branch stream 或保持 session-local，不能直接更新默认 branch stream。
+5. 比较 `expected_head_revision_id` 与当前 head。
+6. 不相等则 Proposal -> needs_rebase。
+7. 相等则创建新的 immutable ContextRevision。
+8. 更新 ContextStream head。
+9. 保存 ApprovalDecision 和 AuditEvent。
+10. 写入 OutboxEvent。
 
-```text
-GET /projects/{project_id}/workflows/current
-POST /projects/{project_id}/workflows
-PATCH /workflows/{workflow_id}
-POST /sessions/{session_id}/workflow-steps/{step_id}/complete
-```
+禁止原地修改 accepted ContextRevision。
 
-步骤模型：
+## 13. Workflow 架构
+
+WorkflowVersion 的 step schema：
 
 ```json
 {
-  "id": "analysis",
-  "name": "分析",
-  "required_artifacts": ["analysis_doc"],
-  "requires_human_review": true,
-  "completion_rules": ["artifact_uploaded", "human_confirmed"]
+  "key": "self_test",
+  "name": "自测",
+  "required_artifact_types": ["self_test_report"],
+  "required_evidence_types": ["test_run"],
+  "human_gate": {
+    "required": true,
+    "roles": ["developer"]
+  },
+  "completion_rules": ["artifacts_present", "evidence_passed"],
+  "skip_policy": "tech_lead_approval"
 }
 ```
 
-## 4.5 Task Session Service
-
-负责一次任务从开始到结束的全过程。
-
-能力：
-
-- 创建任务 session。
-- 识别或补充任务名称。
-- 记录 AI 工具调用。
-- 记录使用的 ContextPack 和 skill。
-- 记录 workflow step 产物。
-- 记录人工确认。
-- 关联 ContextUpdate 和 skill candidate。
-
-关键 API：
+状态转换由命令完成：
 
 ```text
-POST /sessions/start
-GET /projects/{project_id}/sessions
-GET /projects/{project_id}/sessions/{session_id}
-POST /sessions/{session_id}/events
-POST /sessions/{session_id}/artifacts
-POST /sessions/{session_id}/close
+not_started -> in_progress -> awaiting_human -> completed
+                         ├-> failed
+                         ├-> blocked
+                         └-> waived
 ```
 
-## 4.6 Artifact Service
+Harness 返回 next actions，AI 工具负责执行本地工作。服务端只校验已声明产物、证据、确认和权限，不声称验证无法访问的本地事实。
 
-负责任务文档和团队资产。
+## 14. AI 工具协议
 
-能力：
+## 14.1 协议原则
 
-- 保存分析、设计、评审、开发、自测、上传文档。
-- 保存本地文件路径引用。
-- 保存上传内容。
-- 关联任务、项目、ContextUpdate。
-- 支持审计和查询。
+- MCP tools 主要映射到 Harness。
+- 普通 AI 工作流使用少量高层工具。
+- 调试和 Web 治理 API 不进入默认 MCP tool list。
+- 所有写命令接受 `idempotency_key`。
+- 所有响应包含 `protocol_version`、`request_id` 和可执行 `next_actions`。
+- 错误使用稳定 code，不依赖自然语言解析。
 
-存储策略：
-
-- 小型 markdown/json 内容可存数据库。
-- 大文件或附件进入对象存储。
-- 保存 hash、source path、generated_by、review status。
-
-## 4.7 Skill Service
-
-负责 skill 生命周期。
-
-能力：
-
-- 创建 candidate skill。
-- 审批为 approved。
-- 编辑和版本化。
-- 废弃。
-- 按项目、组织、任务意图检索。
-- 记录 skill run。
-
-关键 API：
+## 14.2 默认 MCP tools
 
 ```text
-GET /projects/{project_id}/skills
-POST /projects/{project_id}/skills/candidates
-POST /skills/{skill_id}/approve
-POST /skills/{skill_id}/deprecate
-POST /skills/{skill_id}/runs
-```
-
-## 4.8 Quality Service
-
-负责质量状态聚合。
-
-数据来源：
-
-- 任务自测报告。
-- 评审产物。
-- ContextUpdate 风险。
-- Skill 检查结果。
-- CI 测试结果。
-- 质量人员上传的结论。
-
-能力：
-
-- 项目质量摘要。
-- 任务质量摘要。
-- 风险清单。
-- 测试覆盖建议。
-- 质量趋势。
-
-关键 API：
-
-```text
-GET /projects/{project_id}/quality
-GET /projects/{project_id}/sessions/{session_id}/quality
-POST /projects/{project_id}/quality/reports
-```
-
-## 4.9 Approval Service
-
-负责上下文、skill、流程模板等治理审批。
-
-审批对象：
-
-- ContextPack。
-- ContextUpdate。
-- Skill。
-- WorkflowTemplate。
-- 高风险任务产物。
-
-能力：
-
-- 创建审批请求。
-- 分配 reviewer。
-- approve / reject / request changes。
-- 记录审批意见。
-- 生成审计事件。
-
-## 4.10 Audit Service
-
-负责所有关键行为的审计。
-
-审计事件：
-
-- AI 工具解析项目。
-- freshness check。
-- ContextPack 上传。
-- ContextUpdate 审批。
-- Skill 审批。
-- Workflow step 完成。
-- 人工确认。
-- 质量报告生成。
-
-## 5. 数据模型
-
-## 5.1 Organization
-
-```text
-id
-name
-created_at
-```
-
-## 5.2 User
-
-```text
-id
-display_name
-email
-status
-created_at
-```
-
-## 5.3 Membership
-
-```text
-id
-org_id
-user_id
-role
-```
-
-角色：
-
-- admin。
-- project_manager。
-- tech_lead。
-- developer。
-- quality。
-- viewer。
-
-## 5.4 Project
-
-```text
-id
-org_id
-name
-slug
-repo_remotes
-repo_fingerprint
-default_branch
-current_context_pack_id
-current_workflow_template_id
-status
-created_at
-updated_at
-```
-
-## 5.5 ContextPack
-
-```text
-id
-org_id
-project_id
-version
-branch
-base_commit_sha
-status
-summary
-module_map
-business_flows
-risks
-test_strategy
-source_refs
-generated_by_tool
-generated_by_user_id
-generated_at
-accepted_by_user_id
-accepted_at
-parent_context_pack_id
-```
-
-## 5.6 ContextUpdate
-
-```text
-id
-org_id
-project_id
-session_id
-base_context_pack_id
-branch
-from_commit_sha
-to_commit_sha
-status
-summary
-changed_modules
-new_facts
-risks
-test_notes
-source_refs
-generated_by_tool
-generated_by_user_id
-created_at
-reviewed_by_user_id
-reviewed_at
-review_comment
-```
-
-## 5.7 WorkflowTemplate
-
-```text
-id
-org_id
-project_id
-name
-status
-version
-steps
-created_by_user_id
-created_at
-```
-
-## 5.8 TaskSession
-
-```text
-id
-org_id
-project_id
-task_name
-task_source
-agent_tool
-user_id
-context_pack_id
-status
-current_step
-started_at
-closed_at
-```
-
-## 5.9 WorkflowStepRun
-
-```text
-id
-session_id
-step_id
-status
-artifact_ids
-requires_human_review
-human_review_status
-reviewed_by_user_id
-completed_at
-```
-
-## 5.10 WorkArtifact
-
-```text
-id
-org_id
-project_id
-session_id
-step_id
-type
-title
-content
-local_path
-content_hash
-status
-generated_by_tool
-confirmed_by_user_id
-created_at
-```
-
-## 5.11 Skill
-
-```text
-id
-org_id
-project_id
-name
-slug
-status
-version
-trigger
-instructions
-input_schema
-output_schema
-source_session_id
-source_artifact_ids
-approved_by_user_id
-created_at
-```
-
-## 5.12 AuditEvent
-
-```text
-id
-org_id
-project_id
-actor_type
-actor_id
-event_type
-target_type
-target_id
-payload
-created_at
-```
-
-## 6. MCP / AI 工具协议
-
-## 6.1 工具清单
-
-AI 工具侧至少需要以下 MCP tools。它们应主要映射到 Harness，而不是让 AI 工具直接理解 Agora 内部所有服务：
-
-```text
-agora_start_task
-agora_resolve_project
-agora_check_context_freshness
-agora_get_team_memory
-agora_start_workflow_step
-agora_record_workflow_step
-agora_upload_artifact
-agora_upload_context_pack
-agora_upload_context_update
-agora_upload_skill_candidate
+agora_start_work
+agora_prepare_context
+agora_fetch_context_ref
+agora_complete_workflow_step
+agora_record_evidence
+agora_submit_context_proposal
+agora_submit_skill_candidate
 agora_close_work
 agora_get_project_status
 agora_get_quality_status
 ```
 
-## 6.2 agora_start_work
+项目解析和 freshness check 是 `agora_start_work` / `agora_prepare_context` 的内部步骤，不要求开发者或 AI 工具手工串联多个底层调用。
 
-`agora_start_work` 是 AI 工具进入项目任务的首选入口。它应尽量完成项目解析、任务识别、session 创建和下一步动作判断。
+## 14.3 start_work
 
-输入：
+输入不包含服务端可用的本地绝对路径：
 
 ```json
 {
+  "protocol_version": "1.0",
   "user_message": "修复 BUG-128：优惠券支付后状态未刷新",
-  "local_path": "/workspace/member-center",
-  "git_remote": "git@example.com:team/member-center.git",
-  "branch": "main",
-  "commit_sha": "8f34c2a",
-  "dirty_workspace": false,
-  "agent_type": "codex"
+  "repository": {
+    "canonical_key": "gitlab.example.com/team/member-center",
+    "branch": "main",
+    "commit_sha": "8f34c2a",
+    "workspace_state": "clean",
+    "workspace_fingerprint": "ws_..."
+  },
+  "agent": {
+    "type": "codex",
+    "version": "..."
+  },
+  "idempotency_key": "..."
 }
 ```
 
@@ -750,506 +711,337 @@ agora_get_quality_status
 
 ```json
 {
+  "project_id": "project_1",
+  "work_item_id": "work_128",
   "session_id": "session_1",
-  "project_id": "project_1",
-  "task_name": "BUG-128 优惠券支付后状态未刷新",
-  "intent": "implementation",
-  "context_status": "fresh",
-  "next_action": "get_team_memory"
+  "pinned": {
+    "context_revision_id": null,
+    "workflow_version_id": null,
+    "skill_version_ids": []
+  },
+  "capabilities": {
+    "context_revision": false,
+    "workflow_version": false,
+    "skill_version": false
+  },
+  "context_state": {},
+  "current_step": "analysis",
+  "next_actions": ["prepare_context"]
 }
 ```
 
-## 6.3 agora_resolve_project
+版本 ID 在分阶段迁移期间允许为空，并通过 capability 明确声明。P2 只能把旧上下文作为 provisional ContextBundle 材料返回；ContextRevision、WorkflowVersion 和 SkillVersion 分别在 P3、P4 和 P5 落地后才能成为正式 pin。
 
-输入：
+## 14.4 prepare_context
 
-```json
-{
-  "local_path": "/workspace/member-center",
-  "git_remote": "git@example.com:team/member-center.git",
-  "branch": "main",
-  "commit_sha": "8f34c2a",
-  "dirty_workspace": false,
-  "detected_project_name": "member-center"
-}
-```
+输入 query、intent、workflow step 和 token budget，返回受控 ContextBundle。ContextBundle 不自动成为团队 ContextRevision。
 
-输出：
+## 14.5 complete_workflow_step
 
-```json
-{
-  "project_id": "project_1",
-  "project_name": "会员中心研发协作平台",
-  "task_name_required": true,
-  "context_status": "fresh",
-  "workflow_template_id": "workflow_1"
-}
-```
+提交 artifact refs、evidence refs、human confirmation 和 attempt。服务端校验 WorkflowVersion 规则后原子推进状态。
 
-## 6.4 agora_get_team_memory
+## 14.6 close_work
 
-返回：
+关闭 WorkSession 前返回缺失步骤和建议提交内容。成功关闭不等于自动接受 ContextProposal 或 SkillCandidate。
 
-```json
-{
-  "context_pack": {},
-  "workflow_template": {},
-  "skills": [],
-  "recent_writebacks": [],
-  "quality_notes": []
-}
-```
+## 14.7 错误模型
 
-AI 工具用这些内容减少 token 消耗和规范工作流程。
+核心错误 code：
 
-## 6.5 agora_upload_context_update
+- `PROJECT_UNRESOLVED`。
+- `WORK_ITEM_CLARIFICATION_REQUIRED`。
+- `CONTEXT_MISSING`。
+- `CONTEXT_NEEDS_REBASE`。
+- `WORKFLOW_PRECONDITION_FAILED`。
+- `HUMAN_CONFIRMATION_REQUIRED`。
+- `UPLOAD_POLICY_DENIED`。
+- `UNAUTHORIZED_PROJECT`。
+- `PROTOCOL_VERSION_UNSUPPORTED`。
+- `TEMPORARILY_UNAVAILABLE`。
 
-输入：
+## 15. 一致性和并发
 
-```json
-{
-  "project_id": "project_1",
-  "session_id": "session_1",
-  "base_context_pack_id": "ctx_v12",
-  "branch": "main",
-  "from_commit_sha": "8f34c2a",
-  "to_commit_sha": "9a01d44",
-  "summary": "修复优惠券支付后状态刷新问题",
-  "changed_modules": [],
-  "new_facts": [],
-  "risks": [],
-  "test_notes": [],
-  "source_refs": []
-}
-```
+### 15.1 事务边界
 
-输出：
+以下操作必须单事务：
 
-```json
-{
-  "context_update_id": "ctx_update_1",
-  "status": "pending_review"
-}
-```
+- WorkSession 创建和 pinned versions 记录。
+- workflow step 状态推进和 confirmation 关联。
+- Proposal 接受、新 revision 创建和 ContextStream head 更新。
+- SkillCandidate 接受和 SkillVersion 发布。
+- 领域状态变化和 OutboxEvent 写入。
 
-## 7. Freshness 判断
+Application command handler 通过 Unit of Work 拥有事务。Repository 方法只 add/flush entity，不独立 commit；这是当前 repository 模式必须完成的迁移。
 
-Freshness 由 Agora 根据 AI 工具传入的本地 Git 状态和已 accepted ContextPack 判断。
+### 15.2 幂等
 
-## 7.1 判断输入
+`IdempotencyRecord` 使用 principal、command type 和 idempotency key 唯一约束，保存请求 hash、响应和有效期。
+
+相同 key 不同 payload 返回冲突，避免误复用。
+
+### 15.3 乐观并发
+
+- ContextProposal 使用 expected head revision。
+- Workflow command 使用 execution version。
+- Web 编辑使用 resource version / ETag。
+- mutable 聚合保存 revision number。
+
+### 15.4 Outbox
+
+领域事务只写 Postgres 和 OutboxEvent。Worker 负责：
+
+- 更新搜索和向量投影。
+- 刷新质量摘要。
+- 发送 stale 和审批通知。
+- 同步外部任务状态。
+
+Worker 使用 event id 幂等消费，失败可重试和死信审计。
+
+## 16. 存储架构
+
+## 16.1 Postgres
+
+事实源数据：
+
+- identity、membership、project 和 policy。
+- WorkItem、WorkSession 和 workflow execution。
+- Context metadata、head、proposal 和 provenance。
+- Skill metadata 和 versions。
+- artifact metadata、QualityEvidence 和 approvals。
+- AuditEvent、OutboxEvent 和 IdempotencyRecord。
+
+本地开发可以使用 SQLite，但团队黑盒和生产路径必须验证 Postgres 语义，尤其是事务、锁和并发。
+
+## 16.2 Object Store
+
+保存：
+
+- 大型 ContextRevision 内容。
+- WorkArtifact 和附件。
+- 可选源码 excerpt。
+- 质量报告和导出文件。
+
+对象使用 content hash 寻址或去重，metadata 保存在 Postgres。生产使用 S3 兼容存储和服务端加密。
+
+## 16.3 Search Projection
+
+P2-P6 首选 Postgres JSONB、全文检索和可选 pgvector，降低部署复杂度。
+
+当数据规模和检索评估证明需要时，再启用 OpenSearch/Qdrant adapter。Neo4j 继续延后，除非真实场景证明图查询有不可替代价值。
+
+搜索索引不是事实源，必须支持全量和增量重建。
+
+## 17. 安全和隐私
+
+## 17.1 认证
+
+- Web 用户使用组织认证或本地账号。
+- AI 工具使用用户授权的 scoped token；后续支持 OAuth device flow。
+- CI 使用独立 service account。
+- webhook 使用签名验证和 replay protection。
+
+## 17.2 授权
+
+- org 和 user 从 principal 推导。
+- 每个请求校验 ProjectMembership。
+- token scope 限制 read context、write session、submit proposal 或 administer。
+- 审批要求真实用户身份，不允许普通 agent token 代替审批人。
+
+## 17.3 本地数据保护
+
+- 不上传本地绝对路径。
+- remote 去除 credential 和用户名。
+- 支持 `.agoraignore`、组织 ignore policy 和敏感路径规则。
+- 上传前执行 secret scan、文件大小和内容类型检查。
+- source anchor 可以只存 commit、path、line 和 hash，不保存源码 excerpt。
+
+## 17.4 服务端保护
+
+- 传输加密和静态加密。
+- 对象存储使用短期签名 URL。
+- 审计高风险读取、上传、审批和导出。
+- 支持数据保留、删除和导出策略。
+- 日志禁止记录 token、原始 secret 和完整敏感 payload。
+
+## 18. 后台任务
+
+首期使用数据库 outbox + worker，不强制 Temporal。
+
+任务包括：
+
+- SearchProjection 更新和重建。
+- ContextProposal 差异材料生成。
+- QualitySummary 聚合。
+- RevisionSignal freshness 标记。
+- stale / approval 通知。
+- SkillCandidate 聚类和重复检测。
+- 审计归档和对象清理。
+
+只有当长流程、跨系统补偿和运行规模证明需要时，再引入 Temporal 或其他 durable workflow engine。
+
+## 19. 部署架构
+
+## 19.1 本地开发
 
 ```text
-project_id
-branch
-commit_sha
-dirty_workspace
-repo_remote
+Local Connector / MCP stdio
+FastAPI modular monolith
+Next.js Web UI
+SQLite or local Postgres
+Local artifact directory
+In-memory/fake search for automated tests only
 ```
 
-## 7.2 判断输出
+## 19.2 团队试用
 
 ```text
-fresh
-missing
-stale
-ahead
-dirty_workspace
-conflict
-unknown
-```
-
-## 7.3 基础规则
-
-- 没有 accepted ContextPack：missing。
-- 本地 dirty：dirty_workspace。
-- accepted ContextPack 的 base_commit_sha 等于本地 commit：fresh。
-- accepted ContextPack 基线早于本地 commit：stale。
-- accepted ContextPack 基线晚于本地 commit：ahead。
-- 多个待合并更新覆盖相同模块：conflict。
-
-## 7.4 Git 关系判断
-
-Agora 默认不访问客户代码，因此不能直接运行 git 命令。Git 关系可以由 AI 工具侧上传：
-
-```json
-{
-  "local_commit": "9a01d44",
-  "known_base_commit": "8f34c2a",
-  "relationship": "descendant",
-  "changed_files": []
-}
-```
-
-如果 AI 工具无法判断，Agora 返回 `unknown`，由 AI 工具提示用户或执行本地检查。
-
-## 8. 上下文生成和合并
-
-## 8.1 首次生成
-
-1. AI 工具发现 missing。
-2. AI 工具本地扫描项目。
-3. AI 工具调用模型生成 ContextPack。
-4. 上传 Agora，状态为 pending_review。
-5. 项目经理审核。
-6. accept 后成为 current_context_pack。
-
-## 8.2 增量更新
-
-1. AI 工具发现 stale。
-2. AI 工具本地分析 changed files 和相关上下文。
-3. 生成 ContextUpdate。
-4. 上传 Agora。
-5. 项目经理审核。
-6. Agora 合并到新的 ContextPack version。
-
-## 8.3 合并策略
-
-第一阶段可以由 AI 工具生成候选合并结果，项目经理人工确认。
-
-后续可以支持：
-
-- 模块级合并。
-- 风险级合并。
-- source_ref 去重。
-- 过期事实废弃。
-- 版本差异对比。
-
-## 9. 项目流程执行
-
-## 9.1 流程模板
-
-项目流程模板定义任务必须经过哪些步骤。典型流程：
-
-```text
-analysis -> design -> review -> implementation -> self_test -> upload
-```
-
-每步包含：
-
-- prompt guidance。
-- required artifacts。
-- human review required。
-- acceptance criteria。
-- upload policy。
-
-## 9.2 AI 工具执行
-
-AI 工具读取 WorkflowTemplate 后：
-
-1. 展示当前步骤。
-2. 调用模型生成步骤产物。
-3. 让用户审查。
-4. 保存到本地。
-5. 上传 Agora。
-6. 记录 step complete。
-
-## 9.3 阻断规则
-
-可配置：
-
-- 未完成分析不得进入设计。
-- 未完成设计评审不得开发。
-- 自测失败不得上传。
-- 高风险任务必须技术负责人确认。
-
-## 10. 审批和权限
-
-## 10.1 角色权限
-
-开发人员：
-
-- start task。
-- upload artifacts。
-- upload ContextUpdate。
-- upload skill candidate。
-
-项目经理 / 技术负责人：
-
-- approve ContextUpdate。
-- approve Skill。
-- manage workflow。
-- view all sessions。
-
-质量人员：
-
-- view quality。
-- upload quality report。
-- request changes on quality issues。
-
-管理员：
-
-- manage org。
-- manage members。
-- manage integrations。
-
-## 10.2 审批对象
-
-- ContextPack。
-- ContextUpdate。
-- Skill。
-- WorkflowTemplate。
-- 高风险任务产物。
-
-## 11. 存储架构
-
-## 11.1 关系数据库
-
-存储：
-
-- 用户、组织、权限。
-- 项目。
-- ContextPack metadata。
-- ContextUpdate。
-- WorkflowTemplate。
-- TaskSession。
-- WorkArtifact metadata。
-- Skill。
-- Approval。
-- AuditEvent。
-
-推荐：
-
-- 本地开发：SQLite。
-- 团队部署：Postgres。
-
-## 11.2 对象存储
-
-存储：
-
-- 大型任务文档。
-- 附件。
-- 导出的报告。
-- 长 ContextPack 内容。
-
-本地开发可先用文件目录，生产使用 S3 兼容对象存储。
-
-## 11.3 搜索和向量索引
-
-用途：
-
-- 搜索团队资产。
-- 检索上下文片段。
-- 查找相似任务。
-- 查找可复用 skill。
-
-注意：
-
-- 源码全文不一定进入 Agora。
-- source_refs 和 AI 生成的摘要可以入索引。
-- 是否上传源码片段由组织策略控制。
-
-## 12. 安全和隐私
-
-原则：
-
-- 客户本地代码默认不由 Agora 拉取。
-- AI 工具上传内容前应有人确认或遵循组织策略。
-- dirty workspace 不自动进入团队全局上下文。
-- 支持敏感路径 ignore。
-- 支持 source_ref 只存路径/hash，不存源码内容。
-- 审计所有上传、审批、合并行为。
-
-策略：
-
-- 项目级上传策略。
-- 敏感目录规则。
-- 最大文件大小。
-- 是否允许源码片段入库。
-- 是否允许 CI 自动更新主干上下文。
-
-## 13. 部署架构
-
-## 13.1 本地开发
-
-```text
-FastAPI
-Next.js
-SQLite
-Fake search indexes
-Local file artifact store
-```
-
-## 13.2 团队试用
-
-```text
-API service
+Local Connector on each developer machine
+API + Harness modular monolith
 Web UI
+Worker
 Postgres
-Object storage
-Search / vector index
-MCP gateway
-Background worker
+S3-compatible object storage
+Optional Postgres FTS / pgvector
+Git/CI webhook receiver
 ```
 
-## 13.3 企业部署
+## 19.3 企业部署
 
 ```text
-API service replicas
-Web service
+API/Web replicas behind ingress
 Postgres HA
 Object storage
-OpenSearch / Qdrant
-Background workers
-Audit log sink
-SSO / RBAC
-Private network access
+Worker pool
+SSO / scoped AI credentials
+Audit sink
+Private network / data residency policy
+Optional OpenSearch / Qdrant projections
 ```
 
-## 14. 后台任务
+## 20. 失败和恢复
 
-后台任务包括：
+### 20.1 Agora 不可用
 
-- ContextUpdate 合并候选生成。
-- 搜索索引重建。
-- 质量摘要刷新。
-- stale context 提醒。
-- skill candidate 聚类。
-- 审计归档。
+Local Connector 保存带 idempotency key 的本地待同步队列。AI 工具可以继续工作，但 UI 明确显示：
 
-## 15. 与现有代码的关系
+- team context unverified。
+- artifacts pending sync。
+- approvals unavailable。
 
-当前代码已经具备：
+### 20.2 Context merge conflict
 
-- FastAPI API。
-- SQLAlchemy 模型。
-- SQLite 持久化。
-- 项目创建和初始化。
-- ContextPack 基础模型。
-- Session audit。
-- Skill lifecycle 初步能力。
-- Writeback 审批。
-- Next.js Web UI。
-- MCP adapter 雏形。
-- HarnessService、Harness API router、AgoraMcpTools 已经形成任务工作流入口雏形。
+不自动覆盖 head。Proposal 进入 needs_rebase，AI 工具获取新 head 和冲突摘要后在本地重新生成候选。
 
-需要调整：
+### 20.3 Workflow command retry
 
-- server-side repo 初始化不再作为客户主流程，只保留为本地开发/导入辅助路径。
-- fake ContextEngine 只能用于测试和早期 fallback，不作为真实黑盒验收。
-- Harness 需要从当前的 start/plan/record/close 雏形升级为完整任务工作流编排层。
-- 增加 AI 工具上传 ContextPack / ContextUpdate 的主路径。
-- 增加 WorkflowTemplate 和 WorkArtifact。
-- 增加 ContextUpdate 审核合并。
-- 增加项目经理和质量人员视图。
+重复命令返回原结果；前置条件变化返回稳定 conflict code 和当前状态。
 
-## 16. 分阶段实现建议
+### 20.4 Object upload interrupted
 
-## 16.1 P2 重排：AI 工具接入和项目解析
+使用预签名分片上传或内容 hash 重试。metadata 只在对象完成后进入可用状态。
 
-- 新增 resolve-local API/MCP。
-- 新增 freshness-check API/MCP。
-- 新增 get-team-memory API/MCP。
-- 让 AI 工具主流程可识别项目、任务和上下文状态。
+### 20.5 Search unavailable
 
-## 16.2 P3 重排：ContextPack 上传和版本治理
+Harness 回退到 pinned ContextRevision、结构化数据库查询和明确的 degraded 标记，不返回空结果冒充无上下文。
 
-- 新增 ContextPack upload。
-- 新增 ContextUpdate upload。
-- 新增 ContextPack version model。
-- 新增 ContextUpdate review queue。
-- Web UI 支持审核合并。
-
-## 16.3 P4 重排：项目流程模板和任务产物
-
-- 新增 WorkflowTemplate。
-- 新增 WorkflowStepRun。
-- 新增 WorkArtifact。
-- AI 工具按流程上传产物。
-- Web UI 审计任务流程。
-
-## 16.4 P5 重排：Skill 和团队经验治理
-
-- 完善 candidate skill。
-- 支持从任务产物和 writeback 生成 skill candidate。
-- Web UI 审批、版本、废弃、使用历史。
-
-## 16.5 P6 重排：质量和项目管理视图
-
-- 项目任务状态。
-- 质量状态。
-- 风险视图。
-- AI 工具查询项目状态和质量状态。
-
-## 17. 黑盒测试架构
-
-真实黑盒测试必须至少包含：
-
-1. 准备一个本地软件研发项目。
-2. 通过 AI 工具调用 Agora resolve_project。
-3. Agora 返回 missing 或 stale。
-4. AI 工具本地分析项目并生成 ContextPack。
-5. AI 工具上传 ContextPack 到 Agora。
-6. 项目经理在 Web UI 审批。
-7. AI 工具再次进入项目，获取 fresh ContextPack、workflow、skill。
-8. AI 工具按流程执行一个真实任务。
-9. 每步产物上传 Agora。
-10. 任务结束上传 ContextUpdate 和 skill candidate。
-11. 项目经理在 Web UI 审核合并。
-12. 质量人员或项目经理通过 AI 工具查询状态。
-
-## 18. 技术风险
-
-## 18.1 AI 工具能力差异
-
-不同 AI 工具支持的文件访问、MCP、命令执行能力不同。
-
-应对：
-
-- 抽象 MCP/API 协议。
-- 定义最小能力集。
-- 提供 CLI uploader fallback。
-
-## 18.2 上下文质量不可控
-
-AI 生成上下文可能错误。
-
-应对：
-
-- source_refs 必填。
-- pending_review 默认。
-- 项目经理审批。
-- 版本回滚。
-- 质量评分和审计。
-
-## 18.3 隐私风险
-
-AI 工具可能上传敏感源码或配置。
-
-应对：
-
-- 上传策略。
-- ignore 规则。
-- 用户确认。
-- 敏感内容扫描。
-- 只存摘要和 source_ref 的模式。
-
-## 18.4 自动化过度打扰
-
-如果每次 stale 都打断用户，会降低体验。
-
-应对：
-
-- 后台更新。
-- 只在高风险场景提示。
-- 状态明确但不强制中断。
-
-## 19. 验收指标
-
-产品指标：
-
-- 开发者无需打开 Web UI 即可获取项目上下文。
-- 新成员能通过 AI 工具快速按项目流程完成任务。
-- 多人使用同一项目上下文。
-- ContextUpdate 可审批和合并。
-- Skill candidate 可审批入库。
-- 项目经理能查看任务状态。
-- 质量人员能查看质量状态。
+## 21. 可观测性
 
 技术指标：
 
-- API/MCP 覆盖核心 AI 工具路径。
-- ContextPack 有版本和 source_refs。
-- 任务每步产物可审计。
-- 审批事件完整。
-- 权限边界清晰。
-- fake 流程不作为黑盒验收依据。
+- Harness command latency、error rate 和 retry rate。
+- Project / WorkItem resolve success rate。
+- ContextBundle token size 和 source expansion rate。
+- freshness 状态分布和 stale duration。
+- Proposal review time、needs_rebase rate 和 conflict rate。
+- workflow completion / waiver / failure rate。
+- offline queue sync lag。
+- outbox lag 和 search projection freshness。
+
+产品指标：
+
+- AI 工具自动使用 Agora 的 WorkSession 比例。
+- 开发者无需打开 Web UI 的正常任务比例。
+- ContextRevision 和 SkillVersion 复用率。
+- WorkItem 状态完整度和 QualityEvidence 完整度。
+
+## 22. 与现有代码的关系
+
+## 22.1 保留并升级
+
+- `packages/harness/`：保留 HarnessService 及 ProjectResolver、TaskResolver、ContextPlanner、SessionRecorder、MemoryWriteback 雏形。
+- `apps/mcp/`：保留 stdio MCP adapter，升级为 Local Connector 协议入口。
+- FastAPI、SQLAlchemy repository、Alembic 和 SQLite/Postgres 配置方向。
+- TaskSession、SessionEvent、ContextPack、Skill、SkillRun 和 Writeback 的已有实现经验。
+- Next.js Web UI 的项目、Session、Skill 和 Writeback 页面骨架。
+- 当前自动化测试和 fake adapter 作为测试替身。
+
+## 22.2 需要重构
+
+- `TaskSession` 拆分/迁移为 WorkItem + WorkSession。
+- 当前无版本 ContextPack 迁移到 ContextStream + ContextRevision + ContextProposal。
+- Writeback 中有价值的类型迁移到 ContextProposal、SkillCandidate、WorkArtifact 或 QualityEvidence。
+- mutable Skill 迁移到 Skill + SkillVersion。
+- 现有 `plan_context` 保留 token budget 和 source refs，升级为 `prepare_context`。
+- `start_work` 增加 LocalWorkspaceObservation、WorkItem 解析、pinned versions 和幂等。
+- 当前 server-side project initialization 降级为显式授权导入和测试辅助路径。
+- fake keyword/vector index 不作为黑盒产品路径。
+- 当前 repository 内部 `commit()` 迁移到 command-level Unit of Work，保证领域状态和 OutboxEvent 原子写入。
+
+## 22.3 不应继续扩大
+
+- 不继续围绕服务端本地路径扫描扩展客户主流程。
+- 不先实现更多 Web 辅助查询来代替 AI 工具黑盒链路。
+- 不在没有数据规模证据时优先建设 OpenSearch、Qdrant、Neo4j 和 Temporal。
+- 不让 Harness 直接承担所有领域持久化和审批规则。
+
+## 23. 分阶段架构落地
+
+- P2：真实 AI 工具接入、最小 human/agent 身份边界、Unit of Work、WorkItem/WorkSession、结构化 freshness 和 task-aware ContextBundle；版本 pin capability 可为空。
+- P3：ContextStream/Revision/Proposal、分支和并发治理、RevisionSignal contract、最小可靠 outbox；真实 provider Push adapter 延后到 P8。
+- P4：WorkflowVersion、步骤状态、WorkArtifact、HumanConfirmation 和任务收尾。
+- P5：SkillVersion、SkillCandidate、SkillRun 和团队经验复用。
+- P6：QualityEvidence、项目经理状态和质量查询。
+- P7：SSO、身份生命周期、RBAC/scoped token 硬化、可配置审批策略和完整审计。
+- P8：真实签名 Git/CI signal、任务系统、PR 和自动化集成。
+- P9：生产部署、备份恢复、可观测性和按需真实搜索投影。
+
+具体交付、测试和历史记录以 Roadmap 为准。
+
+## 24. 黑盒架构验收
+
+真实黑盒测试必须验证：
+
+1. AI 工具通过 Local Connector 采集并清理本地 Git 信息。
+2. `agora_start_work` 自动解析 Project、WorkItem 并创建 WorkSession。
+3. Harness 返回 pinned versions、结构化 freshness 和 next actions。
+4. `agora_prepare_context` 在 token budget 内返回可追溯 ContextBundle。
+5. missing/stale 时由真实 AI 工具读取本地项目并提交 ContextProposal。
+6. Web UI 审批使用 expected head 创建新 ContextRevision。
+7. 第二个 AI 工具复用 accepted revision，不重复全量分析。
+8. Workflow step、产物、人工确认和 QualityEvidence 可审计。
+9. close_work 提交 task update 和 SkillCandidate，但不会自动发布。
+10. Git/CI RevisionSignal 使 ContextStream 自动进入 potentially_stale。
+11. 并发 Proposal 不会静默覆盖 accepted head。
+12. 项目经理从 WorkItem 获取状态，质量人员从证据获取质量结论。
+13. 网络重试不会产生重复 Session、Artifact 或 Proposal。
+
+自动单元测试中的 fake model、fake index 和 fixture 可以保留，但不能代替以上黑盒链路。
+
+## 25. 已确定的架构决策
+
+| 决策 | 结果 |
+| --- | --- |
+| 主入口 | AI 工具，Web 用于治理 |
+| 核心层 | Harness Coordinator |
+| 源码位置 | 客户本地或 CI runner |
+| 服务形态 | 模块化单体优先 |
+| 项目任务模型 | WorkItem 与 WorkSession 分离 |
+| 上下文模型 | ContextStream + immutable Revision + Proposal |
+| Freshness | 多维状态，Pull + Push 信号 |
+| 上下文返回 | task-aware ContextBundle + token budget |
+| 版本并发 | expected head + 乐观锁 |
+| 可靠投影 | Postgres transaction + outbox |
+| 搜索 | Postgres-first，外部索引按需 |
+| AI 分析 | 客户已有 AI 工具为主 |
+| 人工控制 | Proposal/Skill/高风险步骤按策略审批 |
+| 黑盒验收 | 真实 AI 工具 + 真实本地项目 + 真实服务 |
