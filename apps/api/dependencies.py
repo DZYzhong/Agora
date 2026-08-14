@@ -24,11 +24,13 @@ def create_app_engine(database_url: str) -> Engine:
             Path(database_path).parent.mkdir(parents=True, exist_ok=True)
 
     if database_url == "sqlite+pysqlite:///:memory:":
-        return create_engine(
+        engine = create_engine(
             database_url,
             connect_args={"check_same_thread": False},
             poolclass=StaticPool,
         )
+        ensure_schema(database_url, engine=engine)
+        return engine
 
     ensure_schema(database_url)
     connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}

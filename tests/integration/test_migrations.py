@@ -6,6 +6,8 @@ import pytest
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 
+from apps.api.dependencies import create_app_engine
+
 
 P1_TABLES = {
     "projects",
@@ -42,6 +44,14 @@ def test_alembic_upgrade_head_creates_current_schema(tmp_path):
 
     inspector = inspect(create_engine(database_url))
     assert P1_TABLES | P2_TABLES <= set(inspector.get_table_names())
+
+
+def test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine():
+    engine = create_app_engine("sqlite+pysqlite:///:memory:")
+
+    with engine.connect() as connection:
+        assert connection.scalar(text("SELECT count(*) FROM assets")) == 0
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260814_0002"
 
 
 def test_p2_schema_has_required_foreign_keys_and_uniqueness(tmp_path):

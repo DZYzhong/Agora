@@ -14,7 +14,7 @@ from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.engine import Engine, make_url
+from sqlalchemy.engine import Connection, Engine, make_url
 from sqlalchemy.sql.sqltypes import Boolean, DateTime, Integer, JSON, String, Text
 
 
@@ -84,8 +84,8 @@ def _index_predicate(index: dict[str, Any]) -> Any:
     return predicate
 
 
-def _schema_signature(engine: Engine) -> dict[str, Any]:
-    inspector = inspect(engine)
+def _schema_signature(bind: Engine | Connection) -> dict[str, Any]:
+    inspector = inspect(bind)
     table_names = sorted(name for name in inspector.get_table_names() if name != "alembic_version")
     tables: dict[str, Any] = {}
     for table_name in table_names:
@@ -148,9 +148,8 @@ def _canonical_signature(revision: str) -> dict[str, Any]:
             engine.dispose()
 
 
-def _read_revision(engine: Engine) -> str | None:
-    with engine.connect() as connection:
-        return connection.scalar(text("SELECT version_num FROM alembic_version"))
+def _read_revision(connection: Connection) -> str | None:
+    return connection.scalar(text("SELECT version_num FROM alembic_version"))
 
 
 def _online_sqlite_backup(database_url: str) -> Path:
@@ -177,6 +176,7 @@ def ensure_schema(
     *,
     dry_run: bool = False,
     postgres_backup_confirmed: bool = False,
+    engine: Engine | None = None,
 ) -> SchemaMigrationResult:
     config = _alembic_config(database_url)
     head_revision = ScriptDirectory.from_config(config).get_current_head()
@@ -186,52 +186,56 @@ def ensure_schema(
             return SchemaMigrationResult("upgrade_empty", _fingerprint({}), None, head_revision)
         database_path.parent.mkdir(parents=True, exist_ok=True)
 
-    engine = create_engine(database_url)
+    schema_engine = engine or create_engine(database_url)
+    owns_engine = engine is None
     try:
-        signature = _schema_signature(engine)
-        fingerprint = _fingerprint(signature)
-        table_names = set(inspect(engine).get_table_names())
-        has_version_table = "alembic_version" in table_names
+        with schema_engine.begin() as connection:
+            config.attributes["connection"] = connection
+            signature = _schema_signature(connection)
+            fingerprint = _fingerprint(signature)
+            table_names = set(inspect(connection).get_table_names())
+            has_version_table = "alembic_version" in table_names
 
-        if not table_names:
-            if not dry_run:
-                command.upgrade(config, "head")
-            return SchemaMigrationResult("upgrade_empty", fingerprint, None, head_revision)
+            if not table_names:
+                if not dry_run:
+                    command.upgrade(config, "head")
+                return SchemaMigrationResult("upgrade_empty", fingerprint, None, head_revision)
 
-        if has_version_table:
-            revision = _read_revision(engine)
-            if revision is None or not _known_revision(config, revision):
-                raise MigrationRequiredError(f"unknown Alembic revision {revision!r}; fingerprint={fingerprint}")
-            if signature != _canonical_signature(revision):
-                raise MigrationRequiredError(
-                    f"schema does not match revision {revision}; fingerprint={fingerprint}"
-                )
-            if not dry_run:
-                command.upgrade(config, "head")
-            return SchemaMigrationResult("upgrade_versioned", fingerprint, revision, head_revision)
+            if has_version_table:
+                revision = _read_revision(connection)
+                if revision is None or not _known_revision(config, revision):
+                    raise MigrationRequiredError(f"unknown Alembic revision {revision!r}; fingerprint={fingerprint}")
+                if signature != _canonical_signature(revision):
+                    raise MigrationRequiredError(
+                        f"schema does not match revision {revision}; fingerprint={fingerprint}"
+                    )
+                if not dry_run:
+                    command.upgrade(config, "head")
+                return SchemaMigrationResult("upgrade_versioned", fingerprint, revision, head_revision)
 
-        if signature != _canonical_signature(P1_REVISION):
-            raise MigrationRequiredError(f"unknown or partial unversioned schema; fingerprint={fingerprint}")
+            if signature != _canonical_signature(P1_REVISION):
+                raise MigrationRequiredError(f"unknown or partial unversioned schema; fingerprint={fingerprint}")
 
-        if dry_run:
-            return SchemaMigrationResult("stamp_0001_and_upgrade", fingerprint, None, head_revision)
+            if dry_run:
+                return SchemaMigrationResult("stamp_0001_and_upgrade", fingerprint, None, head_revision)
 
-        backend = make_url(database_url).get_backend_name()
-        if backend == "sqlite":
-            backup_path = _online_sqlite_backup(database_url)
-        elif postgres_backup_confirmed:
-            backup_path = None
-        else:
-            raise MigrationRequiredError("PostgreSQL backup confirmation is required before stamping P1")
+            backend = make_url(database_url).get_backend_name()
+            if backend == "sqlite":
+                backup_path = _online_sqlite_backup(database_url)
+            elif postgres_backup_confirmed:
+                backup_path = None
+            else:
+                raise MigrationRequiredError("PostgreSQL backup confirmation is required before stamping P1")
 
-        command.stamp(config, P1_REVISION)
-        command.upgrade(config, "head")
-        return SchemaMigrationResult(
-            "stamp_0001_and_upgrade",
-            fingerprint,
-            None,
-            head_revision,
-            backup_path,
-        )
+            command.stamp(config, P1_REVISION)
+            command.upgrade(config, "head")
+            return SchemaMigrationResult(
+                "stamp_0001_and_upgrade",
+                fingerprint,
+                None,
+                head_revision,
+                backup_path,
+            )
     finally:
-        engine.dispose()
+        if owns_engine:
+            schema_engine.dispose()
