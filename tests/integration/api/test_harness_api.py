@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from apps.api.dependencies import get_keyword_index, get_vector_index
 from apps.api.main import app
 
 
@@ -69,6 +70,56 @@ def test_start_work_endpoint_can_resolve_exact_project_id_when_remotes_repeat():
 
     assert response.status_code == 200
     assert response.json()["project"]["id"] == first["id"]
+
+
+def test_prepare_writeback_persists_draft_without_indexing():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_prepare_writeback",
+            "name": "Prepare Writeback",
+            "slug": "prepare-writeback",
+            "git_remotes": [],
+        },
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "Prepare a draft",
+            "agent_type": "codex",
+        },
+    ).json()
+
+    response = client.post(
+        "/harness/prepare-writeback",
+        json={
+            "session_id": started["session_id"],
+            "type": "development_summary",
+            "title": "Prepared draft",
+            "content": "This draft must not be indexed before acceptance.",
+            "asset_refs": [],
+        },
+    )
+
+    assert response.status_code == 200
+    draft = response.json()
+    assert draft["status"] == "draft"
+    stored = client.get(f"/projects/{project['id']}/writebacks").json()
+    assert stored == [
+        {
+            "id": draft["id"],
+            "project_id": project["id"],
+            "type": "development_summary",
+            "title": "Prepared draft",
+            "content": "This draft must not be indexed before acceptance.",
+            "status": "draft",
+            "accepted_asset_id": None,
+        }
+    ]
+    assert get_keyword_index().list_assets(org_id=project["org_id"], project_id=project["id"]) == []
+    assert get_vector_index()._assets == []
 
 
 def test_close_work_endpoint_can_prepare_development_update_from_repo_diff(tmp_path):
