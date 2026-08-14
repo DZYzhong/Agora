@@ -46,8 +46,9 @@ def test_alembic_upgrade_head_creates_current_schema(tmp_path):
     assert P1_TABLES | P2_TABLES <= set(inspector.get_table_names())
 
 
-def test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine():
-    engine = create_app_engine("sqlite+pysqlite:///:memory:")
+@pytest.mark.parametrize("database_url", ["sqlite:///:memory:", "sqlite+pysqlite:///:memory:"])
+def test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine(database_url):
+    engine = create_app_engine(database_url)
 
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT count(*) FROM assets")) == 0

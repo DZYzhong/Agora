@@ -7,7 +7,8 @@ import sqlite3
 from alembic import command
 from alembic.config import Config
 import pytest
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import CheckConstraint, MetaData, create_engine, inspect, text
+from sqlalchemy.dialects import postgresql
 
 from packages.core.database import Base
 import packages.core.models  # noqa: F401
@@ -23,6 +24,15 @@ P1_TABLE_NAMES = {
     "task_sessions",
     "session_events",
     "writebacks",
+}
+
+P2_TABLE_NAMES = {
+    "users",
+    "credentials",
+    "project_memberships",
+    "work_items",
+    "work_sessions",
+    "idempotency_records",
 }
 
 LEGACY_SESSION_IDS = {"session-shared-1", "session-shared-2", "session-taskless"}
@@ -237,4 +247,133 @@ def test_schema_manager_dry_run_reports_fingerprint_without_mutation(tmp_path):
     assert result.action == "stamp_0001_and_upgrade"
     assert len(result.fingerprint) == 64
     assert result.backup_path is None
+    assert database_path.read_bytes() == before_bytes
+
+
+@pytest.mark.parametrize("entry_state", ["versioned", "unversioned_create_all"])
+@pytest.mark.parametrize("corruption", ["missing_project", "org_mismatch"])
+def test_legacy_task_session_project_boundary_is_validated_before_p2_ddl(tmp_path, entry_state, corruption):
+    database_path = tmp_path / f"{entry_state}-{corruption}.db"
+    database_url = f"sqlite+pysqlite:///{database_path}"
+    _create_p1_database(database_url, entry_state)
+    _seed_p1_database(database_url)
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        if corruption == "missing_project":
+            connection.execute(
+                text("UPDATE task_sessions SET project_id = 'missing-project' WHERE id = 'session-shared-1'")
+            )
+        else:
+            connection.execute(text("UPDATE task_sessions SET org_id = 'org-2' WHERE id = 'session-shared-1'"))
+
+    with pytest.raises(RuntimeError, match="MIGRATION_REQUIRED.*task_sessions"):
+        _schema_manager().ensure_schema(database_url)
+
+    inspector = inspect(engine)
+    assert P2_TABLE_NAMES.isdisjoint(inspector.get_table_names())
+    if entry_state == "versioned":
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260813_0001"
+    else:
+        assert "alembic_version" not in inspector.get_table_names()
+        assert list(tmp_path.glob(f"{database_path.name}.backup-*")) == []
+
+
+def test_sqlite_foreign_key_check_rejects_corrupt_p1_before_p2_ddl(tmp_path):
+    database_path = tmp_path / "broken-foreign-key.db"
+    database_url = f"sqlite+pysqlite:///{database_path}"
+    _create_p1_database(database_url, "unversioned_create_all")
+    _seed_p1_database(database_url)
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE assets SET project_id = 'missing-project' WHERE id = 'asset-1'"))
+
+    with pytest.raises(RuntimeError, match="MIGRATION_REQUIRED.*foreign key"):
+        _schema_manager().ensure_schema(database_url)
+
+    assert P2_TABLE_NAMES.isdisjoint(inspect(engine).get_table_names())
+    assert list(tmp_path.glob(f"{database_path.name}.backup-*")) == []
+
+
+def test_legacy_validation_query_compiles_for_postgres():
+    statement = _schema_manager()._legacy_task_session_validation_statement()
+
+    compiled = str(statement.compile(dialect=postgresql.dialect()))
+
+    assert "LEFT OUTER JOIN projects" in compiled
+    assert "task_sessions.project_id" in compiled
+    assert "task_sessions.org_id" in compiled
+
+
+def test_unversioned_p1_with_modified_check_constraint_is_rejected_unchanged(tmp_path):
+    database_path = tmp_path / "modified-check.db"
+    database_url = f"sqlite+pysqlite:///{database_path}"
+    _create_p1_database(database_url, "unversioned_create_all")
+    engine = create_engine(database_url)
+    metadata = MetaData()
+    altered_context_packs = Base.metadata.tables["context_packs"].to_metadata(metadata)
+    altered_context_packs.append_constraint(
+        CheckConstraint("length(summary) > 0", name="ck_context_packs_nonempty_summary")
+    )
+    with engine.begin() as connection:
+        Base.metadata.tables["context_packs"].drop(connection)
+        altered_context_packs.create(connection)
+    engine.dispose()
+    before_bytes = database_path.read_bytes()
+
+    with pytest.raises(RuntimeError, match="MIGRATION_REQUIRED"):
+        _schema_manager().ensure_schema(database_url)
+
+    assert database_path.read_bytes() == before_bytes
+
+
+def test_unversioned_p1_with_modified_foreign_key_options_is_rejected_unchanged(tmp_path):
+    database_path = tmp_path / "modified-foreign-key.db"
+    database_url = f"sqlite+pysqlite:///{database_path}"
+    _create_p1_database(database_url, "unversioned_create_all")
+    engine = create_engine(database_url)
+    before_columns = inspect(engine).get_columns("assets")
+    with sqlite3.connect(database_path) as connection:
+        connection.executescript(
+            """
+            PRAGMA foreign_keys = OFF;
+            ALTER TABLE assets RENAME TO assets_original;
+            CREATE TABLE assets (
+                id VARCHAR NOT NULL,
+                org_id VARCHAR NOT NULL,
+                project_id VARCHAR NOT NULL,
+                type VARCHAR NOT NULL,
+                source VARCHAR NOT NULL,
+                source_uri VARCHAR NOT NULL,
+                title VARCHAR NOT NULL,
+                content TEXT NOT NULL,
+                summary TEXT,
+                metadata JSON NOT NULL,
+                content_hash VARCHAR,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                PRIMARY KEY (id),
+                FOREIGN KEY(project_id) REFERENCES projects (id) ON DELETE CASCADE ON UPDATE CASCADE
+            );
+            DROP TABLE assets_original;
+            CREATE INDEX ix_assets_org_id ON assets (org_id);
+            CREATE INDEX ix_assets_project_id ON assets (project_id);
+            CREATE INDEX ix_assets_type ON assets (type);
+            CREATE INDEX ix_assets_source ON assets (source);
+            """
+        )
+    engine.dispose()
+    altered_inspector = inspect(create_engine(database_url))
+    assert [column["name"] for column in altered_inspector.get_columns("assets")] == [
+        column["name"] for column in before_columns
+    ]
+    assert altered_inspector.get_foreign_keys("assets")[0]["options"] == {
+        "ondelete": "CASCADE",
+        "onupdate": "CASCADE",
+    }
+    before_bytes = database_path.read_bytes()
+
+    with pytest.raises(RuntimeError, match="MIGRATION_REQUIRED"):
+        _schema_manager().ensure_schema(database_url)
+
     assert database_path.read_bytes() == before_bytes

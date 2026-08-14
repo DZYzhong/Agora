@@ -1,10 +1,9 @@
 from collections.abc import Generator
 from functools import lru_cache
 import os
-from pathlib import Path
 
 from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -18,12 +17,9 @@ DEFAULT_DATABASE_URL = "sqlite+pysqlite:///.agora/agora.db"
 
 
 def create_app_engine(database_url: str) -> Engine:
-    if database_url.startswith("sqlite") and database_url != "sqlite+pysqlite:///:memory:":
-        database_path = database_url.rsplit("///", 1)[-1]
-        if database_path and database_path != ":memory:":
-            Path(database_path).parent.mkdir(parents=True, exist_ok=True)
-
-    if database_url == "sqlite+pysqlite:///:memory:":
+    url = make_url(database_url)
+    is_sqlite = url.get_backend_name() == "sqlite"
+    if is_sqlite and url.database == ":memory:":
         engine = create_engine(
             database_url,
             connect_args={"check_same_thread": False},
@@ -33,7 +29,7 @@ def create_app_engine(database_url: str) -> Engine:
         return engine
 
     ensure_schema(database_url)
-    connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
+    connect_args = {"check_same_thread": False} if is_sqlite else {}
     return create_engine(database_url, connect_args=connect_args)
 
 

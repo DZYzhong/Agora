@@ -13,7 +13,8 @@ from typing import Any
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import String as SAString
+from sqlalchemy import column, create_engine, inspect, or_, select, table, text
 from sqlalchemy.engine import Connection, Engine, make_url
 from sqlalchemy.sql.sqltypes import Boolean, DateTime, Integer, JSON, String, Text
 
@@ -84,6 +85,16 @@ def _index_predicate(index: dict[str, Any]) -> Any:
     return predicate
 
 
+def _normalized_foreign_key_options(foreign_key: dict[str, Any]) -> tuple[tuple[str, Any], ...]:
+    options = foreign_key.get("options") or {}
+    return tuple(
+        sorted(
+            (name, value.upper() if isinstance(value, str) else value)
+            for name, value in options.items()
+        )
+    )
+
+
 def _schema_signature(bind: Engine | Connection) -> dict[str, Any]:
     inspector = inspect(bind)
     table_names = sorted(name for name in inspector.get_table_names() if name != "alembic_version")
@@ -104,6 +115,7 @@ def _schema_signature(bind: Engine | Connection) -> dict[str, Any]:
                 tuple(foreign_key["constrained_columns"]),
                 foreign_key["referred_table"],
                 tuple(foreign_key["referred_columns"]),
+                _normalized_foreign_key_options(foreign_key),
             )
             for foreign_key in inspector.get_foreign_keys(table_name)
         )
@@ -121,12 +133,17 @@ def _schema_signature(bind: Engine | Connection) -> dict[str, Any]:
             tuple(constraint["column_names"])
             for constraint in inspector.get_unique_constraints(table_name)
         )
+        check_constraints = sorted(
+            _normalized_predicate(constraint.get("sqltext"))
+            for constraint in inspector.get_check_constraints(table_name)
+        )
         tables[table_name] = {
             "columns": columns,
             "primary_key": tuple(inspector.get_pk_constraint(table_name).get("constrained_columns") or ()),
             "foreign_keys": foreign_keys,
             "indexes": indexes,
             "unique_constraints": unique_constraints,
+            "check_constraints": check_constraints,
         }
     return tables
 
@@ -171,6 +188,52 @@ def _known_revision(config: Config, revision: str) -> bool:
         return False
 
 
+def _legacy_task_session_validation_statement():
+    task_sessions = table(
+        "task_sessions",
+        column("id", SAString()),
+        column("project_id", SAString()),
+        column("org_id", SAString()),
+    )
+    projects = table(
+        "projects",
+        column("id", SAString()),
+        column("org_id", SAString()),
+    )
+    return (
+        select(
+            task_sessions.c.id.label("session_id"),
+            task_sessions.c.project_id,
+            task_sessions.c.org_id.label("session_org_id"),
+            projects.c.org_id.label("project_org_id"),
+        )
+        .select_from(task_sessions.outerjoin(projects, projects.c.id == task_sessions.c.project_id))
+        .where(or_(projects.c.id.is_(None), projects.c.org_id != task_sessions.c.org_id))
+        .limit(1)
+    )
+
+
+def _validate_legacy_p1_data(connection: Connection) -> None:
+    if connection.dialect.name == "sqlite":
+        violation = connection.exec_driver_sql("PRAGMA foreign_key_check").first()
+        if violation is not None:
+            raise MigrationRequiredError(
+                f"foreign key check failed for table {violation[0]!r}, rowid={violation[1]!r}"
+            )
+
+    invalid_session = connection.execute(_legacy_task_session_validation_statement()).mappings().first()
+    if invalid_session is None:
+        return
+    if invalid_session["project_org_id"] is None:
+        detail = f"references missing project {invalid_session['project_id']!r}"
+    else:
+        detail = (
+            f"org_id {invalid_session['session_org_id']!r} does not match "
+            f"project org_id {invalid_session['project_org_id']!r}"
+        )
+    raise MigrationRequiredError(f"task_sessions row {invalid_session['session_id']!r} {detail}")
+
+
 def ensure_schema(
     database_url: str,
     *,
@@ -209,12 +272,16 @@ def ensure_schema(
                     raise MigrationRequiredError(
                         f"schema does not match revision {revision}; fingerprint={fingerprint}"
                     )
+                if revision == P1_REVISION:
+                    _validate_legacy_p1_data(connection)
                 if not dry_run:
                     command.upgrade(config, "head")
                 return SchemaMigrationResult("upgrade_versioned", fingerprint, revision, head_revision)
 
             if signature != _canonical_signature(P1_REVISION):
                 raise MigrationRequiredError(f"unknown or partial unversioned schema; fingerprint={fingerprint}")
+
+            _validate_legacy_p1_data(connection)
 
             if dry_run:
                 return SchemaMigrationResult("stamp_0001_and_upgrade", fingerprint, None, head_revision)
