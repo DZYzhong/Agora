@@ -10,12 +10,17 @@ import hashlib
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.engine import Connection
 
 
 revision: str = "20260814_0002"
 down_revision: str | None = "20260813_0001"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+
+
+class LegacyP1ValidationError(RuntimeError):
+    pass
 
 
 def _legacy_id(kind: str, *parts: str) -> str:
@@ -40,7 +45,59 @@ def _legacy_organizations(connection: sa.Connection) -> set[str]:
     return organizations
 
 
+def _legacy_task_session_validation_statement():
+    task_sessions = sa.table(
+        "task_sessions",
+        sa.column("id", sa.String()),
+        sa.column("project_id", sa.String()),
+        sa.column("org_id", sa.String()),
+    )
+    projects = sa.table(
+        "projects",
+        sa.column("id", sa.String()),
+        sa.column("org_id", sa.String()),
+    )
+    return (
+        sa.select(
+            task_sessions.c.id.label("session_id"),
+            task_sessions.c.project_id,
+            task_sessions.c.org_id.label("session_org_id"),
+            projects.c.org_id.label("project_org_id"),
+        )
+        .select_from(task_sessions.outerjoin(projects, projects.c.id == task_sessions.c.project_id))
+        .where(sa.or_(projects.c.id.is_(None), projects.c.org_id != task_sessions.c.org_id))
+        .limit(1)
+    )
+
+
+def _validate_legacy_p1_data(connection: Connection) -> None:
+    if connection.dialect.name == "sqlite":
+        violation = connection.exec_driver_sql("PRAGMA foreign_key_check").first()
+        if violation is not None:
+            raise LegacyP1ValidationError(
+                f"legacy P1 validation failed: foreign key violation in table {violation[0]!r}, "
+                f"rowid={violation[1]!r}"
+            )
+
+    invalid_session = connection.execute(_legacy_task_session_validation_statement()).mappings().first()
+    if invalid_session is None:
+        return
+    if invalid_session["project_org_id"] is None:
+        detail = f"references missing project {invalid_session['project_id']!r}"
+    else:
+        detail = (
+            f"org_id {invalid_session['session_org_id']!r} does not match "
+            f"project org_id {invalid_session['project_org_id']!r}"
+        )
+    raise LegacyP1ValidationError(
+        f"legacy P1 validation failed: task_sessions row {invalid_session['session_id']!r} {detail}"
+    )
+
+
 def upgrade() -> None:
+    connection = op.get_bind()
+    _validate_legacy_p1_data(connection)
+
     users = op.create_table(
         "users",
         sa.Column("id", sa.String(), primary_key=True),
@@ -160,7 +217,6 @@ def upgrade() -> None:
     op.create_index("ix_idempotency_records_status", "idempotency_records", ["status"])
     op.create_index("ix_idempotency_records_replay_expires_at", "idempotency_records", ["replay_expires_at"])
 
-    connection = op.get_bind()
     now = datetime.now(timezone.utc)
     organizations = _legacy_organizations(connection)
     placeholder_ids = {org_id: _legacy_id("user", org_id) for org_id in organizations}

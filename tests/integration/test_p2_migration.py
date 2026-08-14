@@ -6,6 +6,7 @@ import sqlite3
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 import pytest
 from sqlalchemy import CheckConstraint, MetaData, create_engine, inspect, text
 from sqlalchemy.dialects import postgresql
@@ -377,3 +378,40 @@ def test_unversioned_p1_with_modified_foreign_key_options_is_rejected_unchanged(
         _schema_manager().ensure_schema(database_url)
 
     assert database_path.read_bytes() == before_bytes
+
+
+@pytest.mark.parametrize("corruption", ["missing_project", "org_mismatch", "foreign_key"])
+def test_direct_alembic_upgrade_rejects_corrupt_p1_before_p2_ddl(tmp_path, corruption):
+    database_path = tmp_path / f"direct-{corruption}.db"
+    database_url = f"sqlite+pysqlite:///{database_path}"
+    config = _alembic_config(database_url)
+    _create_p1_database(database_url, "versioned")
+    _seed_p1_database(database_url)
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        if corruption == "missing_project":
+            connection.execute(
+                text("UPDATE task_sessions SET project_id = 'missing-project' WHERE id = 'session-shared-1'")
+            )
+        elif corruption == "org_mismatch":
+            connection.execute(text("UPDATE task_sessions SET org_id = 'org-2' WHERE id = 'session-shared-1'"))
+        else:
+            connection.execute(text("UPDATE assets SET project_id = 'missing-project' WHERE id = 'asset-1'"))
+
+    with pytest.raises(RuntimeError, match="legacy P1 validation"):
+        command.upgrade(config, "head")
+
+    inspector = inspect(engine)
+    assert P2_TABLE_NAMES.isdisjoint(inspector.get_table_names())
+    with engine.connect() as connection:
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260813_0001"
+
+
+def test_p2_revision_legacy_validation_query_compiles_for_postgres():
+    revision = ScriptDirectory.from_config(Config("alembic.ini")).get_revision("20260814_0002")
+
+    compiled = str(revision.module._legacy_task_session_validation_statement().compile(dialect=postgresql.dialect()))
+
+    assert "LEFT OUTER JOIN projects" in compiled
+    assert "task_sessions.project_id" in compiled
+    assert "task_sessions.org_id" in compiled
