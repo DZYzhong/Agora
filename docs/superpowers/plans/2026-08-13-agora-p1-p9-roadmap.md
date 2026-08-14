@@ -18,6 +18,8 @@
 
 **Project manager role principle:** Agora must support a project manager / tech lead / team lead role that intentionally curates team memory. This role reviews uploaded ContextPacks, validates or rejects project understanding, promotes repeated writebacks into skills, manages skill approval/deprecation, watches stale or conflicting context versions, and uses the Web UI for governance, audit, and team-level quality control. Developers should experience Agora ambiently; project managers need explicit control surfaces.
 
+**Canonical real workflow spec:** `docs/superpowers/specs/2026-08-14-agora-real-team-workflow.zh-CN.md` is the current product north star. Future roadmap work should be interpreted against that spec rather than the earlier P0/P1 assumption that Agora Web UI and server-side repository analysis are the main user-facing workflow.
+
 ---
 
 ## Current Implementation Snapshot
