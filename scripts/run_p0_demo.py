@@ -141,7 +141,7 @@ def main() -> None:
 
     print("skill output: impact-analysis would inspect refund retry risks")
 
-    writeback_service = MemoryWritebackService(core=core, keyword_index=keyword, vector_index=vector)
+    writeback_service = MemoryWritebackService(core=core)
     writeback = writeback_service.prepare_writeback(
         org_id="org_1",
         project_id=project.id,
@@ -151,7 +151,9 @@ def main() -> None:
         content="退款失败重试需要限制次数并保持幂等。",
     )
     accepted = writeback_service.accept_writeback(writeback.id)
-    print(f"writeback accepted: {accepted.title}")
+    keyword.index_asset(accepted.pending_index.asset_id, accepted.pending_index.asset)
+    vector.index_asset(accepted.pending_index.asset_id, accepted.pending_index.asset)
+    print(f"writeback accepted: {accepted.writeback.title}")
 
     later = context_engine.plan_context(
         org_id="org_1",

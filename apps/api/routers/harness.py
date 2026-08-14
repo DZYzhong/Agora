@@ -153,15 +153,13 @@ def close_work(
 def prepare_writeback(
     payload: PrepareWritebackRequest,
     session: Session = Depends(get_db_session),
-    keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
-    vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
     with SqlAlchemyUnitOfWork(session) as uow:
         runtime = CoreRuntime(session)
         task_session = runtime.get_session(payload.session_id)
         if task_session is None:
             raise HTTPException(status_code=404, detail="Session not found")
-        service = MemoryWritebackService(core=runtime, keyword_index=keyword_index, vector_index=vector_index)
+        service = MemoryWritebackService(core=runtime)
         writeback = service.prepare_writeback(
             org_id=task_session.org_id,
             project_id=task_session.project_id,

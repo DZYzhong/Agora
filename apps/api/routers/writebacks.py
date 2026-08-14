@@ -39,8 +39,9 @@ def accept_writeback(
 ):
     try:
         with SqlAlchemyUnitOfWork(session) as uow:
-            service = MemoryWritebackService(core=CoreRuntime(session), keyword_index=keyword_index, vector_index=vector_index)
-            writeback = service.accept_writeback(writeback_id)
+            service = MemoryWritebackService(core=CoreRuntime(session))
+            result = service.accept_writeback(writeback_id)
+            writeback = result.writeback
             response = {
                 "id": writeback.id,
                 "project_id": project_id,
@@ -50,6 +51,8 @@ def accept_writeback(
             uow.commit()
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    keyword_index.index_asset(result.pending_index.asset_id, result.pending_index.asset)
+    vector_index.index_asset(result.pending_index.asset_id, result.pending_index.asset)
     return response
 
 

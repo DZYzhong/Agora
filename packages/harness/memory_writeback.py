@@ -1,11 +1,23 @@
+from dataclasses import dataclass
+
 from packages.domain.schemas import AssetCreate
 
 
+@dataclass(frozen=True)
+class PendingAssetIndex:
+    asset_id: str
+    asset: AssetCreate
+
+
+@dataclass(frozen=True)
+class AcceptWritebackResult:
+    writeback: object
+    pending_index: PendingAssetIndex
+
+
 class MemoryWritebackService:
-    def __init__(self, *, core, keyword_index, vector_index):
+    def __init__(self, *, core):
         self.core = core
-        self.keyword_index = keyword_index
-        self.vector_index = vector_index
 
     def prepare_writeback(
         self,
@@ -46,11 +58,12 @@ class MemoryWritebackService:
             metadata={"writeback_id": writeback.id, "writeback_type": writeback.type},
         )
         asset = self.core.create_asset(**asset_payload.model_dump())
-        self.keyword_index.index_asset(asset.id, asset_payload)
-        self.vector_index.index_asset(asset.id, asset_payload)
         accepted = self.core.accept_writeback(writeback_id, accepted_asset_id=asset.id)
         self._create_candidate_skill_from_repeated_writebacks(accepted)
-        return accepted
+        return AcceptWritebackResult(
+            writeback=accepted,
+            pending_index=PendingAssetIndex(asset_id=asset.id, asset=asset_payload),
+        )
 
     def reject_writeback(self, writeback_id: str):
         writeback = self.core.get_writeback(writeback_id)
