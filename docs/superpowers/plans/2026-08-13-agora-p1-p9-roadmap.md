@@ -12,6 +12,8 @@
 
 **Context generation principle:** Agora should not pretend to be the AI analyst. Agora is responsible for durable project memory, source candidate retrieval, audit trails, and writeback storage. A real AI tool should synthesize the final reviewer/agent-facing context from those materials, and Agora should persist the generated ContextPack plus source references for audit and reuse.
 
+**Customer-local project principle:** In the target workflow, customer source code and documents live in the customer's local workspace. Agora should not assume it can clone or pull customer repositories as the primary path. A customer's AI development tool first asks Agora for an existing project context and skill package. If the project exists but has no reusable context yet, the customer's AI tool scans the local project, analyzes code and documents locally, generates the project ContextPack, and uploads that ContextPack plus source references to Agora. Later users reuse the stored context instead of re-analyzing the whole project.
+
 ---
 
 ## Current Implementation Snapshot
