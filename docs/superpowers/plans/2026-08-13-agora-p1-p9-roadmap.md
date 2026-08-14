@@ -8,7 +8,9 @@
 
 **Log rule:** Every implementation task should append an entry under "Execution Log" before the final response. Include date, scope, files changed, commit SHA if available, and exact verification commands/results.
 
-**Black-box validation rule:** User-facing validation must use realistic software R&D team workflows and real connected tools/services when the environment is available. Fake LLM gateways, fake indexes, synthetic harness objects, and helper-only fixtures may remain in automated unit/integration tests, but they do not count as black-box acceptance for product behavior. Context quality validation must include a real AI-tool path, such as an agent using Agora MCP/API context to perform analysis, implementation, review, or close-work against a real or realistic repository.
+**Black-box validation rule:** User-facing validation must use realistic software R&D team workflows and real connected tools/services when the environment is available. Fake LLM gateways, fake indexes, synthetic harness objects, and helper-only fixtures may remain in automated unit/integration tests, but they do not count as black-box acceptance for product behavior. Context quality validation must include a real AI-tool path, where the AI tool participates in producing the final ContextPack from Agora-provided source candidates, session memory, accepted writebacks, and project metadata, then uses that generated context for analysis, implementation, review, or close-work against a real or realistic repository.
+
+**Context generation principle:** Agora should not pretend to be the AI analyst. Agora is responsible for durable project memory, source candidate retrieval, audit trails, and writeback storage. A real AI tool should synthesize the final reviewer/agent-facing context from those materials, and Agora should persist the generated ContextPack plus source references for audit and reuse.
 
 ---
 
