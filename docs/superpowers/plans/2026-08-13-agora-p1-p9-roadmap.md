@@ -1242,3 +1242,46 @@ Black-box validation path:
 Commit:
 
 - `feat: add persistence migration baseline`
+
+### 2026-08-14: Web Dev Style Regression Fix
+
+Scope:
+
+- Fixed the Projects page appearing with browser-default styling during black-box validation.
+- Root cause: `next build` was run while `next dev` was serving the same `.next` directory, leaving the dev page pointing at a CSS URL that returned 404.
+- Added `apps/web/next.config.mjs` so development uses `.next-dev` and production build keeps using `.next`.
+- Added `.next-dev/` to `.gitignore`.
+- Updated Web TypeScript config to include `.next-dev/types/**/*.ts`.
+- Added a regression test requiring separate dev/build dist directories.
+
+Files changed:
+
+- Created: `apps/web/next.config.mjs`
+- Created: `tests/integration/test_web_config.py`
+- Modified: `.gitignore`
+- Modified: `apps/web/tsconfig.json`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/test_web_config.py -v
+# 1 passed
+
+.venv/bin/pytest -q
+# 67 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# passed
+
+curl http://127.0.0.1:3000/_next/static/css/app/layout.css?... 
+# 200 text/css
+```
+
+Black-box validation path:
+
+- Refresh `http://127.0.0.1:3000/projects`.
+- Expected: the top nav, centered page container, project cards, buttons, muted text, and status badges render with Agora styling instead of browser-default link/input/button styles.
+
+Commit:
+
+- Pending.
