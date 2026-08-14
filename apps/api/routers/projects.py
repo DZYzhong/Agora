@@ -12,7 +12,7 @@ from packages.core.repositories.projects import ProjectRepository
 from packages.core.services.runtime import CoreRuntime
 from packages.core.services.skills import ensure_builtin_skills
 from packages.core.uow import SqlAlchemyUnitOfWork
-from packages.domain.schemas import ProjectCreate, ProjectRead
+from packages.domain.schemas import AssetCreate, ProjectCreate, ProjectRead
 from packages.integrations.git.clone import GitCloneError, clone_repository
 from packages.storage.opensearch.fake import FakeKeywordIndex
 from packages.storage.qdrant.fake import FakeVectorIndex
@@ -125,7 +125,6 @@ def initialize_local_project(
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
-    failure = None
     with SqlAlchemyUnitOfWork(session) as uow:
         project = ProjectRepository(session).get(project_id)
         if project is None:
@@ -139,21 +138,15 @@ def initialize_local_project(
             repo_path=payload.repo_path,
             git_remote=git_remote,
         )
-        try:
-            response = _run_initialization_job(
-                project=project,
-                job=job,
-                session=session,
-                job_repo=job_repo,
-                keyword_index=keyword_index,
-                vector_index=vector_index,
-            )
-        except HTTPException as exc:
-            failure = exc
+        job_id = job.id
         uow.commit()
-    if failure is not None:
-        raise failure
-    return response
+    return _execute_initialization_job(
+        project_id=project_id,
+        job_id=job_id,
+        session=session,
+        keyword_index=keyword_index,
+        vector_index=vector_index,
+    )
 
 
 @router.post("/{project_id}/initialization-jobs/{job_id}/retry")
@@ -164,7 +157,6 @@ def retry_initialization_job(
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
-    failure = None
     with SqlAlchemyUnitOfWork(session) as uow:
         project = ProjectRepository(session).get(project_id)
         if project is None:
@@ -183,23 +175,64 @@ def retry_initialization_job(
             repo_path=previous_job.repo_path,
             git_remote=previous_job.git_remote,
         )
-        try:
-            response = _run_initialization_job(
+        retry_job_id = retry_job.id
+        previous_job_id = previous_job.id
+        uow.commit()
+    response = _execute_initialization_job(
+        project_id=project_id,
+        job_id=retry_job_id,
+        session=session,
+        keyword_index=keyword_index,
+        vector_index=vector_index,
+    )
+    response["retry_of_job_id"] = previous_job_id
+    return response
+
+
+def _execute_initialization_job(
+    *,
+    project_id: str,
+    job_id: str,
+    session: Session,
+    keyword_index: FakeKeywordIndex,
+    vector_index: FakeVectorIndex,
+) -> dict:
+    try:
+        with SqlAlchemyUnitOfWork(session) as uow:
+            project = ProjectRepository(session).get(project_id)
+            job_repo = InitializationJobRepository(session)
+            job = job_repo.get(job_id)
+            if project is None or job is None or job.project_id != project_id:
+                raise HTTPException(status_code=404, detail="Initialization command state not found")
+            response, index_updates = _run_initialization_job(
                 project=project,
-                job=retry_job,
+                job=job,
                 session=session,
                 job_repo=job_repo,
-                keyword_index=keyword_index,
-                vector_index=vector_index,
             )
-        except HTTPException as exc:
-            failure = exc
-        if failure is None:
-            response["retry_of_job_id"] = previous_job.id
-        uow.commit()
-    if failure is not None:
-        raise failure
+            uow.commit()
+    except HTTPException as exc:
+        _mark_initialization_job_failed(session, job_id=job_id, error=str(exc.detail))
+        raise
+    except Exception as exc:
+        error = f"Project initialization failed: {exc}"
+        _mark_initialization_job_failed(session, job_id=job_id, error=error)
+        raise HTTPException(status_code=500, detail=error) from exc
+
+    for asset_id, asset in index_updates:
+        keyword_index.index_asset(asset_id, asset)
+        vector_index.index_asset(asset_id, asset)
     return response
+
+
+def _mark_initialization_job_failed(session: Session, *, job_id: str, error: str) -> None:
+    with SqlAlchemyUnitOfWork(session) as uow:
+        job_repo = InitializationJobRepository(session)
+        job = job_repo.get(job_id)
+        if job is None:
+            raise RuntimeError(f"Initialization job not found after rollback: {job_id}")
+        job_repo.mark_failed(job, error=error)
+        uow.commit()
 
 
 def _run_initialization_job(
@@ -208,14 +241,11 @@ def _run_initialization_job(
     job,
     session: Session,
     job_repo: InitializationJobRepository,
-    keyword_index: FakeKeywordIndex,
-    vector_index: FakeVectorIndex,
-) -> dict:
+) -> tuple[dict, list[tuple[str, AssetCreate]]]:
     repo_path = Path(job.repo_path)
     if not repo_path.exists():
         if not project.git_remotes:
             error = f"Repository path does not exist and project has no Git remote to clone: {job.repo_path}"
-            job_repo.mark_failed(job, error=error)
             raise HTTPException(
                 status_code=400,
                 detail=error,
@@ -224,18 +254,17 @@ def _run_initialization_job(
             clone_repository(project.git_remotes[0], repo_path)
         except GitCloneError as exc:
             error = f"Git clone failed: {exc}"
-            job_repo.mark_failed(job, error=error)
             raise HTTPException(status_code=400, detail=error) from exc
 
     try:
         result = initialize_project_from_local_repo(org_id=project.org_id, project_id=project.id, repo_path=repo_path)
         asset_repo = AssetRepository(session)
         stored_assets = []
+        index_updates = []
         for asset in result.assets:
             stored = asset_repo.upsert_by_source_uri(**asset.model_dump())
-            keyword_index.index_asset(stored.id, asset)
-            vector_index.index_asset(stored.id, asset)
             stored_assets.append(stored)
+            index_updates.append((stored.id, asset))
         asset_repo.prune_project_sources(
             project_id=project.id,
             managed_source_uris={asset.source_uri for asset in result.assets},
@@ -245,17 +274,19 @@ def _run_initialization_job(
         raise
     except Exception as exc:
         error = f"Project initialization failed: {exc}"
-        job_repo.mark_failed(job, error=error)
         raise HTTPException(status_code=500, detail=error) from exc
 
-    return {
-        "project_id": project.id,
-        "job_id": job.id,
-        "status": job.status,
-        "asset_count": len(stored_assets),
-        "modules": result.modules,
-        "warnings": result.warnings,
-    }
+    return (
+        {
+            "project_id": project.id,
+            "job_id": job.id,
+            "status": job.status,
+            "asset_count": len(stored_assets),
+            "modules": result.modules,
+            "warnings": result.warnings,
+        },
+        index_updates,
+    )
 
 
 @router.get("/{project_id}/initialization-jobs")

@@ -1,6 +1,12 @@
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import sessionmaker
 
+from apps.api.dependencies import get_engine, get_keyword_index, get_vector_index
 from apps.api.main import app
+from packages.core.models import AssetModel
+from packages.core.repositories.assets import AssetRepository
+from packages.core.repositories.initialization_jobs import InitializationJobRepository
+from packages.core.repositories.projects import ProjectRepository
 
 
 def test_initialize_local_records_completed_initialization_job():
@@ -165,3 +171,157 @@ def test_retry_failed_initialization_job_uses_previous_repo_path(tmp_path):
     assert jobs[0]["status"] == "completed"
     assert jobs[0]["repo_path"] == str(missing_repo)
     assert jobs[1]["status"] == "failed"
+
+
+def test_initialize_failure_after_first_asset_leaves_only_failed_job(monkeypatch):
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_atomic_init",
+            "name": "Atomic Initialization",
+            "slug": "atomic-initialization",
+            "git_remotes": [],
+        },
+    ).json()
+    original_upsert = AssetRepository.upsert_by_source_uri
+    calls = 0
+
+    def fail_after_first_asset(self, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("injected asset write failure")
+        return original_upsert(self, **kwargs)
+
+    monkeypatch.setattr(AssetRepository, "upsert_by_source_uri", fail_after_first_asset)
+
+    response = client.post(
+        f"/projects/{project['id']}/initialize-local",
+        json={"repo_path": "tests/fixtures/sample_repo"},
+    )
+
+    assert response.status_code == 500
+    assert client.get(f"/projects/{project['id']}/assets").json() == []
+    jobs = client.get(f"/projects/{project['id']}/initialization-jobs").json()
+    assert len(jobs) == 1
+    assert jobs[0]["status"] == "failed"
+    assert jobs[0]["asset_count"] == 0
+    assert "injected asset write failure" in jobs[0]["error"]
+    assert get_keyword_index().list_assets(org_id=project["org_id"], project_id=project["id"]) == []
+    assert get_vector_index()._assets == []
+
+
+def test_retry_failure_after_first_asset_leaves_failed_jobs_without_assets(monkeypatch, tmp_path):
+    client = TestClient(app)
+    repo = tmp_path / "retry_repo"
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_atomic_retry",
+            "name": "Atomic Retry",
+            "slug": "atomic-retry",
+            "git_remotes": [],
+        },
+    ).json()
+    first_response = client.post(
+        f"/projects/{project['id']}/initialize-local",
+        json={"repo_path": str(repo)},
+    )
+    assert first_response.status_code == 400
+    first_job = client.get(f"/projects/{project['id']}/initialization-jobs").json()[0]
+    (repo / "src").mkdir(parents=True)
+    (repo / "README.md").write_text("# Atomic Retry", encoding="utf-8")
+    (repo / "src/app.py").write_text("print('retry')", encoding="utf-8")
+    original_upsert = AssetRepository.upsert_by_source_uri
+    calls = 0
+
+    def fail_after_first_asset(self, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("injected retry asset failure")
+        return original_upsert(self, **kwargs)
+
+    monkeypatch.setattr(AssetRepository, "upsert_by_source_uri", fail_after_first_asset)
+
+    response = client.post(f"/projects/{project['id']}/initialization-jobs/{first_job['id']}/retry")
+
+    assert response.status_code == 500
+    assert client.get(f"/projects/{project['id']}/assets").json() == []
+    jobs = client.get(f"/projects/{project['id']}/initialization-jobs").json()
+    assert len(jobs) == 2
+    assert [job["status"] for job in jobs] == ["failed", "failed"]
+    assert "injected retry asset failure" in jobs[0]["error"]
+    assert get_keyword_index().list_assets(org_id=project["org_id"], project_id=project["id"]) == []
+    assert get_vector_index()._assets == []
+
+
+def test_successful_initialize_indexes_only_after_database_commit(monkeypatch):
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_atomic_index",
+            "name": "Atomic Index",
+            "slug": "atomic-index",
+            "git_remotes": [],
+        },
+    ).json()
+    keyword_index = get_keyword_index()
+    original_index_asset = keyword_index.index_asset
+    indexed_asset_ids = []
+
+    def assert_database_committed(asset_id, asset):
+        with sessionmaker(bind=get_engine())() as session:
+            assert session.get(AssetModel, asset_id) is not None
+            jobs = InitializationJobRepository(session).list_by_project(project["id"])
+            assert len(jobs) == 1
+            assert jobs[0].status == "completed"
+        indexed_asset_ids.append(asset_id)
+        original_index_asset(asset_id, asset)
+
+    monkeypatch.setattr(keyword_index, "index_asset", assert_database_committed)
+
+    response = client.post(
+        f"/projects/{project['id']}/initialize-local",
+        json={"repo_path": "tests/fixtures/sample_repo"},
+    )
+
+    assert response.status_code == 200
+    assert len(indexed_asset_ids) == response.json()["asset_count"]
+
+
+def test_unexpected_execution_exception_marks_committed_job_failed(monkeypatch):
+    client = TestClient(app, raise_server_exceptions=False)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_execution_failure",
+            "name": "Execution Failure",
+            "slug": "execution-failure",
+            "git_remotes": [],
+        },
+    ).json()
+    original_get = ProjectRepository.get
+    calls = 0
+
+    def fail_execution_read(self, project_id):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("injected execution read failure")
+        return original_get(self, project_id)
+
+    monkeypatch.setattr(ProjectRepository, "get", fail_execution_read)
+
+    response = client.post(
+        f"/projects/{project['id']}/initialize-local",
+        json={"repo_path": "tests/fixtures/sample_repo"},
+    )
+
+    assert response.status_code == 500
+    jobs = client.get(f"/projects/{project['id']}/initialization-jobs").json()
+    assert len(jobs) == 1
+    assert jobs[0]["status"] == "failed"
+    assert "injected execution read failure" in jobs[0]["error"]
