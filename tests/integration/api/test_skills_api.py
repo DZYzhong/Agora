@@ -72,7 +72,10 @@ def test_project_skill_lifecycle_and_run_history():
 
     runs_response = client.get(f"/projects/{project['id']}/skill-runs")
     assert runs_response.status_code == 200
-    assert runs_response.json()[0]["id"] == run["id"]
+    runs_before_block = runs_response.json()
+    assert len(runs_before_block) == 1
+    assert runs_before_block[0]["id"] == run["id"]
+    assert runs_before_block[0]["status"] == "completed"
 
     deprecate_response = client.post(f"/projects/{project['id']}/skills/{skill['id']}/deprecate")
     assert deprecate_response.status_code == 200
@@ -86,11 +89,9 @@ def test_project_skill_lifecycle_and_run_history():
         },
     )
     assert blocked_run.status_code == 400
+    assert blocked_run.json()["detail"] == "Skill is not approved: release-risk-review"
     runs_after_block = client.get(f"/projects/{project['id']}/skill-runs").json()
-    failed_run = next(run for run in runs_after_block if run["status"] == "failed")
-    assert failed_run["skill_id"] == skill["id"]
-    assert failed_run["output"]["error"] == "Skill is not approved: release-risk-review"
-    assert failed_run["warnings"] == ["Skill is not approved: release-risk-review"]
+    assert runs_after_block == runs_before_block
 
     skills = client.get(f"/projects/{project['id']}/skills").json()
     assert any(item["slug"] == "task-context-summary" and item["builtin"] for item in skills)

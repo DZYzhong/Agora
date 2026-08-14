@@ -31,6 +31,26 @@ class SkillRunRequest(BaseModel):
     context: dict = Field(default_factory=dict)
 
 
+class _SkillExecutionFailed(Exception):
+    def __init__(
+        self,
+        *,
+        error: str,
+        org_id: str,
+        project_id: str,
+        session_id: str | None,
+        skill_id: str,
+        input: dict,
+    ):
+        super().__init__(error)
+        self.error = error
+        self.org_id = org_id
+        self.project_id = project_id
+        self.session_id = session_id
+        self.skill_id = skill_id
+        self.input = input
+
+
 def _content_preview(content: str, *, limit: int = 160) -> str:
     compact = " ".join(content.split())
     if len(compact) <= limit:
@@ -100,6 +120,21 @@ def _ensure_project_skill(skill, project_id: str) -> None:
         raise HTTPException(status_code=400, detail="Built-in skills are read-only")
     if skill.project_id != project_id:
         raise HTTPException(status_code=404, detail="Skill not found")
+
+
+def _record_failed_skill_run(session: Session, failure: _SkillExecutionFailed) -> None:
+    with SqlAlchemyUnitOfWork(session) as uow:
+        CoreRuntime(session).create_skill_run(
+            org_id=failure.org_id,
+            project_id=failure.project_id,
+            session_id=failure.session_id,
+            skill_id=failure.skill_id,
+            input=failure.input,
+            output={"error": failure.error},
+            warnings=[failure.error],
+            status="failed",
+        )
+        uow.commit()
 
 
 @router.get("/skills")
@@ -191,27 +226,15 @@ def deprecate_skill(project_id: str, skill_id: str, session: Session = Depends(g
 
 @router.post("/skills/{skill_id}/run")
 def run_skill(project_id: str, skill_id: str, payload: SkillRunRequest, session: Session = Depends(get_db_session)):
-    failure = None
-    with SqlAlchemyUnitOfWork(session) as uow:
-        runtime = CoreRuntime(session)
-        project = _ensure_project(runtime, project_id)
-        skill = runtime.get_skill(skill_id)
-        if skill is None or skill.project_id not in (project_id, None):
-            raise HTTPException(status_code=404, detail="Skill not found")
-        if skill.status != SkillStatus.APPROVED.value:
-            error = f"Skill is not approved: {skill.slug}"
-            runtime.create_skill_run(
-                org_id=project.org_id,
-                project_id=project.id,
-                session_id=payload.session_id,
-                skill_id=skill.id,
-                input=payload.input,
-                output={"error": error},
-                warnings=[error],
-                status="failed",
-            )
-            failure = HTTPException(status_code=400, detail=error)
-        else:
+    try:
+        with SqlAlchemyUnitOfWork(session) as uow:
+            runtime = CoreRuntime(session)
+            project = _ensure_project(runtime, project_id)
+            skill = runtime.get_skill(skill_id)
+            if skill is None or skill.project_id not in (project_id, None):
+                raise HTTPException(status_code=404, detail="Skill not found")
+            if skill.status != SkillStatus.APPROVED.value:
+                raise HTTPException(status_code=400, detail=f"Skill is not approved: {skill.slug}")
             try:
                 result = SkillOrchestrator(core=runtime, llm=FakeLlmGateway()).run_skill(
                     session_id=payload.session_id,
@@ -222,23 +245,20 @@ def run_skill(project_id: str, skill_id: str, payload: SkillRunRequest, session:
                     context=payload.context,
                 )
             except ValueError as exc:
-                runtime.create_skill_run(
+                raise _SkillExecutionFailed(
+                    error=str(exc),
                     org_id=project.org_id,
                     project_id=project.id,
                     session_id=payload.session_id,
                     skill_id=skill.id,
                     input=payload.input,
-                    output={"error": str(exc)},
-                    warnings=[str(exc)],
-                    status="failed",
-                )
-                failure = HTTPException(status_code=400, detail=str(exc))
-            else:
-                run = next(run for run in runtime.list_skill_runs_by_project(project.id) if run.id == result.skill_run_id)
-                response = _serialize_run(run)
-        uow.commit()
-    if failure is not None:
-        raise failure
+                ) from exc
+            run = next(run for run in runtime.list_skill_runs_by_project(project.id) if run.id == result.skill_run_id)
+            response = _serialize_run(run)
+            uow.commit()
+    except _SkillExecutionFailed as exc:
+        _record_failed_skill_run(session, exc)
+        raise HTTPException(status_code=400, detail=exc.error) from exc
     return response
 
 

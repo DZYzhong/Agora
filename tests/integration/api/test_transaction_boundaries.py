@@ -8,7 +8,14 @@ from sqlalchemy.orm import sessionmaker
 
 from apps.api.dependencies import get_db_session, get_engine, get_keyword_index, get_vector_index
 from apps.api.main import app
-from packages.core.models import AssetModel, ContextPackModel, SessionEventModel, TaskSessionModel, WritebackModel
+from packages.core.models import (
+    AssetModel,
+    ContextPackModel,
+    SessionEventModel,
+    SkillRunModel,
+    TaskSessionModel,
+    WritebackModel,
+)
 from packages.core.repositories.projects import ProjectRepository
 from packages.core.repositories.sessions import TaskSessionRepository
 from packages.core.repositories.skills import SkillRepository
@@ -287,6 +294,59 @@ def test_successful_writeback_accept_indexes_only_after_database_commit(monkeypa
     accepted_asset_id = response.json()["accepted_asset_id"]
     assert observations == [(True, "accepted", accepted_asset_id, accepted_asset_id)]
     assert {asset_id for asset_id, _ in get_vector_index()._assets} == {accepted_asset_id}
+
+
+def test_failed_skill_execution_rolls_back_partial_run_before_failed_audit(monkeypatch):
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_skill_run_failure",
+            "name": "Skill Run Failure",
+            "slug": "skill-run-failure",
+            "git_remotes": [],
+        },
+    ).json()
+    skill = client.post(
+        f"/projects/{project['id']}/skills",
+        json={
+            "slug": "atomic-skill-run",
+            "name": "Atomic Skill Run",
+            "status": "approved",
+            "definition": {"instructions": "Run atomically."},
+        },
+    ).json()
+    original_create_run = SkillRepository.create_run
+    create_attempts = 0
+    run_counts_before_audit = []
+
+    def create_then_fail_once(self, **kwargs):
+        nonlocal create_attempts
+        create_attempts += 1
+        if create_attempts == 2:
+            run_counts_before_audit.append(self.session.scalar(select(func.count()).select_from(SkillRunModel)))
+        run = original_create_run(self, **kwargs)
+        if create_attempts == 1:
+            raise ValueError("execution failed after run flush")
+        return run
+
+    monkeypatch.setattr(SkillRepository, "create_run", create_then_fail_once)
+
+    response = client.post(
+        f"/projects/{project['id']}/skills/{skill['id']}/run",
+        json={"input": {"change": "atomic"}, "context": {"summary": "Atomic skill execution."}},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "execution failed after run flush"
+    assert run_counts_before_audit == [0]
+    with sessionmaker(bind=get_engine())() as session:
+        runs = list(session.scalars(select(SkillRunModel)).all())
+        assert len(runs) == 1
+        assert runs[0].skill_id == skill["id"]
+        assert runs[0].status == "failed"
+        assert runs[0].output == {"error": "execution failed after run flush"}
+        assert runs[0].warnings == ["execution failed after run flush"]
 
 
 def test_http_mutation_routes_own_an_explicit_unit_of_work():
