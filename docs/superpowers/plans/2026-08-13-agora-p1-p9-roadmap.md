@@ -14,6 +14,8 @@
 
 **Customer-local project principle:** In the target workflow, customer source code and documents live in the customer's local workspace. Agora should not assume it can clone or pull customer repositories as the primary path. A customer's AI development tool first asks Agora for an existing project context and skill package. If the project exists but has no reusable context yet, the customer's AI tool scans the local project, analyzes code and documents locally, generates the project ContextPack, and uploads that ContextPack plus source references to Agora. Later users reuse the stored context instead of re-analyzing the whole project.
 
+**Ambient memory principle:** Agora should be felt as little as possible in the developer's daily workflow. Developers should keep working inside their AI development tool and local IDE/terminal. The AI tool should automatically resolve projects, check freshness, fetch or generate context, upload useful context/writebacks/skills, and reuse team memory without requiring the developer to consciously manage Agora. Agora's Web UI is primarily for review, governance, debugging, and audit, not the main day-to-day operating surface.
+
 ---
 
 ## Current Implementation Snapshot
