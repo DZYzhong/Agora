@@ -21,6 +21,7 @@ Agora 的技术架构要服务真实团队工作流：
         ▼
 Agora API / MCP Gateway
         │
+        ├─ Harness Service
         ├─ Project Service
         ├─ Context Service
         ├─ Workflow Service
@@ -98,7 +99,77 @@ AI 工具通过 API 或 MCP 调用 Agora。
 - HTTP API：适合 Web UI、CI、后台集成。
 - MCP Tools：适合 AI 工具直接调用。
 
-## 3.3 Agora Web UI
+## 3.3 Harness Service
+
+Harness 是 Agora 面向 AI 工具的工作流编排层，也是当前代码中已经存在且应该保留的核心概念。
+
+Harness 的定位不是“服务端替 AI 工具分析整个项目”，而是：
+
+- 作为 AI 工具开始任务的入口。
+- 解析项目和任务。
+- 获取项目流程、上下文和 skill。
+- 编排任务步骤。
+- 记录 AI 工具执行过程。
+- 保存每一步产物。
+- 生成或接收 writeback / ContextUpdate / skill candidate。
+- 在 close-work 时整理任务记忆。
+- 把所有过程写入 session audit。
+
+Harness 是 AI 工具和 Agora 各领域服务之间的稳定门面：
+
+```text
+AI Tool / MCP Client
+        ↓
+Harness Service
+        ├─ Project Service
+        ├─ Context Service
+        ├─ Workflow Service
+        ├─ Skill Service
+        ├─ Artifact Service
+        ├─ Approval Service
+        └─ Audit Service
+```
+
+当前代码里的 `HarnessService` 已经包含这些雏形：
+
+- `start_work`：解析项目和任务，创建 session。
+- `plan_context`：规划任务上下文。
+- `record_event`：记录 AI 工具事件。
+- `fetch_context_ref`：读取上下文引用。
+- `close_work`：关闭任务并捕获 development update。
+
+后续不是移除 Harness，而是把它升级为真实团队工作流的编排器。
+
+目标态 Harness 应提供：
+
+```text
+harness.start_work
+harness.resolve_project
+harness.check_context_freshness
+harness.get_team_memory
+harness.start_workflow_step
+harness.complete_workflow_step
+harness.upload_artifact
+harness.upload_context_pack
+harness.upload_context_update
+harness.upload_skill_candidate
+harness.close_work
+harness.get_task_status
+```
+
+Harness 与下游服务的分工：
+
+- Harness 负责“任务过程怎么走”和“AI 工具怎么接入”。
+- Project Service 负责项目身份和配置。
+- Context Service 负责上下文版本、freshness 和合并。
+- Workflow Service 负责流程模板和步骤规则。
+- Skill Service 负责技能包生命周期。
+- Artifact Service 负责文档产物。
+- Audit Service 负责不可抵赖的过程记录。
+
+不应该让 AI 工具直接散乱调用所有领域服务；AI 工具优先通过 Harness 完成任务工作流。Web UI 可以直接访问领域服务做治理和审批。
+
+## 3.4 Agora Web UI
 
 Web UI 是治理和审计入口。
 
@@ -120,7 +191,71 @@ Web UI 是治理和审计入口。
 
 ## 4. 核心服务设计
 
-## 4.1 Project Service
+## 4.1 Harness Service
+
+负责 AI 工具任务工作流编排。
+
+能力：
+
+- 开始任务。
+- 解析项目和任务名称。
+- 检查上下文 freshness。
+- 获取团队记忆。
+- 启动和完成 workflow step。
+- 上传或关联任务产物。
+- 上传 ContextPack / ContextUpdate。
+- 上传候选 skill。
+- 记录 AI 工具事件和人工确认。
+- close-work 时整理任务记忆。
+
+关键 API：
+
+```text
+POST /harness/start-work
+POST /harness/resolve-project
+POST /harness/check-context-freshness
+POST /harness/get-team-memory
+POST /harness/workflow-steps/start
+POST /harness/workflow-steps/complete
+POST /harness/artifacts
+POST /harness/context-packs
+POST /harness/context-updates
+POST /harness/skill-candidates
+POST /harness/record-event
+POST /harness/close-work
+```
+
+关键 MCP tools：
+
+```text
+agora_start_work
+agora_resolve_project
+agora_check_context_freshness
+agora_get_team_memory
+agora_start_workflow_step
+agora_complete_workflow_step
+agora_upload_artifact
+agora_upload_context_pack
+agora_upload_context_update
+agora_upload_skill_candidate
+agora_record_event
+agora_close_work
+```
+
+`start_work` 示例输出：
+
+```json
+{
+  "session_id": "session_1",
+  "project_id": "project_1",
+  "task_name": "BUG-128 优惠券支付后状态未刷新",
+  "context_status": "fresh",
+  "workflow_template_id": "workflow_1",
+  "next_action": "get_team_memory"
+}
+```
+
+## 4.2 Project Service
 
 负责项目身份和项目配置。
 
@@ -169,7 +304,7 @@ GET /projects/{project_id}/status
 }
 ```
 
-## 4.2 Context Service
+## 4.3 Context Service
 
 负责 ContextPack、ContextUpdate、版本、freshness 和合并。
 
@@ -204,7 +339,7 @@ freshness 状态：
 - `dirty_workspace`：本地有未提交变更。
 - `conflict`：存在多个候选更新或分支上下文冲突。
 
-## 4.3 Workflow Service
+## 4.4 Workflow Service
 
 负责项目流程模板和任务流程执行状态。
 
@@ -237,7 +372,7 @@ POST /sessions/{session_id}/workflow-steps/{step_id}/complete
 }
 ```
 
-## 4.4 Task Session Service
+## 4.5 Task Session Service
 
 负责一次任务从开始到结束的全过程。
 
@@ -262,7 +397,7 @@ POST /sessions/{session_id}/artifacts
 POST /sessions/{session_id}/close
 ```
 
-## 4.5 Artifact Service
+## 4.6 Artifact Service
 
 负责任务文档和团队资产。
 
@@ -280,7 +415,7 @@ POST /sessions/{session_id}/close
 - 大文件或附件进入对象存储。
 - 保存 hash、source path、generated_by、review status。
 
-## 4.6 Skill Service
+## 4.7 Skill Service
 
 负责 skill 生命周期。
 
@@ -303,7 +438,7 @@ POST /skills/{skill_id}/deprecate
 POST /skills/{skill_id}/runs
 ```
 
-## 4.7 Quality Service
+## 4.8 Quality Service
 
 负责质量状态聚合。
 
@@ -332,7 +467,7 @@ GET /projects/{project_id}/sessions/{session_id}/quality
 POST /projects/{project_id}/quality/reports
 ```
 
-## 4.8 Approval Service
+## 4.9 Approval Service
 
 负责上下文、skill、流程模板等治理审批。
 
@@ -352,7 +487,7 @@ POST /projects/{project_id}/quality/reports
 - 记录审批意见。
 - 生成审计事件。
 
-## 4.9 Audit Service
+## 4.10 Audit Service
 
 负责所有关键行为的审计。
 
@@ -575,24 +710,56 @@ created_at
 
 ## 6.1 工具清单
 
-AI 工具侧至少需要以下 MCP tools：
+AI 工具侧至少需要以下 MCP tools。它们应主要映射到 Harness，而不是让 AI 工具直接理解 Agora 内部所有服务：
 
 ```text
+agora_start_task
 agora_resolve_project
 agora_check_context_freshness
 agora_get_team_memory
-agora_start_task
+agora_start_workflow_step
 agora_record_workflow_step
 agora_upload_artifact
 agora_upload_context_pack
 agora_upload_context_update
 agora_upload_skill_candidate
-agora_close_task
+agora_close_work
 agora_get_project_status
 agora_get_quality_status
 ```
 
-## 6.2 agora_resolve_project
+## 6.2 agora_start_work
+
+`agora_start_work` 是 AI 工具进入项目任务的首选入口。它应尽量完成项目解析、任务识别、session 创建和下一步动作判断。
+
+输入：
+
+```json
+{
+  "user_message": "修复 BUG-128：优惠券支付后状态未刷新",
+  "local_path": "/workspace/member-center",
+  "git_remote": "git@example.com:team/member-center.git",
+  "branch": "main",
+  "commit_sha": "8f34c2a",
+  "dirty_workspace": false,
+  "agent_type": "codex"
+}
+```
+
+输出：
+
+```json
+{
+  "session_id": "session_1",
+  "project_id": "project_1",
+  "task_name": "BUG-128 优惠券支付后状态未刷新",
+  "intent": "implementation",
+  "context_status": "fresh",
+  "next_action": "get_team_memory"
+}
+```
+
+## 6.3 agora_resolve_project
 
 输入：
 
@@ -619,7 +786,7 @@ agora_get_quality_status
 }
 ```
 
-## 6.3 agora_get_team_memory
+## 6.4 agora_get_team_memory
 
 返回：
 
@@ -635,7 +802,7 @@ agora_get_quality_status
 
 AI 工具用这些内容减少 token 消耗和规范工作流程。
 
-## 6.4 agora_upload_context_update
+## 6.5 agora_upload_context_update
 
 输入：
 
@@ -953,11 +1120,13 @@ Private network access
 - Writeback 审批。
 - Next.js Web UI。
 - MCP adapter 雏形。
+- HarnessService、Harness API router、AgoraMcpTools 已经形成任务工作流入口雏形。
 
 需要调整：
 
 - server-side repo 初始化不再作为客户主流程，只保留为本地开发/导入辅助路径。
 - fake ContextEngine 只能用于测试和早期 fallback，不作为真实黑盒验收。
+- Harness 需要从当前的 start/plan/record/close 雏形升级为完整任务工作流编排层。
 - 增加 AI 工具上传 ContextPack / ContextUpdate 的主路径。
 - 增加 WorkflowTemplate 和 WorkArtifact。
 - 增加 ContextUpdate 审核合并。
