@@ -1396,4 +1396,65 @@ Black-box validation path:
 
 Commit:
 
-- Pending.
+- `4e316dd fix: isolate web dev build output`
+
+### 2026-08-14: Product, Architecture and Roadmap Realignment
+
+Scope:
+
+- Re-reviewed Agora against the confirmed target: an agent-first team AI Project Harness with Web governance, approval, audit and visibility.
+- Rewrote the canonical product design and technical architecture around the Local Connector, Harness Coordinator, WorkItem/WorkSession, versioned workflow, governed context and skill lifecycle.
+- Realigned P2-P9 so each phase delivers a coherent, real AI-tool and Web black-box capability instead of test-only shortcuts.
+- Updated the HTML prototype to reflect project management, context governance, workflow, skill approval, quality and AI-tool access.
+- Consolidated durable content and deleted four superseded specification documents; retained historical phase plans with explicit historical labels.
+
+Architecture review decisions:
+
+- Customer code and documents remain local or in customer-controlled CI; the customer's real AI tool analyzes them.
+- Agora stores and governs immutable ContextRevision, WorkflowVersion and SkillVersion records instead of pretending to analyze source code itself.
+- One WorkItem-level WorkflowExecution is authoritative for task stage; WorkSessions contribute attempts, artifacts and evidence.
+- Feature-branch context cannot update the default ContextStream until target-branch commit reachability is proven.
+- P2 establishes the minimum authenticated human/AI-tool boundary and Unit of Work; later phases add version capabilities in their owning phase.
+- The complete serialized L0/L1 ContextBundle is token-budgeted; L2 source expansion has a separate limit.
+- Postgres is the source of truth, with transactional outbox-backed rebuildable projections.
+
+Files changed:
+
+- Canonical product design: `docs/superpowers/specs/2026-08-14-agora-product-functional-design.zh-CN.md`
+- Canonical technical design: `docs/superpowers/specs/2026-08-14-agora-technical-architecture-design.zh-CN.md`
+- Canonical roadmap and execution log: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+- Product prototype: `docs/prototypes/agora-real-team-workflow-prototype.html`
+- Historical guides and phase plans: marked as historical where they no longer define the target architecture.
+- Deleted four duplicate or superseded specification files; Git history preserves their contents.
+
+Verification:
+
+```text
+Independent specification review, round 1
+# 7 blocking inconsistencies found and corrected
+
+Independent specification review, round 2
+# APPROVED; no remaining high- or medium-risk product/architecture/roadmap conflicts
+
+Documentation consistency checks
+# canonical_specs=2 roadmap_phases=9 prototype_screens=6 changed_markdown=11
+# all changed Markdown local links resolve
+# no references remain to the four deleted specifications
+
+git diff --check
+# passed
+
+In-app browser prototype checks
+# desktop 1280x720: six screens, branch guard present, no horizontal overflow
+# mobile 390x844: six screens, responsive navigation, no horizontal overflow
+```
+
+Black-box validation:
+
+- This change is design-only and does not claim an application capability as implemented.
+- The prototype received a visual and responsive browser check; no fake AI service or test-only product path was added.
+- Real application black-box validation resumes after the next full roadmap phase is implemented, using a real AI tool plus the running Agora Web UI.
+
+Commit:
+
+- `8d10ff9 docs: realign product architecture and roadmap`
