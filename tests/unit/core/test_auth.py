@@ -28,7 +28,8 @@ def test_token_storage_uses_sha256_hash_and_non_secret_prefix(tmp_path):
     assert digest == hashlib.sha256(token.encode("utf-8")).hexdigest()
     assert token not in digest
     assert token not in prefix
-    assert prefix == "human-to..."
+    assert prefix == f"sha256:{digest[:8]}"
+    assert not prefix.startswith(token[:8])
 
 
 def test_bootstrap_creates_human_and_agent_credentials_for_same_local_user(tmp_path):

@@ -40,7 +40,6 @@ def get_current_principal(authorization: str | None = Header(default=None)) -> P
         principal = resolve_principal(session, bearer_token=token)
         if principal is None:
             raise _auth_error("INVALID_CREDENTIAL", "Invalid bearer token")
-        session.commit()
         return principal
     finally:
         session.close()

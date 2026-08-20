@@ -136,6 +136,15 @@ def test_request_session_dependency_owns_lifetime_not_transactions():
     assert "SqlAlchemyUnitOfWork" not in source
 
 
+def test_auth_dependency_does_not_commit_outside_unit_of_work():
+    from apps.api.auth import get_current_principal
+
+    source = inspect.getsource(get_current_principal)
+
+    assert ".commit(" not in source
+    assert ".rollback(" not in source
+
+
 def test_failed_plan_context_rolls_back_flushed_context_pack_and_event(monkeypatch):
     project_id, session_id = _persist_session()
 

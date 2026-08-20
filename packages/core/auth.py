@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
 import hashlib
 
 from sqlalchemy.orm import Session
@@ -38,7 +37,7 @@ def hash_token(token: str) -> str:
 
 
 def token_diagnostic_prefix(token: str) -> str:
-    return f"{token[:8]}..."
+    return f"sha256:{hash_token(token)[:8]}"
 
 
 def bypass_principal() -> Principal:
@@ -94,7 +93,6 @@ def resolve_principal(session: Session, *, bearer_token: str) -> Principal | Non
     user = repo.get_user(credential.user_id)
     if user is None or user.status != "active":
         return None
-    repo.touch_credential(credential, at=datetime.now(timezone.utc))
     return Principal(
         org_id=user.org_id,
         user_id=user.id,
