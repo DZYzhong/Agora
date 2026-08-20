@@ -338,7 +338,7 @@ git commit -m "feat: add work items and idempotent work sessions"
 - Test: `tests/unit/mcp/test_tools.py`
 - Test: `tests/integration/mcp/test_local_connector_process.py`
 
-- [x] **Step 1: Write failing local observation and privacy tests**
+- [ ] **Step 1: Write failing local observation and privacy tests**
 
 Create temporary Git repositories with HTTPS credentials, SSH remotes, branches, commits and dirty files. Assert the observation contains normalized host/path identity, branch, head commit and dirty state, but never contains:
 
@@ -350,25 +350,25 @@ file contents
 untracked file contents
 ```
 
-- [x] **Step 2: Run tests and verify they fail**
+- [ ] **Step 2: Run tests and verify they fail**
 
 Run: `.venv/bin/pytest tests/unit/local_connector tests/unit/mcp/test_stdio_server.py tests/unit/mcp/test_tools.py -v`
 
 Expected: FAIL because LocalWorkspaceObservation does not exist.
 
-- [x] **Step 3: Implement RepositoryIdentity and LocalWorkspaceObservation**
+- [ ] **Step 3: Implement RepositoryIdentity and LocalWorkspaceObservation**
 
 The stdio MCP process reads `AGORA_WORKSPACE_ROOT` or its current working directory, invokes local Git, sanitizes the result, and attaches the observation to `agora_start_work`. The API receives metadata only and must never accept or dereference a local path.
 
-- [x] **Step 4: Version the Harness protocol and stable errors**
+- [ ] **Step 4: Version the Harness protocol and stable errors**
 
 Every canonical response includes `protocol_version`, `request_id`, `capabilities` and a structured next action. Use the canonical errors `PROJECT_UNRESOLVED`, `WORK_ITEM_CLARIFICATION_REQUIRED`, `UNAUTHORIZED_PROJECT`, `PROTOCOL_VERSION_UNSUPPORTED` and `TEMPORARILY_UNAVAILABLE`, plus P2 protocol errors `AUTH_REQUIRED`, `INVALID_CREDENTIAL`, `INVALID_OBSERVATION`, `IDEMPOTENCY_CONFLICT` and `TOKEN_BUDGET_TOO_SMALL`. Legacy adapters map old errors to these codes and include a deprecation marker.
 
-- [x] **Step 5: Prove the real stdio process privacy boundary**
+- [ ] **Step 5: Prove the real stdio process privacy boundary**
 
 Launch the actual MCP stdio server from a temporary Git repository, call `agora_start_work`, and capture the real outbound API request with a local HTTP recorder. Assert the request body, MCP result, error output, logs and persisted observation contain no absolute path, Git userinfo/token, tracked source content or untracked source content. This process-level test is required in addition to observer unit tests.
 
-- [x] **Step 6: Run Connector, MCP and privacy tests**
+- [ ] **Step 6: Run Connector, MCP and privacy tests**
 
 Run: `.venv/bin/pytest tests/unit/local_connector tests/unit/mcp tests/integration/mcp/test_local_connector_process.py -v`
 
