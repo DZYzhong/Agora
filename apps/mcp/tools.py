@@ -2,8 +2,22 @@ class AgoraMcpTools:
     def __init__(self, *, harness):
         self.harness = harness
 
-    def agora_start_work(self, *, user_message: str, repo_remote: str | None = None, agent_type: str) -> dict:
-        result = self.harness.start_work(user_message=user_message, repo_remote=repo_remote, agent_type=agent_type)
+    def agora_start_work(
+        self,
+        *,
+        user_message: str,
+        repo_remote: str | None = None,
+        agent_type: str,
+        branch_name: str | None = None,
+        principal=None,
+    ) -> dict:
+        result = self.harness.start_work(
+            user_message=user_message,
+            repo_remote=repo_remote,
+            agent_type=agent_type,
+            branch_name=branch_name,
+            principal=principal,
+        )
         return _object_to_dict(result)
 
     def agora_plan_context(self, *, session_id: str, query: str | None = None, token_budget: int = 4000) -> dict:

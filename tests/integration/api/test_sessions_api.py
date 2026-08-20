@@ -140,6 +140,60 @@ def test_session_audit_list_filters_and_detail_payload(tmp_path):
         db.close()
 
 
+def test_legacy_sessions_backfilled_to_work_sessions_are_not_listed_twice():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_legacy_dupe",
+            "name": "Legacy Dedupe",
+            "slug": "legacy-dedupe",
+            "git_remotes": [],
+        },
+    ).json()
+    db = sessionmaker(bind=get_engine())()
+    try:
+        with SqlAlchemyUnitOfWork(db) as uow:
+            work_item = WorkItemModel(
+                org_id=project["org_id"],
+                project_id=project["id"],
+                external_key="LEG-1",
+                title="Migrated legacy task",
+                source="legacy",
+            )
+            db.add(work_item)
+            db.flush()
+            db.add(
+                WorkSessionModel(
+                    id="legacy-session-1",
+                    work_item_id=work_item.id,
+                    user_id="auth-bypass-user",
+                    credential_id="auth-bypass-credential",
+                    agent_type="codex",
+                    intent="implementation",
+                    legacy_imported=True,
+                )
+            )
+            db.add(
+                TaskSessionModel(
+                    id="legacy-session-1",
+                    org_id=project["org_id"],
+                    project_id=project["id"],
+                    task_id="LEG-1",
+                    agent_type="codex",
+                    intent="implementation",
+                )
+            )
+            uow.commit()
+    finally:
+        db.close()
+
+    sessions = client.get(f"/projects/{project['id']}/sessions").json()
+
+    assert [session["id"] for session in sessions] == ["legacy-session-1"]
+    assert sessions[0]["work_item"]["title"] == "Migrated legacy task"
+
+
 def test_start_work_idempotency_replays_same_response_and_conflicts_on_payload_change():
     client = TestClient(app)
     project = client.post(

@@ -1,5 +1,6 @@
 from packages.core.auth import Principal
 from packages.harness.service import HarnessService
+import pytest
 
 
 def _principal(user_id: str = "user_1", credential_id: str = "credential_1") -> Principal:
@@ -39,6 +40,25 @@ def test_start_work_resolves_project_by_remote(fake_core, fake_context_engine):
     assert result.work_item_id == fake_core.work_items[0].id
     assert result.task_id == "AG-128"
     assert result.next_action == "plan_context"
+
+
+def test_start_work_requires_authenticated_principal(fake_core, fake_context_engine):
+    project = fake_core.create_project(
+        org_id="org_1",
+        name="Payment",
+        slug="payment",
+        git_remotes=["git@example.com:payment.git"],
+    )
+    harness = HarnessService(core=fake_core, context_engine=fake_context_engine)
+
+    with pytest.raises(ValueError, match="authenticated Principal"):
+        harness.start_work(
+            project_id=project.id,
+            user_message="帮我做 AG-128",
+            agent_type="codex",
+        )
+
+    assert fake_core.work_sessions == []
 
 
 def test_start_work_resolves_project_from_user_message_slug(fake_core, fake_context_engine):

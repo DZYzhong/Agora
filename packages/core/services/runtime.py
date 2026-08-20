@@ -50,7 +50,8 @@ class CoreRuntime:
     def list_sessions_by_project(self, project_id: str, *, intent: str | None = None, status: str | None = None):
         work_sessions = WorkRepository(self.session).list_work_sessions_by_project(project_id, intent=intent, status=status)
         legacy_sessions = TaskSessionRepository(self.session).list_by_project(project_id, intent=intent, status=status)
-        return [*work_sessions, *legacy_sessions]
+        work_session_ids = {session.id for session in work_sessions}
+        return [*work_sessions, *[session for session in legacy_sessions if session.id not in work_session_ids]]
 
     def get_session_by_project(self, *, project_id: str, session_id: str):
         work_session = WorkRepository(self.session).get_work_session_by_project(project_id=project_id, session_id=session_id)

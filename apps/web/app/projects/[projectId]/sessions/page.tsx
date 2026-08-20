@@ -12,6 +12,14 @@ type TaskSession = {
   id: string;
   project_id: string;
   task_id: string | null;
+  work_item: {
+    id: string;
+    external_key: string | null;
+    title: string;
+    status: string;
+    stage: string;
+    source: string;
+  } | null;
   agent_type: string;
   intent: string;
   status: string;
@@ -119,8 +127,12 @@ export default async function SessionsPage({
             </div>
             <dl className="status-metrics">
               <div>
-                <dt>Task</dt>
-                <dd>{session.task_id ?? "Not set"}</dd>
+                <dt>Work item</dt>
+                <dd>{session.work_item ? session.work_item.title : session.task_id ?? "Not set"}</dd>
+              </div>
+              <div>
+                <dt>Task key</dt>
+                <dd>{session.work_item?.external_key ?? session.task_id ?? "Not set"}</dd>
               </div>
               <div>
                 <dt>Started</dt>

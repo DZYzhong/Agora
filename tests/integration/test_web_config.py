@@ -17,3 +17,13 @@ def test_server_fetches_attach_configured_human_token():
     assert "AGORA_WEB_HUMAN_TOKEN" in api
     assert "Authorization" in api
     assert "Bearer" in api
+
+
+def test_session_pages_render_work_item_details():
+    list_page = Path("apps/web/app/projects/[projectId]/sessions/page.tsx").read_text()
+    detail_page = Path("apps/web/app/projects/[projectId]/sessions/[sessionId]/page.tsx").read_text()
+
+    assert "work_item" in list_page
+    assert "Work item" in list_page
+    assert "work_item" in detail_page
+    assert "Work item" in detail_page

@@ -3,6 +3,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from apps.workers.workflows.initialize_project import initialize_project_from_local_repo
+from packages.core.auth import Principal
 from packages.harness.memory_writeback import MemoryWritebackService
 from packages.harness.service import HarnessService
 from packages.knowledge.context_engine import ContextEngine
@@ -218,6 +219,13 @@ def test_p0_loop():
         user_message="分析如何实现退款失败重试",
         repo_remote="git@example.com:payment.git",
         agent_type="codex",
+        principal=Principal(
+            org_id="org_1",
+            user_id="user_1",
+            credential_id="credential_1",
+            credential_kind="agent",
+            token_prefix="test",
+        ),
     )
     context = harness.plan_context(session_id=started.session_id, query="退款失败重试", token_budget=1000)
 

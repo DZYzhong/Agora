@@ -120,6 +120,34 @@ def test_non_member_cannot_read_or_start_work_in_project(monkeypatch):
     assert start.status_code == 404
 
 
+def test_non_member_start_work_vague_message_does_not_leak_foreign_project(monkeypatch):
+    _production_auth(monkeypatch)
+
+    with TestClient(app) as client:
+        project_id, _, _ = _create_unowned_project_and_session()
+        db = sessionmaker(bind=get_engine())()
+        try:
+            project = db.get(ProjectModel, project_id)
+            remote = "git@example.com:foreign.git"
+            project.git_remotes = [remote]
+            db.commit()
+        finally:
+            db.close()
+
+        response = client.post(
+            "/harness/start-work",
+            headers=_auth_headers(AGENT_TOKEN),
+            json={
+                "repo_remote": remote,
+                "user_message": "开始工作",
+                "agent_type": "codex",
+            },
+        )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
+
+
 def test_session_commands_reject_sessions_outside_principal_membership(monkeypatch):
     _production_auth(monkeypatch)
 

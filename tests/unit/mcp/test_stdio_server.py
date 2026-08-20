@@ -16,3 +16,6 @@ def test_stdio_mcp_server_lists_agora_tools():
     fetch_tool = next(tool for tool in result.tools if tool.name == "agora_fetch_context_ref")
     assert "asset_id" in fetch_tool.input_schema["properties"]
     assert "asset_id" in fetch_tool.input_schema["required"]
+
+    start_tool = next(tool for tool in result.tools if tool.name == "agora_start_work")
+    assert "branch_name" in start_tool.input_schema["properties"]

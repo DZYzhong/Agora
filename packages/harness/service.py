@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from packages.core.auth import Principal, bypass_principal
+from packages.core.auth import Principal
 from packages.core.models import utc_now
 from packages.harness.context_planner import ContextPlanner
 from packages.harness.development_capture import capture_development_change
@@ -56,7 +56,8 @@ class HarnessService:
         branch_name: str | None = None,
         initial_request_id: str | None = None,
     ):
-        principal = principal or bypass_principal()
+        if principal is None:
+            raise ValueError("HarnessService.start_work requires an authenticated Principal")
         project = self.core.get_project(project_id) if project_id and hasattr(self.core, "get_project") else None
         if project is None:
             project_resolution = self.project_resolver.resolve(repo_remote=repo_remote, user_message=user_message)

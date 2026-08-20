@@ -9,6 +9,7 @@ class FakeHarness:
 
     def start_work(self, **kwargs):
         self.started = True
+        self.started_with = kwargs
         return type(
             "Result",
             (),
@@ -43,10 +44,14 @@ def test_mcp_start_work_delegates_to_harness():
         user_message="帮我做 AG-128",
         repo_remote="git@example.com:payment.git",
         agent_type="codex",
+        branch_name="feature/AG-128-payments",
+        principal="principal",
     )
 
     assert result["session_id"] == "sess_1"
     assert fake_harness.started
+    assert fake_harness.started_with["branch_name"] == "feature/AG-128-payments"
+    assert fake_harness.started_with["principal"] == "principal"
 
 
 def test_mcp_close_work_passes_development_capture_arguments():

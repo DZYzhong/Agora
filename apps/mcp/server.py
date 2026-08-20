@@ -32,6 +32,7 @@ TOOLS = [
         {
             "user_message": {"type": "string", "description": "Original user request, including project name/slug when available."},
             "repo_remote": {"type": "string", "description": "Optional git origin remote. Agora also accepts normalized remotes without username or .git suffix."},
+            "branch_name": {"type": "string", "description": "Optional local branch name for task key hints."},
             "agent_type": {"type": "string", "default": "codex"},
         },
         ["user_message", "agent_type"],
@@ -136,6 +137,7 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
             {
                 "user_message": arguments["user_message"],
                 "repo_remote": arguments.get("repo_remote"),
+                "branch_name": arguments.get("branch_name"),
                 "agent_type": arguments.get("agent_type", "codex"),
             },
         )

@@ -302,9 +302,10 @@ def _execute_start_work(
         principal=principal,
         initial_request_id=initial_request_id,
     )
+    if result.project is not None:
+        require_project_member(session, principal, project_id=result.project.id)
     if result.next_action == "ask_user":
         raise HTTPException(status_code=404, detail=result.clarification)
-    require_project_member(session, principal, project_id=result.project.id)
     return _serialize_start_work(result)
 
 

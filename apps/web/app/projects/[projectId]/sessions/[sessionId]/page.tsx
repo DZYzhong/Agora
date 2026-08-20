@@ -5,6 +5,14 @@ type SessionAudit = {
   id: string;
   project_id: string;
   task_id: string | null;
+  work_item: {
+    id: string;
+    external_key: string | null;
+    title: string;
+    status: string;
+    stage: string;
+    source: string;
+  } | null;
   agent_type: string;
   intent: string;
   status: string;
@@ -126,8 +134,12 @@ export default async function SessionAuditPage({
         </div>
         <dl className="status-metrics">
           <div>
-            <dt>Task</dt>
-            <dd>{audit.task_id ?? "Not set"}</dd>
+            <dt>Work item</dt>
+            <dd>{audit.work_item ? audit.work_item.title : audit.task_id ?? "Not set"}</dd>
+          </div>
+          <div>
+            <dt>Task key</dt>
+            <dd>{audit.work_item?.external_key ?? audit.task_id ?? "Not set"}</dd>
           </div>
           <div>
             <dt>Started</dt>
