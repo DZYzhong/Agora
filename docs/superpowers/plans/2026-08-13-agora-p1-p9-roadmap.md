@@ -1562,7 +1562,8 @@ Current P2 status:
 - Task 1 is complete.
 - Task 2 is complete.
 - Task 3 is complete.
-- Next implementation target: Task 4, replacing TaskSession behavior with WorkItem and WorkSession.
+- Task 4 is complete.
+- Next implementation target: Task 5, making MCP the customer-local Repository Observer.
 
 ### 2026-08-21: Realigned P2 Task 3 Local Team Principal Boundary
 
@@ -1630,3 +1631,65 @@ Commits:
 
 - `ea9e91a feat: add local team principal boundary`
 - `d417e47 fix: remove auth token leakage and raw commit`
+
+### 2026-08-21: Realigned P2 Task 4 Work Items and Idempotent Work Sessions
+
+Scope:
+
+- Replaced new Harness session creation with WorkItem and WorkSession records.
+- Added `WorkRepository` and `WorkResolver` for task-key, branch-hint and Chinese software R&D title resolution.
+- Added listable WorkItem API under project membership scope.
+- Made `agora_start_work` resolve Project first, then WorkItem, then WorkSession.
+- Bound WorkSession `user_id` and `credential_id` to authenticated Principal values only.
+- Added `IdempotencyRecord` handling for start-work keyed by authenticated credential, operation and idempotency key.
+- Covered replay, payload conflict, expired tombstone and concurrent same-key behavior.
+- Kept legacy Session pages and APIs readable through compatibility serializers, now including WorkItem details.
+- Stopped new product start-work paths from creating `TaskSession` rows while leaving migrated legacy rows readable.
+- Fixed review findings: no Service-level default auth bypass, MCP `branch_name` forwarding, Web WorkItem rendering, legacy session dedupe, and membership checks before work-item clarification.
+
+Files changed:
+
+- Created: `packages/core/repositories/work.py`
+- Created: `packages/harness/work_resolver.py`
+- Created: `apps/api/routers/work_items.py`
+- Modified: `packages/core/services/runtime.py`
+- Modified: `packages/harness/service.py`
+- Modified: `packages/harness/session_recorder.py`
+- Modified: `packages/harness/task_resolver.py`
+- Modified: `apps/api/routers/harness.py`
+- Modified: `apps/api/routers/sessions.py`
+- Modified: `apps/api/main.py`
+- Modified: `apps/mcp/server.py`
+- Modified: `apps/mcp/tools.py`
+- Modified: Web Session list/detail pages.
+- Added/extended WorkItem, Session, MCP and Harness tests.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/unit/harness/test_work_resolver.py tests/unit/harness/test_harness_service.py tests/integration/api/test_work_items_api.py tests/integration/api/test_sessions_api.py -v
+# passed
+
+.venv/bin/pytest tests/unit/harness/test_work_resolver.py tests/unit/harness/test_harness_service.py tests/integration/api/test_work_items_api.py tests/integration/api/test_sessions_api.py tests/unit/mcp/test_stdio_server.py tests/unit/mcp/test_tools.py tests/integration/api/test_auth.py tests/integration/test_web_config.py -q
+# 34 passed after review fixes
+
+.venv/bin/pytest
+# 147 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+git diff --check
+# passed
+
+Independent specification review
+# APPROVED after review fixes
+
+Independent code quality review
+# APPROVED; no Critical or Important findings remain
+```
+
+Commits:
+
+- `f58991e feat: add work items and idempotent work sessions`
+- `40cef77 fix: close work session review gaps`
