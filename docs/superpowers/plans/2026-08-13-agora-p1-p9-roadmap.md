@@ -1561,4 +1561,72 @@ Current P2 status:
 
 - Task 1 is complete.
 - Task 2 is complete.
-- Next implementation target: Task 3, the minimum authenticated human and AI-tool boundary.
+- Task 3 is complete.
+- Next implementation target: Task 4, replacing TaskSession behavior with WorkItem and WorkSession.
+
+### 2026-08-21: Realigned P2 Task 3 Local Team Principal Boundary
+
+Scope:
+
+- Added the minimum authenticated human and AI-tool boundary for the real AI-tool Harness path.
+- Added bootstrap identity creation from `AGORA_BOOTSTRAP_HUMAN_TOKEN`, `AGORA_BOOTSTRAP_AGENT_TOKEN` and `AGORA_BOOTSTRAP_ORG_ID`.
+- Persisted human and agent credentials as separate credential kinds for the same local bootstrap user.
+- Stored credential secrets only as SHA-256 hashes and changed the diagnostic token prefix to a hash-derived non-secret value.
+- Granted the bootstrap user membership to existing projects in the selected organization during startup.
+- Enforced project membership on project, asset, session, skill, writeback and Harness routes.
+- Made human-only actions require a human credential; agent credentials can use Harness paths but cannot create/archive projects or approve/govern Web assets.
+- Made payload `org_id` subordinate to the authenticated principal organization for project creation.
+- Wired Web server fetches to attach `AGORA_WEB_HUMAN_TOKEN` and MCP HTTP calls to attach `AGORA_AGENT_TOKEN` without serializing those tokens to the browser.
+- Added explicit test bypass only for legacy test compatibility through `AGORA_TEST_AUTH_BYPASS=1`; production-like paths reject missing tokens.
+- Fixed review findings so auth resolution no longer commits outside explicit UoW and diagnostic prefixes no longer contain bearer-token material.
+
+Files changed:
+
+- Created: `packages/core/auth.py`
+- Created: `packages/core/repositories/identities.py`
+- Created: `apps/api/auth.py`
+- Modified: `apps/api/main.py`
+- Modified: `apps/api/dependencies.py`
+- Modified: `apps/api/routers/harness.py`
+- Modified: `apps/api/routers/projects.py`
+- Modified: `apps/api/routers/assets.py`
+- Modified: `apps/api/routers/sessions.py`
+- Modified: `apps/api/routers/skills.py`
+- Modified: `apps/api/routers/writebacks.py`
+- Modified: `apps/web/lib/api.ts`
+- Modified: `apps/mcp/server.py`
+- Modified: `.env.example`
+- Modified: `infra/env.example`
+- Added auth package markers for pytest import stability under `tests/**/__init__.py`.
+- Added auth tests in `tests/unit/core/test_auth.py` and `tests/integration/api/test_auth.py`.
+- Extended `tests/integration/test_web_config.py` and `tests/integration/api/test_transaction_boundaries.py`.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/unit/core/test_auth.py tests/integration/api/test_auth.py tests/integration/test_web_config.py -v
+# 10 passed
+
+.venv/bin/pytest tests/unit/core/test_auth.py tests/integration/api/test_auth.py tests/integration/test_web_config.py tests/integration/api/test_transaction_boundaries.py -q
+# 23 passed after review fixes
+
+.venv/bin/pytest
+# 129 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+git diff --check
+# passed
+
+Independent specification review
+# APPROVED after fixing hash-derived token diagnostics and auth raw commit
+
+Independent code quality review
+# APPROVED; no Critical or Important findings remain
+```
+
+Commits:
+
+- `ea9e91a feat: add local team principal boundary`
+- `d417e47 fix: remove auth token leakage and raw commit`
