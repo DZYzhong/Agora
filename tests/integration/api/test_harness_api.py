@@ -1,7 +1,9 @@
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import sessionmaker
 
-from apps.api.dependencies import get_keyword_index, get_vector_index
+from apps.api.dependencies import get_engine, get_keyword_index, get_vector_index
 from apps.api.main import app
+from packages.core.models import WorkItemModel
 
 
 def _run_git(repo_path, *args):
@@ -33,8 +35,105 @@ def test_start_work_endpoint_returns_session():
 
     assert response.status_code == 200
     body = response.json()
+    assert body["protocol_version"] == "1.0"
+    assert body["request_id"] == body["session_id"]
+    assert body["capabilities"]["local_repository_observation"] is True
+    assert body["next_actions"][0]["type"] == "plan_context"
     assert body["session_id"]
     assert body["project"]["id"] == project["id"]
+
+
+def test_start_work_endpoint_resolves_project_from_local_observation():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_local_observation",
+            "name": "Observed API",
+            "slug": "observed-api",
+            "git_remotes": ["https://git.example.cn/platform/api.git"],
+        },
+    ).json()
+
+    response = client.post(
+        "/harness/start-work",
+        json={
+            "user_message": "实现 AG-128",
+            "agent_type": "codex",
+            "branch_name": "feature/AG-128-observed",
+            "local_observation": {
+                "repository": {
+                    "host": "git.example.cn",
+                    "path": "platform/api",
+                    "normalized": "git.example.cn/platform/api",
+                },
+                "branch_name": "feature/AG-128-observed",
+                "head_commit": "0123456789abcdef",
+                "dirty": True,
+                "changed_file_count": 1,
+                "untracked_file_count": 1,
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["project"]["id"] == project["id"]
+    assert body["protocol_version"] == "1.0"
+
+
+def test_start_work_endpoint_rejects_local_paths_as_repo_remote():
+    client = TestClient(app)
+
+    response = client.post(
+        "/harness/start-work",
+        json={
+            "user_message": "分析本地项目",
+            "agent_type": "codex",
+            "repo_remote": "/Users/daniel/Documents/private-repo",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_start_work_endpoint_uses_work_item_clarification_error_for_ambiguous_work():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_work_clarification",
+            "name": "Payment Clarification",
+            "slug": "payment-clarification",
+            "git_remotes": [],
+        },
+    ).json()
+    db = sessionmaker(bind=get_engine())()
+    try:
+        db.add_all(
+            [
+                WorkItemModel(org_id=project["org_id"], project_id=project["id"], title="支付状态流转"),
+                WorkItemModel(org_id=project["org_id"], project_id=project["id"], title="支付回调重试"),
+            ]
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "继续支付任务",
+            "agent_type": "codex",
+        },
+    )
+
+    assert response.status_code == 404
+    detail = response.json()["detail"]
+    assert detail["error"]["code"] == "WORK_ITEM_CLARIFICATION_REQUIRED"
+    assert "支付状态流转" in detail["error"]["message"]
+    assert detail["next_actions"][0]["type"] == "clarify"
 
 
 def test_start_work_endpoint_can_resolve_exact_project_id_when_remotes_repeat():

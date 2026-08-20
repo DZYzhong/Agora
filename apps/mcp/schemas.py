@@ -1,9 +1,13 @@
 from pydantic import BaseModel
 
+from packages.domain.local_workspace import LocalWorkspaceObservation
+
 
 class StartWorkInput(BaseModel):
     user_message: str
     repo_remote: str | None = None
+    branch_name: str | None = None
+    local_observation: LocalWorkspaceObservation | None = None
     agent_type: str
 
 

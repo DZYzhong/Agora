@@ -8,6 +8,8 @@ from mcp import types
 from mcp.server.lowlevel import NotificationOptions, Server
 from mcp.server.stdio import stdio_server
 
+from packages.local_connector.git_observer import observe_git_workspace
+
 AGORA_API_URL = os.environ.get("AGORA_API_URL", "http://127.0.0.1:8000")
 AGORA_AGENT_TOKEN = os.environ.get("AGORA_AGENT_TOKEN")
 
@@ -33,6 +35,10 @@ TOOLS = [
             "user_message": {"type": "string", "description": "Original user request, including project name/slug when available."},
             "repo_remote": {"type": "string", "description": "Optional git origin remote. Agora also accepts normalized remotes without username or .git suffix."},
             "branch_name": {"type": "string", "description": "Optional local branch name for task key hints."},
+            "local_observation": {
+                "type": "object",
+                "description": "Optional sanitized local Git metadata. If omitted, the stdio connector observes the current workspace automatically.",
+            },
             "agent_type": {"type": "string", "default": "codex"},
         },
         ["user_message", "agent_type"],
@@ -132,12 +138,14 @@ async def call_tool(_ctx, params: types.CallToolRequestParams) -> types.CallTool
 
 async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     if name == "agora_start_work":
+        local_observation = arguments.get("local_observation") or observe_git_workspace().model_dump()
         return await _post(
             "/harness/start-work",
             {
                 "user_message": arguments["user_message"],
                 "repo_remote": arguments.get("repo_remote"),
                 "branch_name": arguments.get("branch_name"),
+                "local_observation": local_observation,
                 "agent_type": arguments.get("agent_type", "codex"),
             },
         )

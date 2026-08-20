@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from packages.core.auth import Principal
 from packages.core.models import utc_now
+from packages.domain.local_workspace import LocalWorkspaceObservation
 from packages.harness.context_planner import ContextPlanner
 from packages.harness.development_capture import capture_development_change
 from packages.harness.project_resolver import ProjectResolver
@@ -54,13 +55,21 @@ class HarnessService:
         project_id: str | None = None,
         principal: Principal | None = None,
         branch_name: str | None = None,
+        local_observation: LocalWorkspaceObservation | dict | None = None,
         initial_request_id: str | None = None,
     ):
         if principal is None:
             raise ValueError("HarnessService.start_work requires an authenticated Principal")
+        observation = _coerce_local_observation(local_observation)
+        observed_branch_name = observation.branch_name if observation is not None else None
+        effective_branch_name = branch_name or observed_branch_name
         project = self.core.get_project(project_id) if project_id and hasattr(self.core, "get_project") else None
         if project is None:
-            project_resolution = self.project_resolver.resolve(repo_remote=repo_remote, user_message=user_message)
+            project_resolution = self.project_resolver.resolve(
+                repo_remote=repo_remote,
+                user_message=user_message,
+                local_observation=observation,
+            )
             project = project_resolution.project
             clarification = project_resolution.clarification
         else:
@@ -78,7 +87,11 @@ class HarnessService:
                 clarification=clarification,
             )
 
-        work_resolution = self.work_resolver.resolve(project=project, user_message=user_message, branch_name=branch_name)
+        work_resolution = self.work_resolver.resolve(
+            project=project,
+            user_message=user_message,
+            branch_name=effective_branch_name,
+        )
         if work_resolution.next_action == "ask_user":
             return WorkStartResult(
                 session_id=None,
@@ -196,3 +209,13 @@ class HarnessService:
             }
             result["development_update"] = change.structured
         return result
+
+
+def _coerce_local_observation(
+    local_observation: LocalWorkspaceObservation | dict | None,
+) -> LocalWorkspaceObservation | None:
+    if local_observation is None:
+        return None
+    if isinstance(local_observation, LocalWorkspaceObservation):
+        return local_observation
+    return LocalWorkspaceObservation.model_validate(local_observation)

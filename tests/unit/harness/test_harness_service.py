@@ -154,6 +154,38 @@ def test_start_work_resolves_project_by_normalized_remote(fake_core, fake_contex
     assert result.next_action == "plan_context"
 
 
+def test_start_work_uses_observed_repository_and_branch_when_ai_tool_sends_no_explicit_remote(fake_core, fake_context_engine):
+    project = fake_core.create_project(
+        org_id="org_1",
+        name="Payment Service",
+        slug="payment-service",
+        git_remotes=["https://git.example.cn/team/payment-service.git"],
+    )
+    harness = HarnessService(core=fake_core, context_engine=fake_context_engine)
+
+    result = harness.start_work(
+        user_message="继续当前任务",
+        agent_type="codex",
+        local_observation={
+            "repository": {
+                "host": "git.example.cn",
+                "path": "team/payment-service",
+                "normalized": "git.example.cn/team/payment-service",
+            },
+            "branch_name": "feature/AG-128-context-handoff",
+            "head_commit": "0123456789abcdef",
+            "dirty": False,
+            "changed_file_count": 0,
+            "untracked_file_count": 0,
+        },
+        principal=_principal(),
+    )
+
+    assert result.project.id == project.id
+    assert result.task_id == "AG-128"
+    assert result.next_action == "plan_context"
+
+
 def test_start_work_infers_analysis_intent_for_project_overview_request(fake_core, fake_context_engine):
     project = fake_core.create_project(
         org_id="org_1",

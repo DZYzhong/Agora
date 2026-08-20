@@ -9,6 +9,7 @@ class AgoraMcpTools:
         repo_remote: str | None = None,
         agent_type: str,
         branch_name: str | None = None,
+        local_observation: dict | None = None,
         principal=None,
     ) -> dict:
         result = self.harness.start_work(
@@ -16,6 +17,7 @@ class AgoraMcpTools:
             repo_remote=repo_remote,
             agent_type=agent_type,
             branch_name=branch_name,
+            local_observation=local_observation,
             principal=principal,
         )
         return _object_to_dict(result)

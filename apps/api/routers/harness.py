@@ -5,7 +5,7 @@ import json
 import time
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,7 @@ from packages.core.auth import Principal
 from packages.core.models import utc_now
 from packages.core.services.runtime import CoreRuntime
 from packages.core.uow import SqlAlchemyUnitOfWork
+from packages.domain.local_workspace import LocalWorkspaceObservation
 from packages.harness.service import HarnessService
 from packages.harness.memory_writeback import MemoryWritebackService
 from packages.knowledge.context_engine import ContextEngine
@@ -32,6 +33,14 @@ class StartWorkRequest(BaseModel):
     repo_remote: str | None = None
     agent_type: str
     branch_name: str | None = None
+    local_observation: LocalWorkspaceObservation | None = None
+
+    @field_validator("repo_remote")
+    @classmethod
+    def reject_path_like_remote(cls, value: str | None) -> str | None:
+        if value and (value.startswith("/") or "\\" in value):
+            raise ValueError("repo_remote must not be a local path")
+        return value
 
 
 class PlanContextRequest(BaseModel):
@@ -305,12 +314,26 @@ def _execute_start_work(
     if result.project is not None:
         require_project_member(session, principal, project_id=result.project.id)
     if result.next_action == "ask_user":
-        raise HTTPException(status_code=404, detail=result.clarification)
+        code = "WORK_ITEM_CLARIFICATION_REQUIRED" if result.project is not None else "PROJECT_UNRESOLVED"
+        raise _protocol_error(code, result.clarification or "Clarification required", status_code=404)
     return _serialize_start_work(result)
 
 
 def _serialize_start_work(result) -> dict:
+    next_action = {
+        "type": result.next_action,
+        "tool": "agora_prepare_context" if result.next_action == "plan_context" else None,
+        "reason": result.clarification,
+    }
     return {
+        "protocol_version": "1.0",
+        "request_id": result.session_id,
+        "capabilities": {
+            "local_repository_observation": True,
+            "work_items": True,
+            "context_revisions": False,
+            "skills": False,
+        },
         "session_id": result.session_id,
         "work_item_id": result.work_item_id,
         "work_item_title": result.work_item_title,
@@ -323,6 +346,7 @@ def _serialize_start_work(result) -> dict:
         "task_id": result.task_id,
         "intent": result.intent,
         "next_action": result.next_action,
+        "next_actions": [next_action],
         "context_revision_id": result.context_revision_id,
         "workflow_version_id": result.workflow_version_id,
         "skill_version_id": result.skill_version_id,
@@ -342,4 +366,21 @@ def _replay_expired(replay_expires_at) -> bool:
 
 
 def _idempotency_error(code: str, message: str) -> HTTPException:
-    return HTTPException(status_code=409, detail={"code": code, "message": message})
+    mapped_code = "IDEMPOTENCY_CONFLICT" if code.startswith("IDEMPOTENCY") else code
+    return _protocol_error(mapped_code, message, status_code=409, legacy_code=code)
+
+
+def _protocol_error(code: str, message: str, *, status_code: int, legacy_code: str | None = None) -> HTTPException:
+    action_type = "clarify" if code in {"PROJECT_UNRESOLVED", "WORK_ITEM_CLARIFICATION_REQUIRED"} else "retry"
+    return HTTPException(
+        status_code=status_code,
+        detail={
+            "protocol_version": "1.0",
+            "request_id": None,
+            "code": legacy_code or code,
+            "message": message,
+            "error": {"code": code, "message": message},
+            "next_actions": [{"type": action_type, "reason": message}],
+            "deprecation": {"legacy_error_fields": ["code", "message"], "remove_after": "P2"},
+        },
+    )

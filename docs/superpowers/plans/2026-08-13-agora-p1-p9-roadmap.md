@@ -1563,7 +1563,8 @@ Current P2 status:
 - Task 2 is complete.
 - Task 3 is complete.
 - Task 4 is complete.
-- Next implementation target: Task 5, making MCP the customer-local Repository Observer.
+- Task 5 is complete.
+- Next implementation target: Task 6, returning multi-dimensional freshness and a fully budgeted ContextBundle.
 
 ### 2026-08-21: Realigned P2 Task 3 Local Team Principal Boundary
 
@@ -1693,3 +1694,55 @@ Commits:
 
 - `f58991e feat: add work items and idempotent work sessions`
 - `40cef77 fix: close work session review gaps`
+
+### 2026-08-21: Realigned P2 Task 5 MCP Local Repository Observer
+
+Scope:
+
+- Added a Local Connector domain model for sanitized local workspace observations.
+- Added Git repository observation in the MCP stdio process using `AGORA_WORKSPACE_ROOT` or the current working directory.
+- Normalized repository identity to host/path metadata and stripped Git username, password/token, URL scheme and `.git` suffix.
+- Captured branch, head commit, dirty state and changed/untracked counts without sending absolute local paths, file names or source contents.
+- Made `agora_start_work` attach local observation metadata automatically when the AI tool does not provide one.
+- Let Harness resolve projects from sanitized local observation identity as well as legacy `repo_remote`.
+- Rejected path-like `repo_remote` values at the API boundary.
+- Added canonical start-work response envelope fields: `protocol_version`, `request_id`, `capabilities` and structured `next_actions`, while keeping legacy fields for P2 compatibility.
+- Added canonical Harness error bodies for project resolution, WorkItem clarification and idempotency conflicts while retaining legacy `detail.code/message` fields with a deprecation marker.
+- Proved the real stdio MCP process path with a local HTTP recorder and stderr log capture.
+
+Files changed:
+
+- Created: `packages/domain/local_workspace.py`
+- Created: `packages/local_connector/__init__.py`
+- Created: `packages/local_connector/git_observer.py`
+- Created: `packages/local_connector/sanitization.py`
+- Modified: `apps/mcp/schemas.py`
+- Modified: `apps/mcp/server.py`
+- Modified: `apps/mcp/tools.py`
+- Modified: `packages/harness/project_resolver.py`
+- Modified: `packages/harness/service.py`
+- Modified: `apps/api/routers/harness.py`
+- Added/extended Local Connector, MCP and Harness API tests.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/unit/local_connector tests/unit/mcp/test_stdio_server.py tests/unit/mcp/test_tools.py tests/integration/api/test_harness_api.py tests/integration/mcp/test_local_connector_process.py -v
+# 17 passed
+
+.venv/bin/pytest tests/integration/mcp/test_local_connector_process.py tests/unit/mcp/test_stdio_server.py -v
+# 3 passed after upgrading the process test to a real MCP stdio client
+
+.venv/bin/pytest
+# 156 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+git diff --check
+# passed
+```
+
+Commit:
+
+- `0126bf6 feat: observe local repositories through mcp connector`
