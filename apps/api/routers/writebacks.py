@@ -3,7 +3,9 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from apps.api.auth import get_current_principal, require_human, require_project_member
 from apps.api.dependencies import get_db_session, get_keyword_index, get_vector_index
+from packages.core.auth import Principal
 from packages.core.services.runtime import CoreRuntime
 from packages.core.services.writebacks import WritebackService
 from packages.core.uow import SqlAlchemyUnitOfWork
@@ -16,7 +18,12 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("")
-def list_writebacks(project_id: str, session: Session = Depends(get_db_session)):
+def list_writebacks(
+    project_id: str,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
+    require_project_member(session, principal, project_id=project_id)
     writebacks = WritebackService(session).list_by_project(project_id)
     return [
         {
@@ -36,15 +43,20 @@ def list_writebacks(project_id: str, session: Session = Depends(get_db_session))
 def accept_writeback(
     project_id: str,
     writeback_id: str,
+    principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
+    require_human(principal)
     try:
         with SqlAlchemyUnitOfWork(session) as uow:
+            require_project_member(session, principal, project_id=project_id)
             service = MemoryWritebackService(core=CoreRuntime(session))
             result = service.accept_writeback(writeback_id)
             writeback = result.writeback
+            if writeback.project_id != project_id:
+                raise HTTPException(status_code=404, detail="Writeback not found")
             response = {
                 "id": writeback.id,
                 "project_id": project_id,
@@ -70,10 +82,19 @@ def accept_writeback(
 
 
 @router.post("/{writeback_id}/reject")
-def reject_writeback(project_id: str, writeback_id: str, session: Session = Depends(get_db_session)):
+def reject_writeback(
+    project_id: str,
+    writeback_id: str,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
+    require_human(principal)
     try:
         with SqlAlchemyUnitOfWork(session) as uow:
+            require_project_member(session, principal, project_id=project_id)
             writeback = WritebackService(session).reject(writeback_id)
+            if writeback.project_id != project_id:
+                raise HTTPException(status_code=404, detail="Writeback not found")
             response = {"id": writeback.id, "project_id": project_id, "status": writeback.status}
             uow.commit()
     except ValueError as exc:

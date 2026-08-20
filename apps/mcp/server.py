@@ -9,6 +9,7 @@ from mcp.server.lowlevel import NotificationOptions, Server
 from mcp.server.stdio import stdio_server
 
 AGORA_API_URL = os.environ.get("AGORA_API_URL", "http://127.0.0.1:8000")
+AGORA_AGENT_TOKEN = os.environ.get("AGORA_AGENT_TOKEN")
 
 
 def _tool(name: str, description: str, properties: dict[str, Any], required: list[str]) -> types.Tool:
@@ -105,8 +106,9 @@ TOOLS = [
 
 
 async def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    headers = {"Authorization": f"Bearer {AGORA_AGENT_TOKEN}"} if AGORA_AGENT_TOKEN else {}
     async with httpx.AsyncClient(base_url=AGORA_API_URL, timeout=30) as client:
-        response = await client.post(path, json=payload)
+        response = await client.post(path, json=payload, headers=headers)
         response.raise_for_status()
         return response.json()
 

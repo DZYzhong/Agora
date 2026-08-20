@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from apps.api.auth import get_current_principal, require_human, require_project_member
 from apps.api.dependencies import get_db_session
+from packages.core.auth import Principal
 from packages.core.services.runtime import CoreRuntime
 from packages.core.uow import SqlAlchemyUnitOfWork
 from packages.domain.enums import SkillStatus
@@ -114,6 +116,14 @@ def _ensure_project(runtime: CoreRuntime, project_id: str):
     return project
 
 
+def _ensure_session_in_project(runtime: CoreRuntime, *, project_id: str, session_id: str | None) -> None:
+    if session_id is None:
+        return
+    task_session = runtime.get_session(session_id)
+    if task_session is None or task_session.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+
 def _is_builtin_skill(skill) -> bool:
     return skill.project_id is None or bool((skill.definition or {}).get("builtin"))
 
@@ -141,9 +151,14 @@ def _record_failed_skill_run(session: Session, failure: _SkillExecutionFailed) -
 
 
 @router.get("/skills")
-def list_skills(project_id: str, session: Session = Depends(get_db_session)):
+def list_skills(
+    project_id: str,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
     runtime = CoreRuntime(session)
     _ensure_project(runtime, project_id)
+    require_project_member(session, principal, project_id=project_id)
     return [
         _serialize_skill(skill, runtime=runtime, builtin=bool((skill.definition or {}).get("builtin")))
         for skill in runtime.list_skills_by_project(project_id)
@@ -151,10 +166,17 @@ def list_skills(project_id: str, session: Session = Depends(get_db_session)):
 
 
 @router.post("/skills", status_code=status.HTTP_201_CREATED)
-def create_skill(project_id: str, payload: SkillCreateRequest, session: Session = Depends(get_db_session)):
+def create_skill(
+    project_id: str,
+    payload: SkillCreateRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
+    require_human(principal)
     with SqlAlchemyUnitOfWork(session) as uow:
         runtime = CoreRuntime(session)
         project = _ensure_project(runtime, project_id)
+        require_project_member(session, principal, project_id=project.id)
         skill = runtime.create_skill(
             org_id=project.org_id,
             project_id=project.id,
@@ -169,11 +191,19 @@ def create_skill(project_id: str, payload: SkillCreateRequest, session: Session 
 
 
 @router.patch("/skills/{skill_id}")
-def update_skill(project_id: str, skill_id: str, payload: SkillUpdateRequest, session: Session = Depends(get_db_session)):
+def update_skill(
+    project_id: str,
+    skill_id: str,
+    payload: SkillUpdateRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
+    require_human(principal)
     try:
         with SqlAlchemyUnitOfWork(session) as uow:
             runtime = CoreRuntime(session)
-            _ensure_project(runtime, project_id)
+            project = _ensure_project(runtime, project_id)
+            require_project_member(session, principal, project_id=project.id)
             skill = runtime.get_skill(skill_id)
             if skill is None:
                 raise HTTPException(status_code=404, detail="Skill not found")
@@ -192,11 +222,18 @@ def update_skill(project_id: str, skill_id: str, payload: SkillUpdateRequest, se
 
 
 @router.post("/skills/{skill_id}/approve")
-def approve_skill(project_id: str, skill_id: str, session: Session = Depends(get_db_session)):
+def approve_skill(
+    project_id: str,
+    skill_id: str,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
+    require_human(principal)
     try:
         with SqlAlchemyUnitOfWork(session) as uow:
             runtime = CoreRuntime(session)
-            _ensure_project(runtime, project_id)
+            project = _ensure_project(runtime, project_id)
+            require_project_member(session, principal, project_id=project.id)
             skill = runtime.get_skill(skill_id)
             if skill is None:
                 raise HTTPException(status_code=404, detail="Skill not found")
@@ -210,11 +247,18 @@ def approve_skill(project_id: str, skill_id: str, session: Session = Depends(get
 
 
 @router.post("/skills/{skill_id}/deprecate")
-def deprecate_skill(project_id: str, skill_id: str, session: Session = Depends(get_db_session)):
+def deprecate_skill(
+    project_id: str,
+    skill_id: str,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
+    require_human(principal)
     try:
         with SqlAlchemyUnitOfWork(session) as uow:
             runtime = CoreRuntime(session)
-            _ensure_project(runtime, project_id)
+            project = _ensure_project(runtime, project_id)
+            require_project_member(session, principal, project_id=project.id)
             skill = runtime.get_skill(skill_id)
             if skill is None:
                 raise HTTPException(status_code=404, detail="Skill not found")
@@ -228,11 +272,19 @@ def deprecate_skill(project_id: str, skill_id: str, session: Session = Depends(g
 
 
 @router.post("/skills/{skill_id}/run")
-def run_skill(project_id: str, skill_id: str, payload: SkillRunRequest, session: Session = Depends(get_db_session)):
+def run_skill(
+    project_id: str,
+    skill_id: str,
+    payload: SkillRunRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
     try:
         with SqlAlchemyUnitOfWork(session) as uow:
             runtime = CoreRuntime(session)
             project = _ensure_project(runtime, project_id)
+            require_project_member(session, principal, project_id=project.id)
+            _ensure_session_in_project(runtime, project_id=project.id, session_id=payload.session_id)
             skill = runtime.get_skill(skill_id)
             if skill is None or skill.project_id not in (project_id, None):
                 raise HTTPException(status_code=404, detail="Skill not found")
@@ -269,7 +321,12 @@ def run_skill(project_id: str, skill_id: str, payload: SkillRunRequest, session:
 
 
 @router.get("/skill-runs")
-def list_skill_runs(project_id: str, session: Session = Depends(get_db_session)):
+def list_skill_runs(
+    project_id: str,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
     runtime = CoreRuntime(session)
     _ensure_project(runtime, project_id)
+    require_project_member(session, principal, project_id=project_id)
     return [_serialize_run(run) for run in runtime.list_skill_runs_by_project(project_id)]

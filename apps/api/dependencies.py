@@ -14,6 +14,7 @@ from packages.storage.qdrant.fake import FakeVectorIndex
 
 
 DEFAULT_DATABASE_URL = "sqlite+pysqlite:///.agora/agora.db"
+AGORA_TEST_AUTH_BYPASS = "AGORA_TEST_AUTH_BYPASS"
 
 
 def create_app_engine(database_url: str) -> Engine:
@@ -49,6 +50,10 @@ def get_db_session() -> Generator[Session, None, None]:
         yield session
     finally:
         session.close()
+
+
+def auth_bypass_enabled() -> bool:
+    return os.environ.get(AGORA_TEST_AUTH_BYPASS) == "1"
 
 
 @lru_cache

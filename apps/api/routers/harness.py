@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from apps.api.auth import get_current_principal, require_project_member
 from apps.api.dependencies import get_db_session, get_keyword_index, get_vector_index
+from packages.core.auth import Principal
 from packages.core.services.runtime import CoreRuntime
 from packages.core.uow import SqlAlchemyUnitOfWork
 from packages.harness.service import HarnessService
@@ -67,14 +69,18 @@ def _harness(session: Session, keyword_index: FakeKeywordIndex, vector_index: Fa
 @router.post("/start-work")
 def start_work(
     payload: StartWorkRequest,
+    principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
     with SqlAlchemyUnitOfWork(session) as uow:
+        if payload.project_id is not None:
+            require_project_member(session, principal, project_id=payload.project_id)
         result = _harness(session, keyword_index, vector_index).start_work(**payload.model_dump())
         if result.next_action == "ask_user":
             raise HTTPException(status_code=404, detail=result.clarification)
+        require_project_member(session, principal, project_id=result.project.id)
         response = {
             "session_id": result.session_id,
             "project": {
@@ -94,11 +100,13 @@ def start_work(
 @router.post("/plan-context")
 def plan_context(
     payload: PlanContextRequest,
+    principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
     with SqlAlchemyUnitOfWork(session) as uow:
+        _ensure_session_member(session, principal, session_id=payload.session_id)
         context = _harness(session, keyword_index, vector_index).plan_context(**payload.model_dump())
         response = context.__dict__
         uow.commit()
@@ -108,11 +116,13 @@ def plan_context(
 @router.post("/record-event")
 def record_event(
     payload: RecordEventRequest,
+    principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
     with SqlAlchemyUnitOfWork(session) as uow:
+        _ensure_session_member(session, principal, session_id=payload.session_id)
         event = _harness(session, keyword_index, vector_index).record_event(**payload.model_dump())
         response = {"ok": True, "event": event}
         uow.commit()
@@ -122,11 +132,13 @@ def record_event(
 @router.post("/fetch-context-ref")
 def fetch_context_ref(
     payload: FetchContextRefRequest,
+    principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
     try:
+        _ensure_session_member(session, principal, session_id=payload.session_id)
         result = _harness(session, keyword_index, vector_index).fetch_context_ref(**payload.model_dump())
         return result.__dict__
     except ValueError as exc:
@@ -136,12 +148,14 @@ def fetch_context_ref(
 @router.post("/close-work")
 def close_work(
     payload: CloseWorkRequest,
+    principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
     try:
         with SqlAlchemyUnitOfWork(session) as uow:
+            _ensure_session_member(session, principal, session_id=payload.session_id)
             response = _harness(session, keyword_index, vector_index).close_work(**payload.model_dump())
             uow.commit()
     except ValueError as exc:
@@ -152,6 +166,7 @@ def close_work(
 @router.post("/prepare-writeback")
 def prepare_writeback(
     payload: PrepareWritebackRequest,
+    principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
 ):
     with SqlAlchemyUnitOfWork(session) as uow:
@@ -159,6 +174,7 @@ def prepare_writeback(
         task_session = runtime.get_session(payload.session_id)
         if task_session is None:
             raise HTTPException(status_code=404, detail="Session not found")
+        require_project_member(session, principal, project_id=task_session.project_id)
         service = MemoryWritebackService(core=runtime)
         writeback = service.prepare_writeback(
             org_id=task_session.org_id,
@@ -180,3 +196,12 @@ def prepare_writeback(
         }
         uow.commit()
     return response
+
+
+def _ensure_session_member(session: Session, principal: Principal, *, session_id: str):
+    runtime = CoreRuntime(session)
+    task_session = runtime.get_session(session_id)
+    if task_session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    require_project_member(session, principal, project_id=task_session.project_id)
+    return task_session

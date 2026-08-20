@@ -1,7 +1,11 @@
+from __future__ import annotations
+
+from __future__ import annotations
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from packages.core.models import ProjectModel
+from packages.core.models import ProjectMembershipModel, ProjectModel
 
 
 class ProjectRepository:
@@ -36,6 +40,16 @@ class ProjectRepository:
 
     def list(self, *, include_archived: bool = False) -> list[ProjectModel]:
         statement = select(ProjectModel)
+        if not include_archived:
+            statement = statement.where(ProjectModel.status != "archived")
+        return list(self.session.scalars(statement).all())
+
+    def list_for_user(self, *, user_id: str, include_archived: bool = False) -> list[ProjectModel]:
+        statement = (
+            select(ProjectModel)
+            .join(ProjectMembershipModel, ProjectMembershipModel.project_id == ProjectModel.id)
+            .where(ProjectMembershipModel.user_id == user_id)
+        )
         if not include_archived:
             statement = statement.where(ProjectModel.status != "archived")
         return list(self.session.scalars(statement).all())

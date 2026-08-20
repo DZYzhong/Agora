@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from apps.api.auth import get_current_principal, require_project_member
 from apps.api.dependencies import get_db_session
+from packages.core.auth import Principal
 from packages.core.services.runtime import CoreRuntime
 
 router = APIRouter(prefix="/projects/{project_id}/sessions", tags=["sessions"])
@@ -13,8 +15,10 @@ def list_sessions(
     intent: str | None = None,
     status: str | None = None,
     q: str | None = None,
+    principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
 ):
+    require_project_member(session, principal, project_id=project_id)
     runtime = CoreRuntime(session)
     task_sessions = runtime.list_sessions_by_project(project_id, intent=intent, status=status)
     audits = [_serialize_session_audit(runtime, task_session) for task_session in task_sessions]
@@ -24,7 +28,13 @@ def list_sessions(
 
 
 @router.get("/{session_id}")
-def get_session_detail(project_id: str, session_id: str, session: Session = Depends(get_db_session)):
+def get_session_detail(
+    project_id: str,
+    session_id: str,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
+    require_project_member(session, principal, project_id=project_id)
     runtime = CoreRuntime(session)
     task_session = runtime.get_session_by_project(project_id=project_id, session_id=session_id)
     if task_session is None:

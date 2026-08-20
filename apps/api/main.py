@@ -10,6 +10,7 @@ from apps.api.routers.assets import router as assets_router
 from apps.api.routers.sessions import router as sessions_router
 from apps.api.routers.skills import router as skills_router
 from apps.api.routers.writebacks import router as writebacks_router
+from apps.api.auth import bootstrap_auth_from_env
 from apps.api.dependencies import get_engine
 from packages.core.services.runtime import CoreRuntime
 from packages.core.services.skills import ensure_builtin_skills_for_existing_projects
@@ -28,6 +29,7 @@ def _bootstrap_builtin_skills() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    bootstrap_auth_from_env()
     _bootstrap_builtin_skills()
     yield
 

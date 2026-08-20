@@ -5,11 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from apps.api.auth import get_current_principal, require_human, require_project_member
 from apps.api.dependencies import get_db_session, get_keyword_index, get_vector_index
 from apps.workers.workflows.initialize_project import initialize_project_from_local_repo
 from packages.core.repositories.assets import AssetRepository
+from packages.core.repositories.identities import IdentityRepository
 from packages.core.repositories.initialization_jobs import InitializationJobRepository
 from packages.core.repositories.projects import ProjectRepository
+from packages.core.auth import Principal
 from packages.core.services.runtime import CoreRuntime
 from packages.core.services.skills import ensure_builtin_skills
 from packages.core.uow import SqlAlchemyUnitOfWork
@@ -45,9 +48,18 @@ def _serialize_initialization_job(job) -> dict:
 
 
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
-def create_project(payload: ProjectCreate, session: Session = Depends(get_db_session)):
+def create_project(
+    payload: ProjectCreate,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
+    require_human(principal)
     with SqlAlchemyUnitOfWork(session) as uow:
-        project = ProjectRepository(session).create(**payload.model_dump())
+        values = payload.model_dump()
+        values["org_id"] = payload.org_id if principal.is_bypass else principal.org_id
+        project = ProjectRepository(session).create(**values)
+        if not principal.is_bypass:
+            IdentityRepository(session).grant_membership(project_id=project.id, user_id=principal.user_id, role="owner")
         ensure_builtin_skills(CoreRuntime(session), org_id=project.org_id)
         response = ProjectRead(
             id=project.id,
@@ -64,8 +76,17 @@ def create_project(payload: ProjectCreate, session: Session = Depends(get_db_ses
 
 
 @router.get("", response_model=list[ProjectRead])
-def list_projects(include_archived: bool = Query(default=False), session: Session = Depends(get_db_session)):
-    projects = ProjectRepository(session).list(include_archived=include_archived)
+def list_projects(
+    include_archived: bool = Query(default=False),
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
+    repo = ProjectRepository(session)
+    projects = (
+        repo.list(include_archived=include_archived)
+        if principal.is_bypass
+        else repo.list_for_user(user_id=principal.user_id, include_archived=include_archived)
+    )
     return [
         ProjectRead(
             id=project.id,
@@ -82,10 +103,15 @@ def list_projects(include_archived: bool = Query(default=False), session: Sessio
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
-def get_project(project_id: str, session: Session = Depends(get_db_session)):
+def get_project(
+    project_id: str,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
     project = ProjectRepository(session).get(project_id)
-    if project is None:
+    if project is None or (not principal.is_bypass and project.org_id != principal.org_id):
         raise HTTPException(status_code=404, detail="Project not found")
+    require_project_member(session, principal, project_id=project.id)
     return ProjectRead(
         id=project.id,
         org_id=project.org_id,
@@ -99,9 +125,15 @@ def get_project(project_id: str, session: Session = Depends(get_db_session)):
 
 
 @router.post("/{project_id}/archive", response_model=ProjectRead)
-def archive_project(project_id: str, session: Session = Depends(get_db_session)):
+def archive_project(
+    project_id: str,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
+    require_human(principal)
     try:
         with SqlAlchemyUnitOfWork(session) as uow:
+            require_project_member(session, principal, project_id=project_id)
             project = ProjectRepository(session).archive(project_id)
             response = ProjectRead(
                 id=project.id,
@@ -123,14 +155,17 @@ def archive_project(project_id: str, session: Session = Depends(get_db_session))
 def initialize_local_project(
     project_id: str,
     payload: InitializeLocalProjectRequest,
+    principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
+    require_human(principal)
     with SqlAlchemyUnitOfWork(session) as uow:
         project = ProjectRepository(session).get(project_id)
         if project is None:
             raise HTTPException(status_code=404, detail="Project not found")
+        require_project_member(session, principal, project_id=project.id)
 
         job_repo = InitializationJobRepository(session)
         git_remote = project.git_remotes[0] if project.git_remotes else None
@@ -155,14 +190,17 @@ def initialize_local_project(
 def retry_initialization_job(
     project_id: str,
     job_id: str,
+    principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
+    require_human(principal)
     with SqlAlchemyUnitOfWork(session) as uow:
         project = ProjectRepository(session).get(project_id)
         if project is None:
             raise HTTPException(status_code=404, detail="Project not found")
+        require_project_member(session, principal, project_id=project.id)
 
         job_repo = InitializationJobRepository(session)
         previous_job = job_repo.get(job_id)
@@ -316,10 +354,15 @@ def _run_initialization_job(
 
 
 @router.get("/{project_id}/initialization-jobs")
-def list_initialization_jobs(project_id: str, session: Session = Depends(get_db_session)):
+def list_initialization_jobs(
+    project_id: str,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
     project = ProjectRepository(session).get(project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
+    require_project_member(session, principal, project_id=project.id)
 
     jobs = InitializationJobRepository(session).list_by_project(project_id)
     return [_serialize_initialization_job(job) for job in jobs]
