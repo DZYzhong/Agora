@@ -1,21 +1,27 @@
 from dataclasses import dataclass
 
+from packages.core.auth import Principal, bypass_principal
 from packages.core.models import utc_now
 from packages.harness.context_planner import ContextPlanner
 from packages.harness.development_capture import capture_development_change
 from packages.harness.project_resolver import ProjectResolver
 from packages.harness.session_recorder import SessionRecorder
-from packages.harness.task_resolver import TaskResolver
+from packages.harness.work_resolver import WorkResolver
 
 
 @dataclass(frozen=True)
 class WorkStartResult:
     session_id: str | None
     project: object | None
+    work_item_id: str | None
+    work_item_title: str | None
     task_id: str | None
     intent: str | None
     next_action: str
     clarification: str | None = None
+    context_revision_id: str | None = None
+    workflow_version_id: str | None = None
+    skill_version_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -35,11 +41,22 @@ class HarnessService:
         self.core = core
         self.context_engine = context_engine
         self.project_resolver = ProjectResolver(core)
-        self.task_resolver = TaskResolver()
+        self.work_resolver = WorkResolver(core)
         self.session_recorder = SessionRecorder(core)
         self.context_planner = ContextPlanner(core=core, context_engine=context_engine)
 
-    def start_work(self, *, user_message: str, repo_remote: str | None = None, agent_type: str, project_id: str | None = None):
+    def start_work(
+        self,
+        *,
+        user_message: str,
+        repo_remote: str | None = None,
+        agent_type: str,
+        project_id: str | None = None,
+        principal: Principal | None = None,
+        branch_name: str | None = None,
+        initial_request_id: str | None = None,
+    ):
+        principal = principal or bypass_principal()
         project = self.core.get_project(project_id) if project_id and hasattr(self.core, "get_project") else None
         if project is None:
             project_resolution = self.project_resolver.resolve(repo_remote=repo_remote, user_message=user_message)
@@ -52,25 +69,42 @@ class HarnessService:
             return WorkStartResult(
                 session_id=None,
                 project=None,
+                work_item_id=None,
+                work_item_title=None,
                 task_id=None,
                 intent=None,
                 next_action="ask_user",
                 clarification=clarification,
             )
 
-        task_resolution = self.task_resolver.resolve(user_message=user_message)
+        work_resolution = self.work_resolver.resolve(project=project, user_message=user_message, branch_name=branch_name)
+        if work_resolution.next_action == "ask_user":
+            return WorkStartResult(
+                session_id=None,
+                project=project,
+                work_item_id=None,
+                work_item_title=work_resolution.title,
+                task_id=work_resolution.external_key,
+                intent=work_resolution.intent,
+                next_action="ask_user",
+                clarification=work_resolution.clarification,
+            )
+
         session = self.session_recorder.start(
-            org_id=project.org_id,
-            project_id=project.id,
+            work_item_id=work_resolution.work_item.id,
+            user_id=principal.user_id,
+            credential_id=principal.credential_id,
             agent_type=agent_type,
-            intent=task_resolution.intent,
-            task_id=task_resolution.task_id,
+            intent=work_resolution.intent,
+            initial_request_id=initial_request_id,
         )
         return WorkStartResult(
             session_id=session.id,
             project=project,
-            task_id=task_resolution.task_id,
-            intent=task_resolution.intent,
+            work_item_id=work_resolution.work_item.id,
+            work_item_title=work_resolution.work_item.title,
+            task_id=work_resolution.external_key,
+            intent=work_resolution.intent,
             next_action="plan_context",
         )
 

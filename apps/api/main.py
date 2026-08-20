@@ -9,6 +9,7 @@ from apps.api.routers.projects import router as projects_router
 from apps.api.routers.assets import router as assets_router
 from apps.api.routers.sessions import router as sessions_router
 from apps.api.routers.skills import router as skills_router
+from apps.api.routers.work_items import router as work_items_router
 from apps.api.routers.writebacks import router as writebacks_router
 from apps.api.auth import bootstrap_auth_from_env
 from apps.api.dependencies import get_engine
@@ -42,4 +43,5 @@ app.include_router(assets_router)
 app.include_router(harness_router)
 app.include_router(sessions_router)
 app.include_router(skills_router)
+app.include_router(work_items_router)
 app.include_router(writebacks_router)

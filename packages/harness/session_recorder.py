@@ -2,13 +2,23 @@ class SessionRecorder:
     def __init__(self, core):
         self.core = core
 
-    def start(self, *, org_id: str, project_id: str, agent_type: str, intent: str, task_id: str | None):
-        return self.core.create_session(
-            org_id=org_id,
-            project_id=project_id,
+    def start(
+        self,
+        *,
+        work_item_id: str,
+        user_id: str,
+        credential_id: str,
+        agent_type: str,
+        intent: str,
+        initial_request_id: str | None = None,
+    ):
+        return self.core.create_work_session(
+            work_item_id=work_item_id,
+            user_id=user_id,
+            credential_id=credential_id,
             agent_type=agent_type,
             intent=intent,
-            task_id=task_id,
+            initial_request_id=initial_request_id,
         )
 
     def record_event(self, *, session_id: str, event_type: str, payload: dict):

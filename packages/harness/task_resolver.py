@@ -14,10 +14,10 @@ class TaskResolution:
 class TaskResolver:
     def resolve(self, *, user_message: str) -> TaskResolution:
         match = TASK_ID_RE.search(user_message)
-        return TaskResolution(task_id=match.group(0) if match else None, intent=_infer_intent(user_message))
+        return TaskResolution(task_id=match.group(0) if match else None, intent=infer_intent(user_message))
 
 
-def _infer_intent(message: str) -> str:
+def infer_intent(message: str) -> str:
     lowered = message.lower()
     if any(keyword in lowered for keyword in ("overview", "summarize", "summary", "analyze")):
         return "analysis"

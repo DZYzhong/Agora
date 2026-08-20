@@ -64,10 +64,12 @@ def _serialize_session_audit(runtime: CoreRuntime, task_session) -> dict:
         "development_updates": len([event for event in events if event.event_type == "development_update_captured"]),
     }
     writebacks_by_id = {writeback.id: writeback for writeback in writebacks}
+    work_item = getattr(task_session, "work_item", None)
     return {
         "id": task_session.id,
         "project_id": task_session.project_id,
         "task_id": task_session.task_id,
+        "work_item": _serialize_work_item(work_item),
         "agent_type": task_session.agent_type,
         "intent": task_session.intent,
         "status": task_session.status,
@@ -144,6 +146,20 @@ def _serialize_development_update(event, writebacks_by_id: dict) -> dict:
         "risks": structured.get("risks", []),
         "follow_ups": structured.get("follow_ups", []),
         "created_at": event.created_at,
+    }
+
+
+def _serialize_work_item(work_item) -> dict | None:
+    if work_item is None:
+        return None
+    return {
+        "id": work_item.id,
+        "project_id": work_item.project_id,
+        "external_key": work_item.external_key,
+        "title": work_item.title,
+        "status": work_item.status,
+        "stage": work_item.stage,
+        "source": work_item.source,
     }
 
 

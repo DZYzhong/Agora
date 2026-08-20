@@ -5,6 +5,7 @@ from packages.core.repositories.context_packs import ContextPackRepository
 from packages.core.repositories.projects import ProjectRepository
 from packages.core.repositories.sessions import TaskSessionRepository
 from packages.core.repositories.skills import SkillRepository
+from packages.core.repositories.work import WorkRepository
 from packages.core.repositories.writebacks import WritebackRepository
 
 
@@ -24,14 +25,45 @@ class CoreRuntime:
     def create_session(self, **kwargs):
         return TaskSessionRepository(self.session).create(**kwargs)
 
+    def create_work_item(self, **kwargs):
+        return WorkRepository(self.session).create_work_item(**kwargs)
+
+    def get_work_item(self, work_item_id: str):
+        return WorkRepository(self.session).get_work_item(work_item_id)
+
+    def get_work_item_by_external_key(self, *, project_id: str, external_key: str):
+        return WorkRepository(self.session).get_work_item_by_external_key(project_id=project_id, external_key=external_key)
+
+    def find_work_items_by_title(self, *, project_id: str, title: str):
+        return WorkRepository(self.session).find_work_items_by_title(project_id=project_id, title=title)
+
+    def list_work_items_by_project(self, project_id: str):
+        return WorkRepository(self.session).list_work_items_by_project(project_id)
+
+    def create_work_session(self, **kwargs):
+        return WorkRepository(self.session).create_work_session(**kwargs)
+
     def get_session(self, session_id: str):
-        return TaskSessionRepository(self.session).get(session_id)
+        work_session = WorkRepository(self.session).get_work_session(session_id)
+        return work_session or TaskSessionRepository(self.session).get(session_id)
 
     def list_sessions_by_project(self, project_id: str, *, intent: str | None = None, status: str | None = None):
-        return TaskSessionRepository(self.session).list_by_project(project_id, intent=intent, status=status)
+        work_sessions = WorkRepository(self.session).list_work_sessions_by_project(project_id, intent=intent, status=status)
+        legacy_sessions = TaskSessionRepository(self.session).list_by_project(project_id, intent=intent, status=status)
+        return [*work_sessions, *legacy_sessions]
 
     def get_session_by_project(self, *, project_id: str, session_id: str):
-        return TaskSessionRepository(self.session).get_by_project(project_id=project_id, session_id=session_id)
+        work_session = WorkRepository(self.session).get_work_session_by_project(project_id=project_id, session_id=session_id)
+        return work_session or TaskSessionRepository(self.session).get_by_project(project_id=project_id, session_id=session_id)
+
+    def get_idempotency_record(self, **kwargs):
+        return WorkRepository(self.session).get_idempotency_record(**kwargs)
+
+    def create_idempotency_record(self, **kwargs):
+        return WorkRepository(self.session).create_idempotency_record(**kwargs)
+
+    def complete_idempotency_record(self, *args, **kwargs):
+        return WorkRepository(self.session).complete_idempotency_record(*args, **kwargs)
 
     def list_session_events(self, session_id: str):
         return TaskSessionRepository(self.session).list_events(session_id)

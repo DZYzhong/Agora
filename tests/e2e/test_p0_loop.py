@@ -31,6 +31,27 @@ class Session:
 
 
 @dataclass
+class WorkItem:
+    org_id: str
+    project_id: str
+    title: str
+    external_key: str | None = None
+    id: str = field(default_factory=lambda: uuid4().hex)
+
+
+@dataclass
+class WorkSession:
+    work_item_id: str
+    user_id: str
+    credential_id: str
+    agent_type: str
+    intent: str
+    initial_request_id: str | None = None
+    status: str = "started"
+    id: str = field(default_factory=lambda: uuid4().hex)
+
+
+@dataclass
 class Asset:
     org_id: str
     project_id: str
@@ -63,6 +84,8 @@ class E2eCore:
     def __init__(self):
         self.projects: list[Project] = []
         self.sessions: list[Session] = []
+        self.work_items: list[WorkItem] = []
+        self.work_sessions: list[WorkSession] = []
         self.assets: list[Asset] = []
         self.writebacks: list[Writeback] = []
         self.events: list[dict] = []
@@ -80,7 +103,67 @@ class E2eCore:
         self.sessions.append(session)
         return session
 
+    def create_work_item(self, **kwargs):
+        work_item = WorkItem(**kwargs)
+        self.work_items.append(work_item)
+        return work_item
+
+    def get_work_item(self, work_item_id: str):
+        return next((item for item in self.work_items if item.id == work_item_id), None)
+
+    def get_work_item_by_external_key(self, *, project_id: str, external_key: str):
+        return next(
+            (
+                item
+                for item in self.work_items
+                if item.project_id == project_id and item.external_key == external_key
+            ),
+            None,
+        )
+
+    def find_work_items_by_title(self, *, project_id: str, title: str):
+        needle = title.casefold()
+        return [
+            item
+            for item in self.work_items
+            if item.project_id == project_id and (needle in item.title.casefold() or item.title.casefold() in needle)
+        ]
+
+    def create_work_session(self, **kwargs):
+        work_session = WorkSession(**kwargs)
+        self.work_sessions.append(work_session)
+        work_item = self.get_work_item(work_session.work_item_id)
+        return type(
+            "WorkSessionView",
+            (),
+            {
+                "id": work_session.id,
+                "org_id": work_item.org_id,
+                "project_id": work_item.project_id,
+                "task_id": work_item.external_key,
+                "agent_type": work_session.agent_type,
+                "intent": work_session.intent,
+                "status": work_session.status,
+            },
+        )()
+
     def get_session(self, session_id: str):
+        work_session = next((session for session in self.work_sessions if session.id == session_id), None)
+        if work_session is not None:
+            work_item = self.get_work_item(work_session.work_item_id)
+            return type(
+                "WorkSessionView",
+                (),
+                {
+                    "id": work_session.id,
+                    "org_id": work_item.org_id,
+                    "project_id": work_item.project_id,
+                    "task_id": work_item.external_key,
+                    "agent_type": work_session.agent_type,
+                    "intent": work_session.intent,
+                    "status": work_session.status,
+                },
+            )()
         return next((session for session in self.sessions if session.id == session_id), None)
 
     def record_event(self, **kwargs):
