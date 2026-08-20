@@ -1745,4 +1745,4 @@ git diff --check
 
 Commit:
 
-- `5fa1b71 feat: observe local repositories through mcp connector`
+- `0126bf6 feat: observe local repositories through mcp connector`
