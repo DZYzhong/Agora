@@ -1458,3 +1458,107 @@ Black-box validation:
 Commit:
 
 - `8d10ff9 docs: realign product architecture and roadmap`
+
+### 2026-08-20: Realigned P2 Task 1 Data-Safe Schema Migration
+
+Scope:
+
+- Started the realigned P2 implementation from `docs/superpowers/plans/2026-08-14-agora-p2-real-ai-tool-harness-foundation.md`.
+- Added schema ownership around existing P1 databases, including known unversioned P1 detection, backup-before-upgrade, schema fingerprint checks and refusal for unknown partial schemas.
+- Added P2-compatible identity and work tables while preserving existing Projects, Assets, ContextPacks, Skills, SkillRuns, Writebacks, SessionEvents and legacy TaskSessions.
+- Copied legacy TaskSession rows into WorkSession rows without changing historical session IDs.
+- Verified the real local `.agora/agora.db` was inspected but not mutated during Task 1.
+
+Files changed:
+
+- Created: `alembic/versions/20260814_0002_p2_harness_foundation.py`
+- Created: `packages/core/schema_manager.py`
+- Modified: `packages/core/models.py`
+- Modified: `packages/domain/enums.py`
+- Modified: `apps/api/dependencies.py`
+- Modified: `scripts/agora_admin.py`
+- Added integration migration coverage in `tests/integration/test_p2_migration.py` and `tests/integration/test_migrations.py`.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_p2_migration.py tests/integration/test_migrations.py -v
+# passed after fixes
+
+.venv/bin/pytest
+# 88 passed at Task 1 completion
+
+Independent specification review
+# APPROVED after migration compatibility fixes
+
+Independent code quality review
+# APPROVED after hardening direct P2 migration guards
+```
+
+Commits:
+
+- `19cebb4 feat: add p2 compatible work and identity schema`
+- `f090e55 fix: migrate in-memory database on app engine`
+- `9f72897 fix: harden p2 schema migration validation`
+- `5c87a55 fix: guard direct p2 migration from corrupt legacy data`
+
+### 2026-08-20: Realigned P2 Task 2 Unit of Work Boundary
+
+Scope:
+
+- Moved write ownership from repositories and domain services to explicit command-level `SqlAlchemyUnitOfWork` boundaries.
+- Added rollback-on-exception, clean-exit rollback, explicit commit and nested-command protection.
+- Hardened UoW so it rejects any pre-existing SQLAlchemy transaction, including outer `session.begin()` and SQLAlchemy autobegin from earlier reads.
+- Updated HTTP mutation routes, worker/admin mutation paths and writeback/index flows to use explicit UoW ownership.
+- Deferred post-commit search-index refresh from the database transaction, and made post-commit index failure return a committed response with `index_status: pending_rebuild` warnings instead of a false command failure.
+- Made writeback acceptance retry idempotent when the writeback was already accepted, preserving the existing `accepted_asset_id` and avoiding duplicate Assets.
+- Isolated failed SkillRun audit persistence so audit write failure does not mask the original business error.
+- Added startup bootstrap seeding for built-in Skills on existing projects through an explicit UoW; `GET /skills` remains read-only.
+
+Files changed:
+
+- Created/modified: `packages/core/uow.py`
+- Modified: `apps/api/main.py`
+- Modified: `apps/api/routers/projects.py`
+- Modified: `apps/api/routers/skills.py`
+- Modified: `apps/api/routers/writebacks.py`
+- Modified: `packages/core/services/skills.py`
+- Modified: `packages/harness/memory_writeback.py`
+- Added or extended tests in `tests/unit/core/test_uow.py`, `tests/unit/core/test_repositories.py`, `tests/integration/api/test_transaction_boundaries.py`, `tests/integration/api/test_initialization_jobs.py`, and `tests/integration/api/test_skills_api.py`.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/unit/core/test_uow.py tests/unit/core/test_repositories.py tests/integration/api/test_transaction_boundaries.py tests/integration/api/test_initialization_jobs.py tests/integration/api/test_skills_api.py -v
+# 41 passed
+
+.venv/bin/pytest
+# 119 passed
+
+git diff --check
+# passed
+
+Static commit guard
+# no direct `.commit(` calls in repository/domain-service mutation modules
+
+Independent code quality review
+# APPROVED; no Critical or Important findings remain
+
+Independent specification review
+# APPROVED; targeted Task 2 checks passed with no compliance findings
+```
+
+Commits:
+
+- `a36d10d refactor: own writes at unit of work boundaries`
+- `18724e0 fix: isolate project initialization transactions`
+- `ce06f3c fix: defer writeback indexing until commit`
+- `39474ca test: guard draft writeback preparation`
+- `0d5620c fix: isolate failed skill run audit`
+- `1aaae0a fix: harden unit of work boundaries`
+
+Current P2 status:
+
+- Task 1 is complete.
+- Task 2 is complete.
+- Next implementation target: Task 3, the minimum authenticated human and AI-tool boundary.
