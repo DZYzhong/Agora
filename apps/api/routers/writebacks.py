@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -10,6 +12,7 @@ from packages.storage.opensearch.fake import FakeKeywordIndex
 from packages.storage.qdrant.fake import FakeVectorIndex
 
 router = APIRouter(prefix="/projects/{project_id}/writebacks", tags=["writebacks"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("")
@@ -47,12 +50,22 @@ def accept_writeback(
                 "project_id": project_id,
                 "status": writeback.status,
                 "accepted_asset_id": writeback.accepted_asset_id,
+                "index_status": "indexed",
+                "warnings": [],
             }
             uow.commit()
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    keyword_index.index_asset(result.pending_index.asset_id, result.pending_index.asset)
-    vector_index.index_asset(result.pending_index.asset_id, result.pending_index.asset)
+    warnings = []
+    for index_name, index in (("keyword", keyword_index), ("vector", vector_index)):
+        try:
+            index.index_asset(result.pending_index.asset_id, result.pending_index.asset)
+        except Exception as exc:
+            logger.exception("Post-commit %s index refresh failed for writeback %s", index_name, writeback_id)
+            warnings.append(f"{index_name} index pending_rebuild: {exc}")
+    if warnings:
+        response["index_status"] = "pending_rebuild"
+        response["warnings"] = warnings
     return response
 
 

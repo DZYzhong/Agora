@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -18,6 +19,7 @@ from packages.storage.opensearch.fake import FakeKeywordIndex
 from packages.storage.qdrant.fake import FakeVectorIndex
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+logger = logging.getLogger(__name__)
 
 
 class InitializeLocalProjectRequest(BaseModel):
@@ -219,10 +221,34 @@ def _execute_initialization_job(
         _mark_initialization_job_failed(session, job_id=job_id, error=error)
         raise HTTPException(status_code=500, detail=error) from exc
 
-    for asset_id, asset in index_updates:
-        keyword_index.index_asset(asset_id, asset)
-        vector_index.index_asset(asset_id, asset)
+    index_warnings = _index_assets_after_commit(
+        index_updates,
+        keyword_index=keyword_index,
+        vector_index=vector_index,
+        command_name="project initialization",
+    )
+    response["index_status"] = "pending_rebuild" if index_warnings else "indexed"
+    if index_warnings:
+        response["warnings"] = [*response.get("warnings", []), *index_warnings]
     return response
+
+
+def _index_assets_after_commit(
+    index_updates: list[tuple[str, AssetCreate]],
+    *,
+    keyword_index: FakeKeywordIndex,
+    vector_index: FakeVectorIndex,
+    command_name: str,
+) -> list[str]:
+    warnings = []
+    for asset_id, asset in index_updates:
+        for index_name, index in (("keyword", keyword_index), ("vector", vector_index)):
+            try:
+                index.index_asset(asset_id, asset)
+            except Exception as exc:
+                logger.exception("Post-commit %s index refresh failed during %s", index_name, command_name)
+                warnings.append(f"{index_name} index pending_rebuild: {exc}")
+    return warnings
 
 
 def _mark_initialization_job_failed(session: Session, *, job_id: str, error: str) -> None:

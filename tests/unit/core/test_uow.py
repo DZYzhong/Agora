@@ -95,3 +95,26 @@ def test_nested_unit_of_work_on_same_session_is_rejected(session_factory):
     with SqlAlchemyUnitOfWork(session):
         pass
     session.close()
+
+
+def test_unit_of_work_rejects_explicit_outer_transaction(session_factory):
+    session = session_factory()
+
+    with session.begin():
+        with pytest.raises(RuntimeError, match="existing SQLAlchemy transaction"):
+            with SqlAlchemyUnitOfWork(session):
+                pass
+
+    session.close()
+
+
+def test_unit_of_work_rejects_autobegin_transaction_from_prior_read(session_factory):
+    session = session_factory()
+    session.scalar(select(func.count()).select_from(ProjectModel))
+
+    with pytest.raises(RuntimeError, match="existing SQLAlchemy transaction"):
+        with SqlAlchemyUnitOfWork(session):
+            pass
+
+    session.rollback()
+    session.close()

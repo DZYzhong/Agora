@@ -292,6 +292,44 @@ def test_successful_initialize_indexes_only_after_database_commit(monkeypatch):
     assert len(indexed_asset_ids) == response.json()["asset_count"]
 
 
+def test_initialize_index_failure_returns_completed_job_with_pending_rebuild_warning(monkeypatch):
+    client = TestClient(app, raise_server_exceptions=False)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_init_index_failure",
+            "name": "Initialization Index Failure",
+            "slug": "initialization-index-failure",
+            "git_remotes": [],
+        },
+    ).json()
+    keyword_index = get_keyword_index()
+    calls = 0
+
+    def fail_first_keyword_index(asset_id, asset):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("keyword index unavailable")
+
+    monkeypatch.setattr(keyword_index, "index_asset", fail_first_keyword_index)
+
+    response = client.post(
+        f"/projects/{project['id']}/initialize-local",
+        json={"repo_path": "tests/fixtures/sample_repo"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "completed"
+    assert body["index_status"] == "pending_rebuild"
+    assert any("keyword index unavailable" in warning for warning in body["warnings"])
+    assert len(client.get(f"/projects/{project['id']}/assets").json()) == body["asset_count"]
+    jobs = client.get(f"/projects/{project['id']}/initialization-jobs").json()
+    assert jobs[0]["status"] == "completed"
+    assert jobs[0]["error"] is None
+
+
 def test_unexpected_execution_exception_marks_committed_job_failed(monkeypatch):
     client = TestClient(app, raise_server_exceptions=False)
     project = client.post(

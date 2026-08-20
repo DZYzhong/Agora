@@ -296,6 +296,48 @@ def test_successful_writeback_accept_indexes_only_after_database_commit(monkeypa
     assert {asset_id for asset_id, _ in get_vector_index()._assets} == {accepted_asset_id}
 
 
+def test_writeback_accept_index_failure_returns_committed_response_and_retry_is_idempotent(monkeypatch):
+    client = TestClient(app, raise_server_exceptions=False)
+    project, session_id = _start_api_session(client, suffix="accept_index_failure")
+    writeback = _prepare_api_writeback(
+        client,
+        session_id=session_id,
+        type="development_summary",
+        title="Committed despite index failure",
+    )
+    keyword_index = get_keyword_index()
+    calls = 0
+
+    def fail_first_keyword_index(asset_id, asset):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("keyword index unavailable")
+
+    monkeypatch.setattr(keyword_index, "index_asset", fail_first_keyword_index)
+
+    first = client.post(f"/projects/{project['id']}/writebacks/{writeback['id']}/accept")
+
+    assert first.status_code == 200
+    first_body = first.json()
+    assert first_body["status"] == "accepted"
+    assert first_body["accepted_asset_id"]
+    assert first_body["index_status"] == "pending_rebuild"
+    assert any("keyword index unavailable" in warning for warning in first_body["warnings"])
+    with sessionmaker(bind=get_engine())() as session:
+        assert session.scalar(select(func.count()).select_from(AssetModel)) == 1
+        stored = session.get(WritebackModel, writeback["id"])
+        assert stored.status == "accepted"
+        assert stored.accepted_asset_id == first_body["accepted_asset_id"]
+
+    second = client.post(f"/projects/{project['id']}/writebacks/{writeback['id']}/accept")
+
+    assert second.status_code == 200
+    assert second.json()["accepted_asset_id"] == first_body["accepted_asset_id"]
+    with sessionmaker(bind=get_engine())() as session:
+        assert session.scalar(select(func.count()).select_from(AssetModel)) == 1
+
+
 def test_failed_skill_execution_rolls_back_partial_run_before_failed_audit(monkeypatch):
     client = TestClient(app)
     project = client.post(

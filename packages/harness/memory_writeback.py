@@ -45,6 +45,28 @@ class MemoryWritebackService:
         writeback = self.core.get_writeback(writeback_id)
         if writeback is None:
             raise ValueError(f"Writeback not found: {writeback_id}")
+        if writeback.status == "accepted" and writeback.accepted_asset_id:
+            asset = self.core.get_asset(writeback.accepted_asset_id)
+            if asset is None:
+                raise ValueError(f"Accepted asset not found: {writeback.accepted_asset_id}")
+            return AcceptWritebackResult(
+                writeback=writeback,
+                pending_index=PendingAssetIndex(
+                    asset_id=asset.id,
+                    asset=AssetCreate(
+                        org_id=asset.org_id,
+                        project_id=asset.project_id,
+                        type=asset.type,
+                        source=asset.source,
+                        source_uri=asset.source_uri,
+                        title=asset.title,
+                        content=asset.content,
+                        summary=asset.summary,
+                        metadata=asset.asset_metadata,
+                        content_hash=asset.content_hash,
+                    ),
+                ),
+            )
 
         asset_payload = AssetCreate(
             org_id=writeback.org_id,

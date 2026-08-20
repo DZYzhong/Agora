@@ -1,6 +1,13 @@
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
+from sqlalchemy.orm import sessionmaker
 
+from apps.api.dependencies import get_engine
 from apps.api.main import app
+from packages.core.models import SkillModel, SkillRunModel
+from packages.core.repositories.projects import ProjectRepository
+from packages.core.repositories.skills import SkillRepository
+from packages.core.uow import SqlAlchemyUnitOfWork
 
 
 def test_project_skill_lifecycle_and_run_history():
@@ -174,3 +181,78 @@ def test_builtin_skills_are_read_only_for_lifecycle_updates():
     refreshed = client.get(f"/projects/{project['id']}/skills").json()
     refreshed_builtin = next(item for item in refreshed if item["id"] == builtin["id"])
     assert refreshed_builtin["status"] == "approved"
+
+
+def test_failed_skill_audit_write_failure_preserves_original_business_error(monkeypatch):
+    client = TestClient(app, raise_server_exceptions=False)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_skill_audit_failure",
+            "name": "Skill Audit Failure",
+            "slug": "skill-audit-failure",
+            "git_remotes": [],
+        },
+    ).json()
+    skill = client.post(
+        f"/projects/{project['id']}/skills",
+        json={
+            "slug": "audit-failure-skill",
+            "name": "Audit Failure Skill",
+            "status": "approved",
+            "definition": {"instructions": "Run atomically."},
+        },
+    ).json()
+    original_create_run = SkillRepository.create_run
+    calls = 0
+
+    def fail_execution_then_audit(self, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            original_create_run(self, **kwargs)
+            raise ValueError("expected execution failure")
+        raise RuntimeError("audit storage unavailable")
+
+    monkeypatch.setattr(SkillRepository, "create_run", fail_execution_then_audit)
+
+    response = client.post(
+        f"/projects/{project['id']}/skills/{skill['id']}/run",
+        json={"input": {"change": "audit"}, "context": {"summary": "Preserve original."}},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "expected execution failure"
+    with sessionmaker(bind=get_engine())() as session:
+        assert session.scalar(select(func.count()).select_from(SkillRunModel)) == 0
+
+
+def test_startup_bootstrap_seeds_builtin_skills_for_existing_projects_without_get_mutation():
+    with sessionmaker(bind=get_engine())() as session:
+        with SqlAlchemyUnitOfWork(session) as uow:
+            project = ProjectRepository(session).create(
+                org_id="org_existing_bootstrap",
+                name="Existing Bootstrap",
+                slug="existing-bootstrap",
+                git_remotes=[],
+            )
+            project_id = project.id
+            uow.commit()
+        with SqlAlchemyUnitOfWork(session) as uow:
+            for skill in list(session.scalars(select(SkillModel)).all()):
+                session.delete(skill)
+            uow.commit()
+
+    assert TestClient(app).get(f"/projects/{project_id}/skills").json() == []
+
+    with TestClient(app) as client:
+        skills = client.get(f"/projects/{project_id}/skills").json()
+
+    assert any(skill["slug"] == "task-context-summary" and skill["builtin"] for skill in skills)
+    count_after_bootstrap = len(skills)
+
+    client = TestClient(app)
+    before_get_count = client.get(f"/projects/{project_id}/skills").json()
+    after_get_count = client.get(f"/projects/{project_id}/skills").json()
+    assert len(before_get_count) == count_after_bootstrap
+    assert len(after_get_count) == count_after_bootstrap

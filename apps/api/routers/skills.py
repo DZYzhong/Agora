@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -10,6 +12,7 @@ from packages.harness.skill_orchestrator import SkillOrchestrator
 from packages.llm.fake_gateway import FakeLlmGateway
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["skills"])
+logger = logging.getLogger(__name__)
 
 
 class SkillCreateRequest(BaseModel):
@@ -257,7 +260,10 @@ def run_skill(project_id: str, skill_id: str, payload: SkillRunRequest, session:
             response = _serialize_run(run)
             uow.commit()
     except _SkillExecutionFailed as exc:
-        _record_failed_skill_run(session, exc)
+        try:
+            _record_failed_skill_run(session, exc)
+        except Exception:
+            logger.exception("Failed to record failed SkillRun audit for skill %s", exc.skill_id)
         raise HTTPException(status_code=400, detail=exc.error) from exc
     return response
 
