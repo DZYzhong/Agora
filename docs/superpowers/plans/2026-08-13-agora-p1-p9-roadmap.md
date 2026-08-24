@@ -1565,7 +1565,8 @@ Current P2 status:
 - Task 4 is complete.
 - Task 5 is complete.
 - Task 6 is complete.
-- Next implementation target: Task 7, publishing the canonical Harness API and MCP tools.
+- Task 7 is complete.
+- Next implementation target: Task 8, adding Web visibility for canonical P2 state.
 
 ### 2026-08-21: Realigned P2 Task 3 Local Team Principal Boundary
 
@@ -1760,3 +1761,34 @@ git diff --check
 Commit:
 
 - `1bb3042 feat: prepare budgeted provisional context bundles`
+
+### 2026-08-24: P2 Task 7 Canonical Harness API and MCP Tools
+
+Scope:
+
+- Added the P2 protocol-level E2E loop covering authenticated start-work, idempotency replay, prepare-context, fetch-context-ref, close-work and session audit events.
+- Changed the advertised MCP tool list to the P2 canonical subset: `agora_start_work`, `agora_prepare_context`, `agora_fetch_context_ref`, `agora_close_work`.
+- Added MCP `agora_prepare_context` dispatch to `/harness/prepare-context`.
+- Kept legacy MCP dispatch for `agora_plan_context`, `agora_record_event`, `agora_prepare_writeback` and `agora_search_knowledge`, but made them non-advertised compatibility tools with deprecation metadata.
+- Removed `not_implemented` fallback from the advertised fetch-context tool path.
+- Added the P2 MCP compatibility table to the technical architecture document.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_harness_api.py tests/unit/mcp tests/e2e/test_p2_harness_loop.py -v
+# 19 passed
+
+.venv/bin/pytest
+# 169 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+git diff --check
+# passed
+```
+
+Commit:
+
+- `9f2512a feat: publish canonical p2 harness tools`

@@ -456,7 +456,7 @@ git commit -m "feat: prepare budgeted provisional context bundles"
 - Modify: `tests/unit/mcp/test_tools.py`
 - Test: `tests/e2e/test_p2_harness_loop.py`
 
-- [ ] **Step 1: Write a failing protocol-level end-to-end test**
+- [x] **Step 1: Write a failing protocol-level end-to-end test**
 
 Drive the same public operations used by a real MCP client:
 
@@ -471,23 +471,23 @@ Verify bearer auth, protocol version, idempotency, project/work resolution, priv
 
 This is the P2 canonical advertised subset of the architecture's full future tool catalog. `agora_record_event`, `agora_plan_context`, `agora_prepare_writeback` and other P1 operations remain non-advertised compatibility dispatches with deprecation metadata. Document their mapping to canonical errors and their removal target; do not treat them as P2 product tools.
 
-- [ ] **Step 2: Run the E2E test and verify it fails**
+- [x] **Step 2: Run the E2E test and verify it fails**
 
 Run: `.venv/bin/pytest tests/e2e/test_p2_harness_loop.py -v`
 
 Expected: FAIL because the canonical operation set is not wired end to end.
 
-- [ ] **Step 3: Wire canonical endpoints and compatibility aliases**
+- [x] **Step 3: Wire canonical endpoints and compatibility aliases**
 
 Add `/harness/prepare-context`; keep `/harness/plan-context` as a deprecated adapter returning the canonical schema. Advertise only the four-tool P2 subset above, but accept legacy dispatch during P2 for compatibility. Remove `not_implemented` responses from advertised tools; unimplemented P3-P5 capabilities must be absent or explicitly false. Add a protocol compatibility table covering legacy tool names, canonical replacements, error-code mapping, deprecation marker and removal phase.
 
-- [ ] **Step 4: Run API, MCP and E2E tests**
+- [x] **Step 4: Run API, MCP and E2E tests**
 
 Run: `.venv/bin/pytest tests/integration/api/test_harness_api.py tests/unit/mcp tests/e2e/test_p2_harness_loop.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/routers/harness.py apps/mcp tests/integration/api/test_harness_api.py tests/unit/mcp tests/e2e/test_p2_harness_loop.py
