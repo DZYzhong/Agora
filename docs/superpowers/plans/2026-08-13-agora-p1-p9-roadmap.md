@@ -1563,7 +1563,9 @@ Current P2 status:
 - Task 2 is complete.
 - Task 3 is complete.
 - Task 4 is complete.
-- Next implementation target: Task 5, making MCP the customer-local Repository Observer.
+- Task 5 is complete.
+- Task 6 is complete.
+- Next implementation target: Task 7, publishing the canonical Harness API and MCP tools.
 
 ### 2026-08-21: Realigned P2 Task 3 Local Team Principal Boundary
 
@@ -1693,3 +1695,68 @@ Commits:
 
 - `f58991e feat: add work items and idempotent work sessions`
 - `40cef77 fix: close work session review gaps`
+
+### 2026-08-24: P2 Task 5 MCP Local Repository Observer
+
+Scope:
+
+- Added a Local Connector domain model for sanitized local workspace observations.
+- Added Git repository observation in the MCP stdio process using `AGORA_WORKSPACE_ROOT` or the current working directory.
+- Normalized repository identity to host/path metadata and stripped Git username, password/token, URL scheme and `.git` suffix.
+- Captured branch, head commit, dirty state and changed/untracked counts without sending absolute local paths, file names or source contents.
+- Made `agora_start_work` attach local observation metadata automatically when the AI tool does not provide one.
+- Let Harness resolve projects from sanitized local observation identity as well as legacy `repo_remote`.
+- Rejected path-like `repo_remote` values at the API boundary.
+- Added canonical start-work response envelope fields: `protocol_version`, `request_id`, `capabilities` and structured `next_actions`, while keeping legacy fields for P2 compatibility.
+- Added canonical Harness error bodies for project resolution, WorkItem clarification and idempotency conflicts while retaining legacy `detail.code/message` fields.
+- Proved the real stdio MCP process path with a local HTTP recorder and stderr log capture.
+
+Verification:
+
+```text
+.venv/bin/pytest
+# 157 passed
+
+.venv/bin/pytest tests/unit/local_connector tests/unit/mcp tests/integration/mcp/test_local_connector_process.py -v
+# 10 passed
+
+git diff --check e0f78fa..HEAD
+# passed
+```
+
+Commit:
+
+- `5fa1b71 feat: observe local repositories through mcp connector`
+
+### 2026-08-24: P2 Task 6 Budgeted Provisional ContextBundle
+
+Scope:
+
+- Added deterministic stable JSON token estimation and whole-payload trimming.
+- Added `ContextBundle` construction that wraps legacy ContextPack material as `provisional=true`.
+- Added canonical freshness dimensions for P2 without claiming accepted revisions, `fresh` coverage or exact repository relation.
+- Added `recommended_action=use_provisional_context` when reusable legacy material exists and `analyze_local_project` when context is missing.
+- Added `/harness/prepare-context` as the primary context preparation endpoint.
+- Converted legacy `/harness/plan-context` into a compatibility adapter returning the canonical payload plus deprecation metadata, while preserving legacy fields such as `id`, `summary`, `level` and `source_refs`.
+- Preserved legacy `context_planned` audit behavior for `/plan-context`; new `/prepare-context` records `context_prepared`.
+- Added stable `TOKEN_BUDGET_TOO_SMALL` error handling with an `increase_token_budget` next action.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/unit/harness/test_token_budget.py tests/unit/harness/test_context_bundle.py tests/unit/harness/test_harness_service.py tests/integration/api/test_harness_api.py tests/unit/knowledge/test_context_engine.py -v
+# 35 passed
+
+.venv/bin/pytest
+# 166 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+git diff --check
+# passed
+```
+
+Commit:
+
+- `1bb3042 feat: prepare budgeted provisional context bundles`

@@ -40,7 +40,7 @@
 - Test: `tests/integration/test_p2_migration.py`
 - Test: `tests/integration/test_migrations.py`
 
-- [ ] **Step 1: Write a failing migration preservation test**
+- [x] **Step 1: Write a failing migration preservation test**
 
 Cover both migration entry states: a database at revision `20260813_0001`, and the real P1 shape created by `Base.metadata.create_all()` with no `alembic_version` table. Insert two projects, assets, a ContextPack, Skills, SkillRuns, Writebacks, SessionEvents and multiple TaskSessions sharing one `task_id`, then upgrade to head. Assert all original rows remain and:
 
@@ -54,13 +54,13 @@ assert skill_run_session_ids == legacy_task_session_ids
 
 Also create a database with an unknown/partial schema and assert migration refuses to mutate it.
 
-- [ ] **Step 2: Run the migration tests and verify they fail**
+- [x] **Step 2: Run the migration tests and verify they fail**
 
 Run: `.venv/bin/pytest tests/integration/test_p2_migration.py tests/integration/test_migrations.py -v`
 
 Expected: FAIL because revision `20260814_0002` and the new tables do not exist.
 
-- [ ] **Step 3: Implement explicit ownership of existing P1 schemas**
+- [x] **Step 3: Implement explicit ownership of existing P1 schemas**
 
 Replace startup `Base.metadata.create_all()` with a schema manager:
 
@@ -73,7 +73,7 @@ unknown or partial schema -> refuse startup with MIGRATION_REQUIRED and leave th
 
 SQLite backup uses its online backup API rather than copying a live file. Postgres requires an operator backup confirmation in production-like mode. `scripts/agora_admin.py migrate` exposes dry-run, backup path and schema fingerprint diagnostics.
 
-- [ ] **Step 4: Add additive P2 tables and legacy-copy migration**
+- [x] **Step 4: Add additive P2 tables and legacy-copy migration**
 
 Add ORM models and migration tables for:
 
@@ -108,13 +108,13 @@ Migration rules:
 
 Migration assertions must verify every legacy WorkSession has a valid user foreign key, null credential/request fields, and unchanged SkillRun/Writeback/SessionEvent linkage. Model and migration tests must also assert every required IdempotencyRecord field, foreign key and unique constraint above.
 
-- [ ] **Step 5: Run migration preservation and downgrade/upgrade tests**
+- [x] **Step 5: Run migration preservation and downgrade/upgrade tests**
 
 Run: `.venv/bin/pytest tests/integration/test_p2_migration.py tests/integration/test_migrations.py -v`
 
 Expected: PASS; no P1 row or historical relationship is lost.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add alembic/versions/20260814_0002_p2_harness_foundation.py packages/core/schema_manager.py packages/core/models.py packages/domain/enums.py apps/api/dependencies.py scripts/agora_admin.py tests/integration/test_p2_migration.py tests/integration/test_migrations.py
@@ -141,7 +141,7 @@ git commit -m "feat: add p2 compatible work and identity schema"
 - Test: `tests/unit/core/test_repositories.py`
 - Test: `tests/integration/api/test_transaction_boundaries.py`
 
-- [ ] **Step 1: Write failing rollback and commit tests**
+- [x] **Step 1: Write failing rollback and commit tests**
 
 Cover these cases:
 
@@ -160,27 +160,27 @@ assert project_repo.list() != []
 
 Also prove a command can flush Project, WorkItem and WorkSession, then fail, and still leave none of them behind.
 
-- [ ] **Step 2: Run tests and verify partial writes currently survive or repositories commit too early**
+- [x] **Step 2: Run tests and verify partial writes currently survive or repositories commit too early**
 
 Run: `.venv/bin/pytest tests/unit/core/test_uow.py tests/integration/api/test_transaction_boundaries.py -v`
 
 Expected: FAIL because repositories own commits.
 
-- [ ] **Step 3: Implement Unit of Work and remove repository commits**
+- [x] **Step 3: Implement Unit of Work and remove repository commits**
 
 Implement `SqlAlchemyUnitOfWork` with `flush`, `commit`, rollback-on-exception and nested-command protection. Repository and domain-service mutation methods may `add`, `flush` and `refresh`, but must not commit. The database dependency owns session lifetime only; each application command handler explicitly enters one Unit of Work.
 
-- [ ] **Step 4: Update direct worker and service call sites**
+- [x] **Step 4: Update direct worker and service call sites**
 
 Use `rg -n "\.commit\(" apps packages` as the migration inventory. Wrap every HTTP mutation command, worker activity, admin command and other non-HTTP mutation in one explicit Unit of Work. Do not add a `commit_on_write` compatibility switch. Add a guard test that fails if repository or domain-service modules regain direct commits.
 
-- [ ] **Step 5: Run focused and full repository tests**
+- [x] **Step 5: Run focused and full repository tests**
 
 Run: `.venv/bin/pytest tests/unit/core/test_uow.py tests/unit/core/test_repositories.py tests/integration/api/test_transaction_boundaries.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/core/uow.py apps/api/dependencies.py apps/api/routers apps/workers packages/core/repositories packages/core/services/writebacks.py tests/unit/core tests/integration/api/test_transaction_boundaries.py
@@ -209,7 +209,7 @@ git commit -m "refactor: own writes at unit of work boundaries"
 - Test: `tests/integration/api/test_auth.py`
 - Test: `tests/integration/test_web_config.py`
 
-- [ ] **Step 1: Write failing authentication and authorization tests**
+- [x] **Step 1: Write failing authentication and authorization tests**
 
 Prove:
 
@@ -223,27 +223,27 @@ Prove:
 - Multiple legacy organizations without explicit `AGORA_BOOTSTRAP_ORG_ID` fail closed as ambiguous.
 - Creating a Project and its creator's ProjectMembership happens in the same transaction.
 
-- [ ] **Step 2: Run auth tests and verify they fail**
+- [x] **Step 2: Run auth tests and verify they fail**
 
 Run: `.venv/bin/pytest tests/unit/core/test_auth.py tests/integration/api/test_auth.py -v`
 
 Expected: FAIL because no principal boundary exists.
 
-- [ ] **Step 3: Implement local-team bootstrap identities and bearer auth**
+- [x] **Step 3: Implement local-team bootstrap identities and bearer auth**
 
 Create an immutable runtime `Principal` containing `user_id`, `credential_id`, credential kind, organization and project roles; `Principal` is not a persistence key. Persist WorkSession ownership as non-null `user_id` plus nullable-for-legacy `credential_id`. Read `AGORA_BOOTSTRAP_HUMAN_TOKEN`, `AGORA_BOOTSTRAP_AGENT_TOKEN` and `AGORA_BOOTSTRAP_ORG_ID`, hash and upsert credentials at startup, and grant the configured local bootstrap user membership to existing projects in that organization. If the organization is omitted, use the only existing organization, create `local-org` for an empty database, or fail closed when multiple organizations exist. Production-like paths must reject missing tokens; tests may explicitly enable `AGORA_TEST_AUTH_BYPASS=1`, but black-box services must not.
 
-- [ ] **Step 4: Enforce project scope and credential kind**
+- [x] **Step 4: Enforce project scope and credential kind**
 
 All project-scoped API commands, including every Harness command, derive organization and user from `Principal`. Session-based commands first resolve WorkSession, then verify its ProjectMembership before reading or mutating anything. Web server fetches attach `AGORA_WEB_HUMAN_TOKEN`; MCP requests attach `AGORA_AGENT_TOKEN`. Never serialize either token to browser HTML, logs or API responses.
 
-- [ ] **Step 5: Run auth, API and Web configuration tests**
+- [x] **Step 5: Run auth, API and Web configuration tests**
 
 Run: `.venv/bin/pytest tests/unit/core/test_auth.py tests/integration/api/test_auth.py tests/integration/test_web_config.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/core/auth.py packages/core/repositories/identities.py apps/api apps/web/lib/api.ts apps/mcp/server.py .env.example tests/unit/core/test_auth.py tests/integration/api/test_auth.py tests/integration/test_web_config.py
@@ -272,7 +272,7 @@ git commit -m "feat: add local team principal boundary"
 - Test: `tests/integration/api/test_work_items_api.py`
 - Test: `tests/integration/api/test_sessions_api.py`
 
-- [ ] **Step 1: Write failing WorkItem resolution and idempotency tests**
+- [x] **Step 1: Write failing WorkItem resolution and idempotency tests**
 
 Cover explicit task IDs, branch-derived hints, Chinese software R&D task titles, ambiguous tasks that require clarification, and two users sharing one WorkItem. Verify:
 
@@ -284,13 +284,13 @@ Cover explicit task IDs, branch-derived hints, Chinese software R&D task titles,
 - A new key creates a new WorkSession under the same WorkItem.
 - Replay expiry is explicit; expired keys become tombstones returning `IDEMPOTENCY_KEY_EXPIRED`, and cleanup cannot make an old key silently reusable.
 
-- [ ] **Step 2: Run focused tests and verify they fail**
+- [x] **Step 2: Run focused tests and verify they fail**
 
 Run: `.venv/bin/pytest tests/unit/harness/test_work_resolver.py tests/integration/api/test_work_items_api.py -v`
 
 Expected: FAIL because WorkItem APIs and resolver do not exist.
 
-- [ ] **Step 3: Implement the authoritative work model**
+- [x] **Step 3: Implement the authoritative work model**
 
 Implement:
 
@@ -303,17 +303,17 @@ WorkSession: work_item, principal, credential, agent_type, intent, status, idemp
 
 Use operation-scoped `IdempotencyRecord` keyed by authenticated `credential_id`, command type and idempotency key. Store `user_id` for audit plus the canonical request hash, canonical response, status and replay expiry in the same transaction as the domain mutation. Runtime Principal data is always derived from the credential and is never accepted from payload fields. The IdempotencyRecord unique constraint is authoritative; WorkSession has no competing key uniqueness rule.
 
-- [ ] **Step 4: Keep P1 Session pages readable through compatibility serializers**
+- [x] **Step 4: Keep P1 Session pages readable through compatibility serializers**
 
 The old Session API and URLs read from WorkSession and include WorkItem details. Do not create new TaskSession rows after this task.
 
-- [ ] **Step 5: Run work model, Harness and Session regression tests**
+- [x] **Step 5: Run work model, Harness and Session regression tests**
 
 Run: `.venv/bin/pytest tests/unit/harness/test_work_resolver.py tests/unit/harness/test_harness_service.py tests/integration/api/test_work_items_api.py tests/integration/api/test_sessions_api.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/core/repositories/work.py packages/core/services/runtime.py packages/harness apps/api/routers apps/api/main.py tests/unit/harness tests/integration/api/test_work_items_api.py tests/integration/api/test_sessions_api.py
@@ -338,7 +338,7 @@ git commit -m "feat: add work items and idempotent work sessions"
 - Test: `tests/unit/mcp/test_tools.py`
 - Test: `tests/integration/mcp/test_local_connector_process.py`
 
-- [ ] **Step 1: Write failing local observation and privacy tests**
+- [x] **Step 1: Write failing local observation and privacy tests**
 
 Create temporary Git repositories with HTTPS credentials, SSH remotes, branches, commits and dirty files. Assert the observation contains normalized host/path identity, branch, head commit and dirty state, but never contains:
 
@@ -350,31 +350,31 @@ file contents
 untracked file contents
 ```
 
-- [ ] **Step 2: Run tests and verify they fail**
+- [x] **Step 2: Run tests and verify they fail**
 
 Run: `.venv/bin/pytest tests/unit/local_connector tests/unit/mcp/test_stdio_server.py tests/unit/mcp/test_tools.py -v`
 
 Expected: FAIL because LocalWorkspaceObservation does not exist.
 
-- [ ] **Step 3: Implement RepositoryIdentity and LocalWorkspaceObservation**
+- [x] **Step 3: Implement RepositoryIdentity and LocalWorkspaceObservation**
 
 The stdio MCP process reads `AGORA_WORKSPACE_ROOT` or its current working directory, invokes local Git, sanitizes the result, and attaches the observation to `agora_start_work`. The API receives metadata only and must never accept or dereference a local path.
 
-- [ ] **Step 4: Version the Harness protocol and stable errors**
+- [x] **Step 4: Version the Harness protocol and stable errors**
 
 Every canonical response includes `protocol_version`, `request_id`, `capabilities` and a structured next action. Use the canonical errors `PROJECT_UNRESOLVED`, `WORK_ITEM_CLARIFICATION_REQUIRED`, `UNAUTHORIZED_PROJECT`, `PROTOCOL_VERSION_UNSUPPORTED` and `TEMPORARILY_UNAVAILABLE`, plus P2 protocol errors `AUTH_REQUIRED`, `INVALID_CREDENTIAL`, `INVALID_OBSERVATION`, `IDEMPOTENCY_CONFLICT` and `TOKEN_BUDGET_TOO_SMALL`. Legacy adapters map old errors to these codes and include a deprecation marker.
 
-- [ ] **Step 5: Prove the real stdio process privacy boundary**
+- [x] **Step 5: Prove the real stdio process privacy boundary**
 
 Launch the actual MCP stdio server from a temporary Git repository, call `agora_start_work`, and capture the real outbound API request with a local HTTP recorder. Assert the request body, MCP result, error output, logs and persisted observation contain no absolute path, Git userinfo/token, tracked source content or untracked source content. This process-level test is required in addition to observer unit tests.
 
-- [ ] **Step 6: Run Connector, MCP and privacy tests**
+- [x] **Step 6: Run Connector, MCP and privacy tests**
 
 Run: `.venv/bin/pytest tests/unit/local_connector tests/unit/mcp tests/integration/mcp/test_local_connector_process.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/local_connector packages/domain/local_workspace.py apps/mcp packages/harness/project_resolver.py tests/unit/local_connector tests/unit/mcp tests/integration/mcp/test_local_connector_process.py
@@ -396,7 +396,7 @@ git commit -m "feat: observe local repositories through mcp connector"
 - Test: `tests/unit/knowledge/test_context_engine.py`
 - Test: `tests/integration/api/test_harness_api.py`
 
-- [ ] **Step 1: Write failing deterministic budget and freshness tests**
+- [x] **Step 1: Write failing deterministic budget and freshness tests**
 
 Assert the complete, stable-JSON-serialized L0/L1 payload stays within the requested estimate, including envelope, facts, constraints, risks, workflow requirements, Skill summaries, diagnostics and source metadata. Assert deterministic trimming order and separate L2 `max_tokens`. Cover the canonical freshness dimensions:
 
@@ -412,27 +412,27 @@ recommended_action: use_provisional_context | analyze_local_project | clarify_re
 
 P2 has no accepted ContextRevision base, so repository relation is normally `unknown`, `accepted_revision_id` is null, and context coverage is `missing` or explicitly provisional through a P2 extension field. It must never claim `fresh`, `exact` or accepted reuse from a legacy ContextPack.
 
-- [ ] **Step 2: Run focused tests and verify they fail**
+- [x] **Step 2: Run focused tests and verify they fail**
 
 Run: `.venv/bin/pytest tests/unit/harness/test_token_budget.py tests/unit/harness/test_context_bundle.py tests/integration/api/test_harness_api.py -v`
 
 Expected: FAIL because current token budgeting covers only legacy context selection.
 
-- [ ] **Step 3: Implement the canonical provisional ContextBundle**
+- [x] **Step 3: Implement the canonical provisional ContextBundle**
 
 Rename the primary operation to `prepare_context`. Wrap existing ContextPack material as `ContextBundle.provisional=true`, preserve source references, and set `recommended_action=analyze_local_project` when no reusable material exists. `provisional` is not added to the canonical `context_coverage` enum. Never claim an accepted ContextRevision in P2.
 
-- [ ] **Step 4: Implement whole-payload token enforcement**
+- [x] **Step 4: Implement whole-payload token enforcement**
 
 Use stable JSON serialization and one versioned deterministic estimator. Keep protocol envelope and critical constraints; trim optional facts and source metadata before truncating the summary. Return `budget_limit`, `estimated_tokens`, `estimator_version` and truncation diagnostics inside the budgeted payload. Define a minimum viable budget: when the non-trimmable envelope and L0 exceed it, return stable `TOKEN_BUDGET_TOO_SMALL` rather than violating the budget. Validate the final encoded payload after diagnostics are attached. L2 fetch remains a separate command with its own independently tested `max_tokens`.
 
-- [ ] **Step 5: Run focused and integration tests**
+- [x] **Step 5: Run focused and integration tests**
 
 Run: `.venv/bin/pytest tests/unit/harness/test_token_budget.py tests/unit/harness/test_context_bundle.py tests/unit/knowledge/test_context_engine.py tests/integration/api/test_harness_api.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/harness packages/knowledge/context_engine.py packages/domain/schemas.py tests/unit/harness tests/unit/knowledge/test_context_engine.py tests/integration/api/test_harness_api.py
