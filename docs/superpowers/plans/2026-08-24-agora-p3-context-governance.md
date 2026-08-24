@@ -51,7 +51,52 @@ Browser validation
 
 ## Next P3 tasks
 
-- Add Harness/MCP `agora_submit_context_proposal` for AI tools.
+- [x] Add Harness/MCP `agora_submit_context_proposal` for AI tools.
+- Add Web proposal detail and review workflow with explicit RevisionSignal display.
+- Add outbox consumer retry semantics and idempotent projection updates.
+- Add branch-stream rules for feature branch proposals and merge reachability signals.
+
+## Task 2: Real AI-tool ContextProposal upload path
+
+**Files:**
+
+- Modify: `packages/harness/service.py`
+- Modify: `apps/api/routers/harness.py`
+- Modify: `apps/mcp/server.py`
+- Modify: `apps/mcp/tools.py`
+- Test: `tests/integration/api/test_context_governance_api.py`
+- Test: `tests/unit/mcp/test_stdio_server.py`
+- Test: `tests/unit/mcp/test_tools.py`
+
+- [x] Add canonical `/harness/submit-context-proposal` for authenticated AI tools.
+- [x] Bind proposal creation to the active WorkSession and WorkItem instead of requiring Web/API callers to pass project internals.
+- [x] Keep ContextProposal as review-only state; submitting through Harness does not create accepted ContextRevision.
+- [x] Return a protocol envelope with `operation=submit_context_proposal`, current stream head pin and a human review next action.
+- [x] Advertise `agora_submit_context_proposal` through the stdio MCP server.
+- [x] Add local `AgoraMcpTools.agora_submit_context_proposal` delegation for in-process harness integrations.
+- [x] Update start-work capability advertisement so AI tools can see `context_revisions=true` once this P3 path exists.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_context_governance_api.py::test_ai_tool_submits_context_proposal_through_harness_session tests/unit/mcp/test_stdio_server.py::test_stdio_mcp_server_lists_agora_tools tests/unit/mcp/test_stdio_server.py::test_stdio_submit_context_proposal_dispatches_to_harness tests/unit/mcp/test_tools.py::test_mcp_submit_context_proposal_delegates_to_harness
+# 4 passed
+
+.venv/bin/pytest tests/integration/api/test_context_governance_api.py tests/unit/mcp/test_stdio_server.py tests/unit/mcp/test_tools.py
+# 13 passed
+
+.venv/bin/pytest
+# 181 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+git diff --check
+# passed
+```
+
+## Remaining P3 tasks
+
 - Add Web proposal detail and review workflow with explicit RevisionSignal display.
 - Add outbox consumer retry semantics and idempotent projection updates.
 - Add branch-stream rules for feature branch proposals and merge reachability signals.

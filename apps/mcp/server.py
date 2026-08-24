@@ -64,6 +64,38 @@ TOOLS = [
         ["session_id", "asset_id"],
     ),
     _tool(
+        "agora_submit_context_proposal",
+        "Submit an AI-generated project context proposal for human review after analyzing local code and documents.",
+        {
+            "session_id": {"type": "string"},
+            "type": {
+                "type": "string",
+                "enum": ["initial", "refresh", "task_update", "correction"],
+                "default": "task_update",
+            },
+            "title": {"type": "string"},
+            "summary": {"type": "string"},
+            "target_branch": {"type": "string", "default": "main"},
+            "expected_head_revision_id": {"type": "string"},
+            "from_commit_sha": {"type": "string"},
+            "to_commit_sha": {"type": "string"},
+            "content": {
+                "type": "object",
+                "description": "Structured context revision candidate generated from local repository analysis.",
+            },
+            "source_anchors": {
+                "type": "array",
+                "items": {"type": "object"},
+                "description": "Traceable local code or document anchors used to generate the proposal.",
+            },
+            "provenance": {
+                "type": "object",
+                "description": "Tool, schema, repository and model metadata for audit.",
+            },
+        },
+        ["session_id", "title", "summary", "content"],
+    ),
+    _tool(
         "agora_close_work",
         "Close an Agora work session. When repo_path or agent_summary is provided, Agora captures a development_update draft for human review.",
         {
@@ -143,6 +175,23 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                 "session_id": arguments["session_id"],
                 "asset_id": arguments["asset_id"],
                 "max_tokens": arguments.get("max_tokens", 2000),
+            },
+        )
+    if name == "agora_submit_context_proposal":
+        return await _post(
+            "/harness/submit-context-proposal",
+            {
+                "session_id": arguments["session_id"],
+                "type": arguments.get("type", "task_update"),
+                "title": arguments["title"],
+                "summary": arguments["summary"],
+                "target_branch": arguments.get("target_branch", "main"),
+                "expected_head_revision_id": arguments.get("expected_head_revision_id"),
+                "from_commit_sha": arguments.get("from_commit_sha"),
+                "to_commit_sha": arguments.get("to_commit_sha"),
+                "content": arguments["content"],
+                "source_anchors": arguments.get("source_anchors", []),
+                "provenance": arguments.get("provenance", {}),
             },
         )
     if name == "agora_record_event":

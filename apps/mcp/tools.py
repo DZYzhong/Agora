@@ -35,6 +35,41 @@ class AgoraMcpTools:
             raise NotImplementedError("Harness does not implement fetch_context_ref")
         return _object_to_dict(self.harness.fetch_context_ref(session_id=session_id, asset_id=asset_id, max_tokens=max_tokens))
 
+    def agora_submit_context_proposal(
+        self,
+        *,
+        session_id: str,
+        type: str = "task_update",
+        title: str,
+        summary: str,
+        target_branch: str = "main",
+        expected_head_revision_id: str | None = None,
+        from_commit_sha: str | None = None,
+        to_commit_sha: str | None = None,
+        content: dict,
+        source_anchors: list[dict] | None = None,
+        provenance: dict | None = None,
+        principal=None,
+    ) -> dict:
+        if not hasattr(self.harness, "submit_context_proposal"):
+            raise NotImplementedError("Harness does not implement submit_context_proposal")
+        payload = {
+            "session_id": session_id,
+            "type": type,
+            "title": title,
+            "summary": summary,
+            "target_branch": target_branch,
+            "expected_head_revision_id": expected_head_revision_id,
+            "from_commit_sha": from_commit_sha,
+            "to_commit_sha": to_commit_sha,
+            "content": content,
+            "source_anchors": source_anchors or [],
+            "provenance": provenance or {},
+        }
+        if principal is not None:
+            payload["principal"] = principal
+        return _object_to_dict(self.harness.submit_context_proposal(**payload))
+
     def agora_run_skill(self, *, session_id: str, skill_slug: str, input: dict) -> dict:
         if not hasattr(self.harness, "run_skill"):
             return {"session_id": session_id, "skill_slug": skill_slug, "input": input, "status": "not_implemented"}

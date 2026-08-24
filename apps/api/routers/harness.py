@@ -4,8 +4,8 @@ import hashlib
 import json
 import time
 
-from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel, ConfigDict, field_validator
+from fastapi import APIRouter, Depends, Header, HTTPException, status
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
@@ -60,6 +60,20 @@ class FetchContextRefRequest(BaseModel):
     session_id: str
     asset_id: str
     max_tokens: int = 2000
+
+
+class SubmitContextProposalRequest(BaseModel):
+    session_id: str
+    type: str = Field(pattern="^(initial|refresh|task_update|correction)$")
+    title: str
+    summary: str
+    target_branch: str = "main"
+    expected_head_revision_id: str | None = None
+    from_commit_sha: str | None = None
+    to_commit_sha: str | None = None
+    content: dict[str, Any] = Field(default_factory=dict)
+    source_anchors: list[dict[str, Any]] = Field(default_factory=list)
+    provenance: dict[str, Any] = Field(default_factory=dict)
 
 
 class CloseWorkRequest(BaseModel):
@@ -201,6 +215,26 @@ def fetch_context_ref(
         return result.__dict__
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/submit-context-proposal", status_code=status.HTTP_201_CREATED)
+def submit_context_proposal(
+    payload: SubmitContextProposalRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+    keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
+    vector_index: FakeVectorIndex = Depends(get_vector_index),
+):
+    with SqlAlchemyUnitOfWork(session) as uow:
+        task_session = _ensure_session_member(session, principal, session_id=payload.session_id)
+        response = _harness(session, keyword_index, vector_index).submit_context_proposal(
+            **payload.model_dump(),
+            principal=principal,
+        )
+        response_dict = response.__dict__
+        response_dict["request_id"] = task_session.id
+        uow.commit()
+    return response_dict
 
 
 @router.post("/close-work")
@@ -370,7 +404,7 @@ def _serialize_start_work(result) -> dict:
         "capabilities": {
             "local_repository_observation": True,
             "work_items": True,
-            "context_revisions": False,
+            "context_revisions": True,
             "skills": False,
         },
         "session_id": result.session_id,

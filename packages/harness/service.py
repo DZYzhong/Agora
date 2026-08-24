@@ -37,6 +37,16 @@ class ContextRefResult:
     metadata: dict
 
 
+@dataclass(frozen=True)
+class ContextProposalSubmission:
+    protocol_version: str
+    operation: str
+    proposal: dict
+    stream: dict
+    capability_pins: dict
+    next_actions: list[dict]
+
+
 class HarnessService:
     def __init__(self, *, core, context_engine):
         self.core = core
@@ -169,6 +179,72 @@ class HarnessService:
             metadata=asset.asset_metadata or {},
         )
 
+    def submit_context_proposal(
+        self,
+        *,
+        session_id: str,
+        type: str,
+        title: str,
+        summary: str,
+        target_branch: str = "main",
+        expected_head_revision_id: str | None = None,
+        from_commit_sha: str | None = None,
+        to_commit_sha: str | None = None,
+        content: dict | None = None,
+        source_anchors: list[dict] | None = None,
+        provenance: dict | None = None,
+        principal: Principal | None = None,
+    ) -> ContextProposalSubmission:
+        if principal is None:
+            raise ValueError("HarnessService.submit_context_proposal requires an authenticated Principal")
+        session = self.core.get_session(session_id)
+        if session is None:
+            raise ValueError(f"Session not found: {session_id}")
+        project = self.core.get_project(session.project_id)
+        if project is None:
+            raise ValueError(f"Project not found: {session.project_id}")
+
+        branch = target_branch or project.default_branch or "main"
+        stream = self.core.ensure_context_stream(
+            org_id=session.org_id,
+            project_id=session.project_id,
+            branch=branch,
+            repository_identity={"git_remotes": project.git_remotes},
+        )
+        work_item = getattr(session, "work_item", None)
+        proposal = self.core.create_context_proposal(
+            org_id=session.org_id,
+            project_id=session.project_id,
+            stream_id=stream.id,
+            work_item_id=getattr(work_item, "id", None) or getattr(session, "work_item_id", None),
+            session_id=session_id,
+            type=type,
+            status="submitted",
+            title=title,
+            summary=summary,
+            content=content or {},
+            source_anchors=source_anchors or [],
+            provenance=provenance or {},
+            target_branch=stream.branch,
+            expected_head_revision_id=expected_head_revision_id,
+            from_commit_sha=from_commit_sha,
+            to_commit_sha=to_commit_sha,
+            created_by_user_id=principal.user_id,
+        )
+        return ContextProposalSubmission(
+            protocol_version="1.0",
+            operation="submit_context_proposal",
+            proposal=_serialize_context_proposal(self.core, proposal),
+            stream=_serialize_context_stream(stream),
+            capability_pins={"context_revision_id": stream.head_revision_id},
+            next_actions=[
+                {
+                    "type": "human_review_context_proposal",
+                    "reason": "Context proposal was submitted and requires human review before becoming the accepted project context.",
+                }
+            ],
+        )
+
     def close_work(
         self,
         *,
@@ -237,3 +313,43 @@ def _coerce_local_observation(
     if isinstance(local_observation, LocalWorkspaceObservation):
         return local_observation
     return LocalWorkspaceObservation.model_validate(local_observation)
+
+
+def _serialize_context_stream(stream) -> dict:
+    return {
+        "id": stream.id,
+        "project_id": stream.project_id,
+        "name": stream.name,
+        "branch": stream.branch,
+        "head_revision_id": stream.head_revision_id,
+        "status": stream.status,
+        "repository_identity": stream.repository_identity,
+        "created_at": stream.created_at,
+        "updated_at": stream.updated_at,
+    }
+
+
+def _serialize_context_proposal(core, proposal) -> dict:
+    stream = core.get_context_stream(proposal.stream_id)
+    return {
+        "id": proposal.id,
+        "project_id": proposal.project_id,
+        "stream_id": proposal.stream_id,
+        "stream": _serialize_context_stream(stream) if stream else None,
+        "work_item_id": proposal.work_item_id,
+        "session_id": proposal.session_id,
+        "type": proposal.type,
+        "status": proposal.status,
+        "title": proposal.title,
+        "summary": proposal.summary,
+        "content": proposal.content,
+        "source_anchors": proposal.source_anchors,
+        "provenance": proposal.provenance,
+        "target_branch": proposal.target_branch,
+        "expected_head_revision_id": proposal.expected_head_revision_id,
+        "from_commit_sha": proposal.from_commit_sha,
+        "to_commit_sha": proposal.to_commit_sha,
+        "accepted_revision_id": proposal.accepted_revision_id,
+        "created_at": proposal.created_at,
+        "updated_at": proposal.updated_at,
+    }

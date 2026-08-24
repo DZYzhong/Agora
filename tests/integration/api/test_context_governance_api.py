@@ -205,3 +205,43 @@ def test_prepare_context_uses_accepted_revision_after_approval(monkeypatch, tmp_
         assert bundle["freshness"]["context_coverage"] == "fresh"
         assert bundle["freshness"]["accepted_revision_id"] == accepted["revision"]["id"]
         assert bundle["capability_pins"]["context_revision_id"] == accepted["revision"]["id"]
+
+
+def test_ai_tool_submits_context_proposal_through_harness_session(monkeypatch):
+    _production_auth(monkeypatch)
+    with TestClient(app) as client:
+        project = _create_project(client)
+        started = client.post(
+            "/harness/start-work",
+            headers=_headers(AGENT_TOKEN),
+            json={
+                "project_id": project["id"],
+                "user_message": "帮我做 PAY-318：退款状态变更增加审计记录",
+                "agent_type": "codex",
+                "branch_name": "feature/PAY-318-refund-audit",
+            },
+        ).json()
+
+        response = client.post(
+            "/harness/submit-context-proposal",
+            headers=_headers(AGENT_TOKEN),
+            json={
+                **_proposal_payload(),
+                "session_id": started["session_id"],
+                "type": "task_update",
+                "title": "PAY-318 退款审计上下文更新",
+                "summary": "记录退款状态审计的模块边界、风险和测试策略。",
+            },
+        )
+
+        assert response.status_code == 201
+        body = response.json()
+        assert body["protocol_version"] == "1.0"
+        assert body["operation"] == "submit_context_proposal"
+        assert body["proposal"]["status"] == "submitted"
+        assert body["proposal"]["project_id"] == project["id"]
+        assert body["proposal"]["session_id"] == started["session_id"]
+        assert body["proposal"]["work_item_id"] == started["work_item_id"]
+        assert body["stream"]["branch"] == "main"
+        assert body["capability_pins"]["context_revision_id"] is None
+        assert body["next_actions"][0]["type"] == "human_review_context_proposal"

@@ -6,6 +6,7 @@ class FakeHarness:
         self.started = False
         self.closed_with = None
         self.fetched_with = None
+        self.submitted_with = None
 
     def start_work(self, **kwargs):
         self.started = True
@@ -37,6 +38,13 @@ class FakeHarness:
             "session_id": kwargs["session_id"],
             "asset_id": kwargs["asset_id"],
             "content": "source content",
+        }
+
+    def submit_context_proposal(self, **kwargs):
+        self.submitted_with = kwargs
+        return {
+            "operation": "submit_context_proposal",
+            "proposal": {"id": "proposal_1", "session_id": kwargs["session_id"]},
         }
 
 
@@ -109,4 +117,35 @@ def test_mcp_prepare_context_delegates_to_harness():
         "session_id": "sess_1",
         "query": "refund retry",
         "token_budget": 800,
+    }
+
+
+def test_mcp_submit_context_proposal_delegates_to_harness():
+    fake_harness = FakeHarness()
+    tools = AgoraMcpTools(harness=fake_harness)
+
+    result = tools.agora_submit_context_proposal(
+        session_id="sess_1",
+        type="task_update",
+        title="PAY-318 退款审计上下文更新",
+        summary="记录退款状态审计的上下文变化。",
+        target_branch="main",
+        content={"risks": ["状态重复流转会产生重复审计"]},
+        source_anchors=[{"kind": "code", "path": "src/refund/service.py"}],
+        provenance={"generating_tool": "codex"},
+    )
+
+    assert result["proposal"]["id"] == "proposal_1"
+    assert fake_harness.submitted_with == {
+        "session_id": "sess_1",
+        "type": "task_update",
+        "title": "PAY-318 退款审计上下文更新",
+        "summary": "记录退款状态审计的上下文变化。",
+        "target_branch": "main",
+        "expected_head_revision_id": None,
+        "from_commit_sha": None,
+        "to_commit_sha": None,
+        "content": {"risks": ["状态重复流转会产生重复审计"]},
+        "source_anchors": [{"kind": "code", "path": "src/refund/service.py"}],
+        "provenance": {"generating_tool": "codex"},
     }

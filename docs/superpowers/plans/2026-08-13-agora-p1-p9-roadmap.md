@@ -1901,3 +1901,38 @@ Browser validation
 Next:
 
 - Add canonical Harness/MCP proposal upload path so AI tools can submit ContextProposal without using project Web/API routes directly.
+
+### 2026-08-24: P3 Task 2 Real AI-tool ContextProposal Upload Path
+
+Scope:
+
+- Added canonical `/harness/submit-context-proposal` for authenticated AI tools.
+- Proposal submission now resolves project, stream and WorkItem from the active WorkSession, so AI tools do not need to call Web management routes or pass project internals.
+- Submitting a proposal remains review-only: it creates `ContextProposal` with status `submitted`, but does not create accepted `ContextRevision`.
+- The Harness response returns `protocol_version`, `operation=submit_context_proposal`, the proposal, stream state, current context revision pin and a `human_review_context_proposal` next action.
+- Advertised `agora_submit_context_proposal` in the stdio MCP tool list and dispatches it to `/harness/submit-context-proposal`.
+- Added in-process `AgoraMcpTools.agora_submit_context_proposal` delegation.
+- Updated start-work capability advertisement to show `context_revisions=true` for the P3 upload path.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_context_governance_api.py::test_ai_tool_submits_context_proposal_through_harness_session tests/unit/mcp/test_stdio_server.py::test_stdio_mcp_server_lists_agora_tools tests/unit/mcp/test_stdio_server.py::test_stdio_submit_context_proposal_dispatches_to_harness tests/unit/mcp/test_tools.py::test_mcp_submit_context_proposal_delegates_to_harness
+# 4 passed
+
+.venv/bin/pytest tests/integration/api/test_context_governance_api.py tests/unit/mcp/test_stdio_server.py tests/unit/mcp/test_tools.py
+# 13 passed
+
+.venv/bin/pytest
+# 181 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+git diff --check
+# passed
+```
+
+Next:
+
+- Add Web proposal detail/review workflow so humans can inspect AI-generated proposals and approve them without calling APIs manually.

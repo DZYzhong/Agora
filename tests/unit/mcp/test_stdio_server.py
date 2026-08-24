@@ -11,6 +11,7 @@ def test_stdio_mcp_server_lists_agora_tools():
         "agora_start_work",
         "agora_prepare_context",
         "agora_fetch_context_ref",
+        "agora_submit_context_proposal",
         "agora_close_work",
     }
 
@@ -24,6 +25,42 @@ def test_stdio_mcp_server_lists_agora_tools():
 
     context_tool = next(tool for tool in result.tools if tool.name == "agora_prepare_context")
     assert "token_budget" in context_tool.input_schema["properties"]
+
+    proposal_tool = next(tool for tool in result.tools if tool.name == "agora_submit_context_proposal")
+    assert "session_id" in proposal_tool.input_schema["required"]
+    assert "content" in proposal_tool.input_schema["required"]
+
+
+def test_stdio_submit_context_proposal_dispatches_to_harness(monkeypatch):
+    captured = {}
+
+    async def fake_post(path, payload):
+        captured["path"] = path
+        captured["payload"] = payload
+        return {"protocol_version": "1.0", "operation": "submit_context_proposal", "proposal": {"id": "proposal_1"}}
+
+    monkeypatch.setattr("apps.mcp.server._post", fake_post)
+
+    result = asyncio.run(
+        _dispatch(
+            "agora_submit_context_proposal",
+            {
+                "session_id": "sess_1",
+                "type": "task_update",
+                "title": "PAY-318 退款审计上下文更新",
+                "summary": "记录退款状态审计的上下文变化。",
+                "target_branch": "main",
+                "content": {"modules": [{"path": "src/refund/service.py"}]},
+                "source_anchors": [{"kind": "code", "path": "src/refund/service.py"}],
+                "provenance": {"generating_tool": "codex"},
+            },
+        )
+    )
+
+    assert result["proposal"]["id"] == "proposal_1"
+    assert captured["path"] == "/harness/submit-context-proposal"
+    assert captured["payload"]["session_id"] == "sess_1"
+    assert captured["payload"]["content"]["modules"][0]["path"] == "src/refund/service.py"
 
 
 def test_stdio_start_work_observes_local_workspace_when_not_supplied(monkeypatch):
