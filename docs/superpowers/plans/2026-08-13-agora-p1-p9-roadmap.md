@@ -1825,4 +1825,4 @@ Browser validation
 
 Commit:
 
-- Pending local commit for Task 8.
+- `5411a14 feat: expose p2 work state in web`

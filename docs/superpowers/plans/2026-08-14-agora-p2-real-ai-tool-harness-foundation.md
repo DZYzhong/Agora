@@ -552,7 +552,7 @@ Browser validation
 # No Context Tester/Run context query/agent simulation text, no horizontal overflow, and styled page shell loaded.
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/web tests/integration/api/test_work_items_api.py tests/integration/test_web_config.py
