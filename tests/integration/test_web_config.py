@@ -35,10 +35,29 @@ def test_product_context_page_is_read_only_audit_view():
     assert "Context state" in context_page
     assert "Context streams" in context_page
     assert "Context proposals" in context_page
+    assert "/context/proposals/" in context_page
     assert "Context Tester" not in context_page
     assert "Run context query" not in context_page
     assert "/harness/plan-context" not in context_page
     assert "/harness/start-work" not in context_page
+
+
+def test_context_proposal_review_pages_are_available():
+    detail_page = Path("apps/web/app/projects/[projectId]/context/proposals/[proposalId]/page.tsx")
+    approve_route = Path("apps/web/app/projects/[projectId]/context/proposals/[proposalId]/approve/route.ts")
+
+    assert detail_page.exists()
+    assert approve_route.exists()
+
+    detail = detail_page.read_text()
+    route = approve_route.read_text()
+    assert "Revision signal" in detail
+    assert "observed_head_sha" in detail
+    assert "contains_to_commit" in detail
+    assert "source_anchors" in detail
+    assert "/approve" in detail
+    assert "/context/proposals" in route
+    assert "/approve" in route
 
 
 def test_web_does_not_ship_agent_simulation_routes():

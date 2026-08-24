@@ -1936,3 +1936,43 @@ git diff --check
 Next:
 
 - Add Web proposal detail/review workflow so humans can inspect AI-generated proposals and approve them without calling APIs manually.
+
+### 2026-08-24: P3 Task 3 Web ContextProposal Review Workflow
+
+Scope:
+
+- Added proposal detail links from the Context state page.
+- Added a Web proposal detail page that shows proposal summary, status, expected/current stream head, target commit, accepted revision, content, source anchors and provenance.
+- Added human review form with RevisionSignal fields: expected head, observed head SHA and target commit reachability.
+- Added a Next approval route that submits to the existing FastAPI human approval API and revalidates Context pages.
+- Approval errors redirect back to the detail page with a visible error message.
+- Approved proposals hide the approval form and show accepted revision state.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_web_config.py::test_product_context_page_is_read_only_audit_view tests/integration/test_web_config.py::test_context_proposal_review_pages_are_available
+# 2 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+Browser validation with temporary SQLite database, local API :18100 and Web :13100
+# Context page showed AI-submitted PAY-318 proposal and View proposal link.
+# Proposal detail showed Human review, Revision signal, source anchor and default target commit signal.
+# Browser approval POST returned to detail page with approved status, accepted revision present and approval form hidden.
+# 390x844 mobile viewport showed proposal detail without horizontal overflow.
+
+.venv/bin/pytest
+# 182 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+git diff --check
+# passed
+```
+
+Next:
+
+- Add outbox consumer retry semantics and idempotent projection updates.

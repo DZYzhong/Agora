@@ -52,7 +52,7 @@ Browser validation
 ## Next P3 tasks
 
 - [x] Add Harness/MCP `agora_submit_context_proposal` for AI tools.
-- Add Web proposal detail and review workflow with explicit RevisionSignal display.
+- [x] Add Web proposal detail and review workflow with explicit RevisionSignal display.
 - Add outbox consumer retry semantics and idempotent projection updates.
 - Add branch-stream rules for feature branch proposals and merge reachability signals.
 
@@ -97,6 +97,47 @@ git diff --check
 
 ## Remaining P3 tasks
 
-- Add Web proposal detail and review workflow with explicit RevisionSignal display.
 - Add outbox consumer retry semantics and idempotent projection updates.
 - Add branch-stream rules for feature branch proposals and merge reachability signals.
+
+## Task 3: Web ContextProposal review workflow
+
+**Files:**
+
+- Modify: `apps/web/app/projects/[projectId]/context/page.tsx`
+- Create: `apps/web/app/projects/[projectId]/context/proposals/[proposalId]/page.tsx`
+- Create: `apps/web/app/projects/[projectId]/context/proposals/[proposalId]/approve/route.ts`
+- Modify: `apps/web/app/styles.css`
+- Test: `tests/integration/test_web_config.py`
+
+- [x] Add a proposal detail link from the Context state page.
+- [x] Add proposal detail page with summary, status, stream head, content, `source_anchors` and provenance.
+- [x] Add human review form with `Revision signal`, expected head, observed head SHA, `contains_to_commit` and comment fields.
+- [x] Add Next route that posts approval to `/projects/{project_id}/context/proposals/{proposal_id}/approve`.
+- [x] Surface approval errors back on the proposal detail page.
+- [x] Hide the approval form once a proposal is approved.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_web_config.py::test_product_context_page_is_read_only_audit_view tests/integration/test_web_config.py::test_context_proposal_review_pages_are_available
+# 2 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+Browser validation with temporary SQLite database, local API :18100 and Web :13100
+# Context page showed AI-submitted PAY-318 proposal and View proposal link.
+# Proposal detail showed Human review, Revision signal, source anchor and default target commit signal.
+# Browser approval POST returned to detail page with approved status, accepted revision present and approval form hidden.
+# 390x844 mobile viewport showed proposal detail without horizontal overflow.
+
+.venv/bin/pytest
+# 182 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+git diff --check
+# passed
+```

@@ -90,6 +90,17 @@ label {
   gap: 6px;
 }
 
+.checkbox-label {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.checkbox-label input {
+  width: auto;
+}
+
 input,
 select {
   border: 1px solid #c6ccd5;

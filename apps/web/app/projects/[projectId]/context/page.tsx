@@ -210,6 +210,11 @@ export default async function ContextStatePage({ params }: { params: Promise<{ p
                     <dd>{new Date(proposal.updated_at).toLocaleString()}</dd>
                   </div>
                 </dl>
+                <div className="actions">
+                  <Link className="button-link secondary-link" href={`/projects/${project.id}/context/proposals/${proposal.id}`}>
+                    View proposal
+                  </Link>
+                </div>
               </article>
             ))}
           </div>
