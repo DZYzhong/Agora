@@ -128,6 +128,24 @@ class HarnessService:
             raise ValueError(f"Session not found: {session_id}")
         return self.context_planner.plan(session_id=session_id, query=query or session.intent, token_budget=token_budget)
 
+    def prepare_context(
+        self,
+        *,
+        session_id: str,
+        query: str | None = None,
+        token_budget: int = 4000,
+        event_type: str = "context_prepared",
+    ):
+        session = self.core.get_session(session_id)
+        if session is None:
+            raise ValueError(f"Session not found: {session_id}")
+        return self.context_planner.prepare(
+            session_id=session_id,
+            query=query or session.intent,
+            token_budget=token_budget,
+            event_type=event_type,
+        )
+
     def record_event(self, *, session_id: str, event_type: str, payload: dict):
         return self.session_recorder.record_event(session_id=session_id, event_type=event_type, payload=payload)
 

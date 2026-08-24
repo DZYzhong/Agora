@@ -40,6 +40,19 @@ class ContextPackRead(BaseModel):
     source_refs: list[dict] = Field(default_factory=list)
 
 
+class ContextBundleRead(ContextPackRead):
+    protocol_version: str = "1.0"
+    operation: str = "prepare_context"
+    session_id: str
+    context_pack_id: str
+    intent: str
+    query: str
+    provisional: bool = True
+    freshness: dict
+    budget: dict
+    next_actions: list[dict] = Field(default_factory=list)
+
+
 class WritebackCreate(BaseModel):
     org_id: str
     project_id: str

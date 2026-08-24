@@ -205,6 +205,35 @@ def test_start_work_infers_analysis_intent_for_project_overview_request(fake_cor
     assert result.intent == "analysis"
 
 
+def test_prepare_context_returns_budgeted_provisional_context_bundle(fake_core, fake_context_engine):
+    project = fake_core.create_project(
+        org_id="org_1",
+        name="Payment",
+        slug="payment",
+        git_remotes=["git@example.com:payment.git"],
+    )
+    harness = HarnessService(core=fake_core, context_engine=fake_context_engine)
+    start = harness.start_work(
+        project_id=project.id,
+        user_message="实现退款幂等",
+        agent_type="codex",
+        principal=_principal(),
+    )
+
+    bundle = harness.prepare_context(session_id=start.session_id, query="退款幂等", token_budget=500)
+
+    assert bundle["protocol_version"] == "1.0"
+    assert bundle["operation"] == "prepare_context"
+    assert bundle["id"] == "ctx_1"
+    assert bundle["context_pack_id"] == "ctx_1"
+    assert bundle["provisional"] is True
+    assert bundle["freshness"]["repository_relation"] == "unknown"
+    assert bundle["freshness"]["context_coverage"] == "potentially_stale"
+    assert bundle["freshness"]["accepted_revision_id"] is None
+    assert bundle["budget"]["estimated_tokens"] <= 500
+    assert fake_core.events[-1]["event_type"] == "context_prepared"
+
+
 def test_start_work_uses_principal_for_work_session_identity(fake_core, fake_context_engine):
     project = fake_core.create_project(
         org_id="org_1",

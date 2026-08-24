@@ -16,6 +16,7 @@ from packages.core.models import utc_now
 from packages.core.services.runtime import CoreRuntime
 from packages.core.uow import SqlAlchemyUnitOfWork
 from packages.domain.local_workspace import LocalWorkspaceObservation
+from packages.harness.context_bundle import TokenBudgetTooSmall
 from packages.harness.service import HarnessService
 from packages.harness.memory_writeback import MemoryWritebackService
 from packages.knowledge.context_engine import ContextEngine
@@ -124,11 +125,49 @@ def plan_context(
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
-    with SqlAlchemyUnitOfWork(session) as uow:
-        _ensure_session_member(session, principal, session_id=payload.session_id)
-        context = _harness(session, keyword_index, vector_index).plan_context(**payload.model_dump())
-        response = context.__dict__
-        uow.commit()
+    try:
+        with SqlAlchemyUnitOfWork(session) as uow:
+            _ensure_session_member(session, principal, session_id=payload.session_id)
+            response = _harness(session, keyword_index, vector_index).prepare_context(
+                **payload.model_dump(),
+                event_type="context_planned",
+            )
+            response["deprecation"] = {
+                "legacy_endpoint": "/harness/plan-context",
+                "canonical_endpoint": "/harness/prepare-context",
+                "remove_after": "P2",
+            }
+            uow.commit()
+    except TokenBudgetTooSmall as exc:
+        raise _protocol_error(
+            "TOKEN_BUDGET_TOO_SMALL",
+            str(exc),
+            status_code=400,
+            next_action_type="increase_token_budget",
+        ) from exc
+    return response
+
+
+@router.post("/prepare-context")
+def prepare_context(
+    payload: PlanContextRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+    keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
+    vector_index: FakeVectorIndex = Depends(get_vector_index),
+):
+    try:
+        with SqlAlchemyUnitOfWork(session) as uow:
+            _ensure_session_member(session, principal, session_id=payload.session_id)
+            response = _harness(session, keyword_index, vector_index).prepare_context(**payload.model_dump())
+            uow.commit()
+    except TokenBudgetTooSmall as exc:
+        raise _protocol_error(
+            "TOKEN_BUDGET_TOO_SMALL",
+            str(exc),
+            status_code=400,
+            next_action_type="increase_token_budget",
+        ) from exc
     return response
 
 
@@ -370,8 +409,15 @@ def _idempotency_error(code: str, message: str) -> HTTPException:
     return _protocol_error(mapped_code, message, status_code=409, legacy_code=code)
 
 
-def _protocol_error(code: str, message: str, *, status_code: int, legacy_code: str | None = None) -> HTTPException:
-    action_type = "clarify" if code in {"PROJECT_UNRESOLVED", "WORK_ITEM_CLARIFICATION_REQUIRED"} else "retry"
+def _protocol_error(
+    code: str,
+    message: str,
+    *,
+    status_code: int,
+    legacy_code: str | None = None,
+    next_action_type: str | None = None,
+) -> HTTPException:
+    action_type = next_action_type or ("clarify" if code in {"PROJECT_UNRESOLVED", "WORK_ITEM_CLARIFICATION_REQUIRED"} else "retry")
     return HTTPException(
         status_code=status_code,
         detail={

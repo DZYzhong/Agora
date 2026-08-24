@@ -401,6 +401,9 @@ def test_plan_context_persists_context_pack_on_session_timeline(tmp_path):
         },
     ).json()
 
+    assert context["operation"] == "prepare_context"
+    assert context["deprecation"]["legacy_endpoint"] == "/harness/plan-context"
+    assert context["provisional"] is True
     sessions = client.get(f"/projects/{project['id']}/sessions").json()
     context_packs = sessions[0]["context_packs"]
     assert context_packs[0]["id"] == context["id"]
@@ -408,3 +411,85 @@ def test_plan_context_persists_context_pack_on_session_timeline(tmp_path):
     assert context_packs[0]["source_refs"][0]["chunk_id"]
     assert sessions[0]["events"][0]["event_type"] == "context_planned"
     assert sessions[0]["events"][0]["payload"]["context_pack_id"] == context["id"]
+
+
+def test_prepare_context_endpoint_returns_budgeted_provisional_bundle(tmp_path):
+    client = TestClient(app)
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "src/refund.py").write_text("Refund retry idempotency implementation.", encoding="utf-8")
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_prepare_context",
+            "name": "Prepare Context",
+            "slug": "prepare-context",
+            "git_remotes": ["git@example.com:prepare-context.git"],
+        },
+    ).json()
+    client.post(f"/projects/{project['id']}/initialize-local", json={"repo_path": str(repo)})
+    start = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "实现退款幂等",
+            "agent_type": "codex",
+        },
+    ).json()
+
+    response = client.post(
+        "/harness/prepare-context",
+        json={
+            "session_id": start["session_id"],
+            "query": "Refund retry idempotency",
+            "token_budget": 700,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["operation"] == "prepare_context"
+    assert body["protocol_version"] == "1.0"
+    assert body["id"] == body["context_pack_id"]
+    assert body["provisional"] is True
+    assert body["freshness"]["repository_relation"] == "unknown"
+    assert body["freshness"]["context_coverage"] != "fresh"
+    assert body["freshness"]["accepted_revision_id"] is None
+    assert body["freshness"]["recommended_action"] == "use_provisional_context"
+    assert body["budget"]["estimated_tokens"] <= 700
+    assert body["source_refs"]
+
+
+def test_prepare_context_endpoint_returns_token_budget_too_small():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_tiny_budget",
+            "name": "Tiny Budget",
+            "slug": "tiny-budget",
+            "git_remotes": [],
+        },
+    ).json()
+    start = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "分析项目",
+            "agent_type": "codex",
+        },
+    ).json()
+
+    response = client.post(
+        "/harness/prepare-context",
+        json={
+            "session_id": start["session_id"],
+            "query": "anything",
+            "token_budget": 5,
+        },
+    )
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["error"]["code"] == "TOKEN_BUDGET_TOO_SMALL"
+    assert detail["next_actions"][0]["type"] == "increase_token_budget"
