@@ -1826,3 +1826,38 @@ Browser validation
 Commit:
 
 - `5411a14 feat: expose p2 work state in web`
+
+### 2026-08-24: P2 Task 9 Real AI Tool Black-box Preparation
+
+Scope:
+
+- Added `scripts/prepare_p2_blackbox.py` to idempotently prepare a realistic `Payments Core` local repository for issue `PAY-241`.
+- The setup command uses production-style bearer tokens and public FastAPI project/initialization routes in-process.
+- The setup command creates project assets only; it does not precompute AI context, create WorkSessions or fake AI tool results.
+- Added Chinese black-box instructions for AI-tool operation and Web verification.
+- Added Postgres semantic tests gated by `AGORA_TEST_POSTGRES_URL`.
+- Ran a SQLite migration rehearsal against a copy of the current local `.agora/agora.db`; the live database was not mutated.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_p2_blackbox_setup.py tests/integration/test_p2_postgres.py -q
+# 1 passed, 2 skipped
+
+.venv/bin/pytest
+# 174 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+SQLite migration rehearsal
+# action=stamp_0001_and_upgrade revision=20260814_0002
+# projects/assets/task_sessions/writebacks/skills counts preserved; work_sessions backfilled from 0/missing to 43
+
+Postgres runtime verification
+# not executed locally because docker is unavailable; AGORA_TEST_POSTGRES_URL-gated tests are present.
+```
+
+Status:
+
+- P2 remains active until Postgres runtime verification and the user-confirmed real AI-tool/Web black-box pass.

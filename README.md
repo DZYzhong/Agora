@@ -37,3 +37,15 @@ npm run build
 ```bash
 .venv/bin/python scripts/run_p0_demo.py
 ```
+
+## P2 Real AI Tool Black-box
+
+```bash
+export AGORA_BOOTSTRAP_HUMAN_TOKEN=p2-local-human-token
+export AGORA_BOOTSTRAP_AGENT_TOKEN=p2-local-agent-token
+export AGORA_BOOTSTRAP_ORG_ID=local-org
+export AGORA_DATABASE_URL=sqlite+pysqlite:///.agora/p2-blackbox/agora.db
+.venv/bin/python scripts/prepare_p2_blackbox.py --root .agora/p2-blackbox --database-url "$AGORA_DATABASE_URL"
+```
+
+Follow `docs/development/p2-real-ai-tool-blackbox.zh-CN.md` for the AI-tool and Web black-box acceptance path.

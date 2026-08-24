@@ -570,7 +570,7 @@ git commit -m "feat: expose p2 work state in web"
 - Test: `tests/integration/test_p2_blackbox_setup.py`
 - Test: `tests/integration/test_p2_postgres.py`
 
-- [ ] **Step 1: Write a failing setup test**
+- [x] **Step 1: Write a failing setup test**
 
 The setup command must idempotently prepare:
 
@@ -579,11 +579,11 @@ The setup command must idempotently prepare:
 - A Project whose sanitized repository identity matches the temporary repository.
 - No precomputed AI context, Fake LLM result or fake AI-tool response.
 
-- [ ] **Step 2: Implement the idempotent black-box preparation command**
+- [x] **Step 2: Implement the idempotent black-box preparation command**
 
 The command may create local test data and configuration, but it must use the same project, auth and migration paths as production code. It must not call hidden test APIs or insert a successful Harness result directly.
 
-- [ ] **Step 3: Run the complete automated verification**
+- [x] **Step 3: Run the complete automated verification**
 
 Run:
 
@@ -594,7 +594,7 @@ cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
 
 Expected: all Python tests and Web build pass.
 
-- [ ] **Step 4: Run migration rehearsal against a copy of the current local database**
+- [x] **Step 4: Run migration rehearsal against a copy of the current local database**
 
 Back up `.agora/agora.db`, upgrade the copy to Alembic head, compare table counts and verify existing projects/assets/sessions/writebacks/skills remain queryable. Never run destructive downgrade against the user's live database.
 
@@ -611,6 +611,8 @@ AGORA_TEST_POSTGRES_URL=postgresql+psycopg://agora:agora@127.0.0.1:5432/agora .v
 
 Expected: PASS.
 
+Current local result: `docker` is not installed in this environment, so runtime Postgres verification was not executed here. `tests/integration/test_p2_postgres.py` is present and skipped unless `AGORA_TEST_POSTGRES_URL` is configured.
+
 - [ ] **Step 6: Run the real AI-tool and Web black-box internally**
 
 Start API and Web against Postgres with authentication enabled, configure the actual AI tool to use Agora MCP, open the prepared repository, and issue a realistic software task. The evidence checklist must prove every P2 exit condition:
@@ -625,9 +627,32 @@ Start API and Web against Postgres with authentication enabled, configure the ac
 - Captured MCP traffic, API logs and persisted observations contain no absolute path, Git credentials or source content from the start request.
 - Web shows the same WorkItem, WorkSession, context state and audit events without manual API use.
 
-- [ ] **Step 7: Record internal evidence and prepare user black-box**
+- [x] **Step 7: Record internal evidence and prepare user black-box**
 
 Record implementation commits, test counts, Web build, SQLite migration rehearsal, Postgres semantics, browser checks, service URLs and the exact user black-box path. Set P2 to `Awaiting user black-box`, not complete.
+
+Task 9 internal evidence:
+
+```text
+.venv/bin/pytest tests/integration/test_p2_blackbox_setup.py -q
+# 1 passed
+
+.venv/bin/pytest tests/integration/test_p2_blackbox_setup.py tests/integration/test_p2_postgres.py -q
+# 1 passed, 2 skipped
+
+.venv/bin/pytest
+# 174 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+SQLite migration rehearsal against /tmp/agora-task9-migration-rehearsal/agora-copy.db
+# action=stamp_0001_and_upgrade revision=20260814_0002
+# projects 12 -> 12, assets 351 -> 351, task_sessions 43 -> 43, work_sessions missing -> 43, writebacks 11 -> 11, skills 12 -> 12
+
+docker compose -f infra/docker-compose.yml up -d postgres
+# not executed: docker command unavailable in this environment
+```
 
 - [ ] **Step 8: Commit internal acceptance evidence**
 
