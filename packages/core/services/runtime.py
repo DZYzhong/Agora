@@ -31,6 +31,9 @@ class CoreRuntime:
     def get_work_item(self, work_item_id: str):
         return WorkRepository(self.session).get_work_item(work_item_id)
 
+    def get_work_item_by_project(self, *, project_id: str, work_item_id: str):
+        return WorkRepository(self.session).get_work_item_by_project(project_id=project_id, work_item_id=work_item_id)
+
     def get_work_item_by_external_key(self, *, project_id: str, external_key: str):
         return WorkRepository(self.session).get_work_item_by_external_key(project_id=project_id, external_key=external_key)
 
@@ -39,6 +42,9 @@ class CoreRuntime:
 
     def list_work_items_by_project(self, project_id: str):
         return WorkRepository(self.session).list_work_items_by_project(project_id)
+
+    def list_work_sessions_by_work_item(self, work_item_id: str):
+        return WorkRepository(self.session).list_work_sessions_by_work_item(work_item_id)
 
     def create_work_session(self, **kwargs):
         return WorkRepository(self.session).create_work_session(**kwargs)

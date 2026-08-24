@@ -51,18 +51,98 @@ def test_start_work_creates_listable_work_item_for_authorized_project():
 
     assert response.status_code == 200
     work_items = response.json()
-    assert work_items == [
-        {
-            "id": started["work_item_id"],
+    work_item = work_items[0]
+    assert work_item["id"] == started["work_item_id"]
+    assert work_item["project_id"] == project["id"]
+    assert work_item["external_key"] == "AG-128"
+    assert work_item["title"] == "实现支付状态流转"
+    assert work_item["status"] == "active"
+    assert work_item["stage"] == "backlog"
+    assert work_item["source"] == "manual"
+    assert work_item["session_count"] == 1
+    assert work_item["participants"] == ["auth-bypass-user"]
+    assert work_item["latest_context_state"] is None
+    assert work_item["capability_pins"] == {
+        "context_revision_id": None,
+        "workflow_version_id": None,
+        "skill_version_id": None,
+    }
+
+
+def test_work_item_detail_projects_sessions_and_latest_context_without_secrets(tmp_path):
+    client = TestClient(app)
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "src/refund.py").write_text("Refund retry idempotency implementation.", encoding="utf-8")
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_work_item_detail",
+            "name": "Work Item Detail",
+            "slug": "work-item-detail",
+            "git_remotes": ["git@example.com:work-item-detail.git"],
+        },
+    ).json()
+    client.post(f"/projects/{project['id']}/initialize-local", json={"repo_path": str(repo)})
+
+    started = client.post(
+        "/harness/start-work",
+        json={
             "project_id": project["id"],
-            "external_key": "AG-128",
-            "title": "实现支付状态流转",
-            "status": "active",
-            "stage": "backlog",
-            "source": "manual",
-            "session_count": 1,
-        }
-    ]
+            "user_message": "帮我做 AG-900：实现退款幂等",
+            "agent_type": "codex",
+        },
+    ).json()
+    context = client.post(
+        "/harness/prepare-context",
+        json={
+            "session_id": started["session_id"],
+            "query": "refund idempotency",
+            "token_budget": 900,
+        },
+    ).json()
+    client.post(
+        "/harness/close-work",
+        json={
+            "session_id": started["session_id"],
+            "status": "closed",
+            "agent_summary": "完成 AG-900 退款幂等。",
+            "test_result": "pytest tests/refund - passed",
+        },
+    )
+    list_response = client.get(f"/projects/{project['id']}/work-items")
+
+    response = client.get(f"/projects/{project['id']}/work-items/{started['work_item_id']}")
+
+    assert list_response.status_code == 200
+    listed_item = list_response.json()[0]
+    assert listed_item["participants"] == ["auth-bypass-user"]
+    assert listed_item["latest_context_state"]["context_pack_id"] == context["context_pack_id"]
+    assert listed_item["latest_context_state"]["provisional"] is True
+
+    assert response.status_code == 200
+    detail = response.json()
+    assert detail["id"] == started["work_item_id"]
+    assert detail["external_key"] == "AG-900"
+    assert detail["title"] == "实现退款幂等"
+    assert detail["participants"] == ["auth-bypass-user"]
+    assert detail["capability_pins"] == {
+        "context_revision_id": None,
+        "workflow_version_id": None,
+        "skill_version_id": None,
+    }
+    assert detail["latest_context_state"]["context_pack_id"] == context["context_pack_id"]
+    assert detail["latest_context_state"]["provisional"] is True
+    assert detail["latest_context_state"]["freshness"]["context_coverage"] != "fresh"
+    assert detail["latest_context_state"]["budget"]["estimated_tokens"] <= 900
+    assert detail["sessions"][0]["id"] == started["session_id"]
+    assert detail["sessions"][0]["status"] == "closed"
+    assert detail["sessions"][0]["work_item"]["id"] == started["work_item_id"]
+
+    encoded = response.text
+    assert "credential" not in encoded
+    assert str(repo) not in encoded
+    assert "repo_path" not in encoded
 
 
 def test_work_items_are_scoped_to_project_membership(monkeypatch):

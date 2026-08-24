@@ -509,21 +509,48 @@ git commit -m "feat: publish canonical p2 harness protocol"
 - Test: `tests/integration/api/test_work_items_api.py`
 - Test: `tests/integration/test_web_config.py`
 
-- [ ] **Step 1: Add failing API projection assertions for Web data**
+- [x] **Step 1: Add failing API projection assertions for Web data**
 
 Assert WorkItem list/detail provides title, external key, status, participants, WorkSessions, latest context state and nullable capability pins without exposing credentials or local paths.
 
-- [ ] **Step 2: Implement quiet operational Web views**
+- [x] **Step 2: Implement quiet operational Web views**
 
 Add a WorkItems list and detail view. Reuse the established restrained layout; do not rebuild the prototype as a marketing page. Replace the product Context Tester execution form with a read-only ContextBundle and context-state audit view that labels P1 material as provisional. Any retained administrator diagnostic action must be access-controlled, explicitly non-product, absent from normal navigation and excluded from black-box acceptance. Session pages link back to their WorkItem.
 
-- [ ] **Step 3: Build and inspect desktop/mobile rendering**
+- [x] **Step 3: Build and inspect desktop/mobile rendering**
 
 Run: `cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build`
 
 Expected: PASS with no route/type errors.
 
 Use browser validation at desktop and 390×844 widths. Expected: no unstyled page, overlap, horizontal overflow, leaked token or leaked local path.
+
+Completed implementation notes:
+
+- WorkItem list and detail now use the same safe projection for participants, latest context state and nullable P2 capability pins.
+- Web now has project-scoped WorkItems list/detail pages plus Session-to-WorkItem links.
+- The normal Context page is a read-only context-state audit page; it no longer starts work, runs `plan-context`, or exposes the old Context Tester.
+- Removed Web agent-simulation routes for context submit and development capture from the product route tree.
+- Browser validation used production-style local services with human/agent bearer tokens, not `AGORA_TEST_AUTH_BYPASS`.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_work_items_api.py tests/integration/test_web_config.py -q
+# 10 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+.venv/bin/pytest
+# 173 passed
+
+Browser validation
+# API on 127.0.0.1:8012 with AGORA_BOOTSTRAP_HUMAN_TOKEN/AGORA_BOOTSTRAP_AGENT_TOKEN
+# Web on 127.0.0.1:3002 with AGORA_WEB_HUMAN_TOKEN
+# Checked project home, WorkItems list, WorkItem detail and Context state at 1440x900 and 390x844.
+# No Context Tester/Run context query/agent simulation text, no horizontal overflow, and styled page shell loaded.
+```
 
 - [ ] **Step 4: Commit**
 

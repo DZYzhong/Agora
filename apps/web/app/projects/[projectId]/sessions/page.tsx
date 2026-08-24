@@ -161,6 +161,11 @@ export default async function SessionsPage({
             </dl>
             <div className="actions">
               <Link className="button-link" href={`/projects/${projectId}/sessions/${session.id}`}>View audit</Link>
+              {session.work_item ? (
+                <Link className="button-link secondary-link" href={`/projects/${projectId}/work-items/${session.work_item.id}`}>
+                  View work item
+                </Link>
+              ) : null}
             </div>
           </article>
         ))}

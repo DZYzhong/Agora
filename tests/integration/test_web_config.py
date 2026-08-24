@@ -27,3 +27,28 @@ def test_session_pages_render_work_item_details():
     assert "Work item" in list_page
     assert "work_item" in detail_page
     assert "Work item" in detail_page
+
+
+def test_product_context_page_is_read_only_audit_view():
+    context_page = Path("apps/web/app/projects/[projectId]/context/page.tsx").read_text()
+
+    assert "Context state" in context_page
+    assert "Context Tester" not in context_page
+    assert "Run context query" not in context_page
+    assert "/harness/plan-context" not in context_page
+    assert "/harness/start-work" not in context_page
+
+
+def test_web_does_not_ship_agent_simulation_routes():
+    assert not Path("apps/web/app/projects/[projectId]/context/submit/route.ts").exists()
+    assert not Path("apps/web/app/projects/[projectId]/development-capture/route.ts").exists()
+
+
+def test_work_item_pages_are_available_and_linked_from_project_home():
+    list_page = Path("apps/web/app/projects/[projectId]/work-items/page.tsx")
+    detail_page = Path("apps/web/app/projects/[projectId]/work-items/[workItemId]/page.tsx")
+    project_page = Path("apps/web/app/projects/[projectId]/page.tsx").read_text()
+
+    assert list_page.exists()
+    assert detail_page.exists()
+    assert "/work-items" in project_page

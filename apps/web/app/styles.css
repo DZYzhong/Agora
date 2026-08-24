@@ -24,7 +24,16 @@ a {
 }
 
 .brand {
+  align-items: baseline;
+  display: inline-flex;
   font-size: 18px;
+  font-weight: 700;
+  gap: 8px;
+}
+
+.brand span {
+  color: #5f6b7a;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -119,6 +128,10 @@ button {
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 14px;
+}
+
+.flush-actions {
+  margin-top: 0;
 }
 
 .button-link {
@@ -309,6 +322,52 @@ button {
   border-radius: 8px;
   margin-top: 20px;
   overflow: hidden;
+}
+
+.work-table {
+  background: #ffffff;
+  border: 1px solid #dde1e7;
+  border-radius: 8px;
+  margin-top: 20px;
+  overflow: hidden;
+}
+
+.work-row {
+  align-items: start;
+  border-top: 1px solid #edf0f4;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1.5fr) 120px 90px minmax(0, 1.2fr) minmax(0, 1fr);
+  padding: 14px 16px;
+}
+
+.work-row:first-child {
+  border-top: 0;
+}
+
+.work-row strong {
+  color: #171717;
+  display: block;
+  font-size: 14px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.work-row small {
+  color: #5f6b7a;
+  display: block;
+  font-size: 12px;
+  line-height: 1.4;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.work-header {
+  background: #f8fafc;
+  color: #5f6b7a;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .context-result {
@@ -604,11 +663,31 @@ button {
 }
 
 @media (max-width: 760px) {
+  .page {
+    padding: 24px 14px;
+  }
+
+  .page-header {
+    display: grid;
+  }
+
+  .nav {
+    padding: 0 14px;
+  }
+
+  .brand span {
+    display: none;
+  }
+
   .asset-row {
     grid-template-columns: 1fr;
   }
 
   .source-row {
+    grid-template-columns: 1fr;
+  }
+
+  .work-row {
     grid-template-columns: 1fr;
   }
 
@@ -618,5 +697,17 @@ button {
 
   .source-header {
     display: none;
+  }
+
+  .work-header {
+    display: none;
+  }
+
+  .history-row {
+    grid-template-columns: 1fr;
+  }
+
+  .session-header {
+    display: grid;
   }
 }

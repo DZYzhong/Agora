@@ -91,6 +91,10 @@ class WorkRepository:
     def get_work_item(self, work_item_id: str) -> WorkItemModel | None:
         return self.session.get(WorkItemModel, work_item_id)
 
+    def get_work_item_by_project(self, *, project_id: str, work_item_id: str) -> WorkItemModel | None:
+        statement = select(WorkItemModel).where(WorkItemModel.project_id == project_id, WorkItemModel.id == work_item_id)
+        return self.session.scalars(statement).first()
+
     def get_work_item_by_external_key(self, *, project_id: str, external_key: str) -> WorkItemModel | None:
         statement = select(WorkItemModel).where(
             WorkItemModel.project_id == project_id,
@@ -181,6 +185,18 @@ class WorkRepository:
             statement = statement.where(WorkSessionModel.intent == intent)
         if status:
             statement = statement.where(WorkSessionModel.status == status)
+        return [
+            WorkSessionView(session=work_session, work_item=work_item)
+            for work_session, work_item in self.session.execute(statement).all()
+        ]
+
+    def list_work_sessions_by_work_item(self, work_item_id: str) -> list[WorkSessionView]:
+        statement = (
+            select(WorkSessionModel, WorkItemModel)
+            .join(WorkItemModel, WorkItemModel.id == WorkSessionModel.work_item_id)
+            .where(WorkSessionModel.work_item_id == work_item_id)
+            .order_by(WorkSessionModel.created_at.desc())
+        )
         return [
             WorkSessionView(session=work_session, work_item=work_item)
             for work_session, work_item in self.session.execute(statement).all()

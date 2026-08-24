@@ -121,7 +121,14 @@ export default async function SessionAuditPage({
           <h1>Session audit</h1>
           <p className="muted">Project {projectId}</p>
         </div>
-        <Link className="button-link secondary-link" href={`/projects/${projectId}/sessions`}>Back to sessions</Link>
+        <div className="actions flush-actions">
+          {audit.work_item ? (
+            <Link className="button-link secondary-link" href={`/projects/${projectId}/work-items/${audit.work_item.id}`}>
+              View work item
+            </Link>
+          ) : null}
+          <Link className="button-link secondary-link" href={`/projects/${projectId}/sessions`}>Back to sessions</Link>
+        </div>
       </div>
       <section className="panel">
         <div className="session-header">

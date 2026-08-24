@@ -1792,3 +1792,37 @@ git diff --check
 Commit:
 
 - `9f2512a feat: publish canonical p2 harness tools`
+
+### 2026-08-24: P2 Task 8 Web Visibility for Work and Context State
+
+Scope:
+
+- Added safe WorkItem list/detail API projections for Web, including participants, latest context state, WorkSessions and nullable P2 capability pins.
+- Added WorkItems list and WorkItem detail pages under each project.
+- Linked Session list/detail pages back to their WorkItem.
+- Changed the product Context page from an execution tester into a read-only context-state audit view.
+- Removed Web-side agent simulation routes for context submit and development capture from the product route tree.
+- Updated restrained operational styling for WorkItem tables, mobile layout and navigation.
+- Preserved the product boundary: Web visualizes project state; AI tools use the canonical Harness to start work, prepare context, fetch context refs and close work.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_work_items_api.py tests/integration/test_web_config.py -q
+# 10 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+.venv/bin/pytest
+# 173 passed
+
+Browser validation
+# Production-style local API/Web services with human/agent bearer tokens, no AGORA_TEST_AUTH_BYPASS.
+# Verified project home, WorkItems list, WorkItem detail and Context state at 1440x900 and 390x844.
+# No hidden Context Tester text, no Web agent-simulation entry, no horizontal overflow, and styled shell loaded.
+```
+
+Commit:
+
+- Pending local commit for Task 8.
