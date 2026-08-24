@@ -654,7 +654,7 @@ docker compose -f infra/docker-compose.yml up -d postgres
 # not executed: docker command unavailable in this environment
 ```
 
-- [ ] **Step 8: Commit internal acceptance evidence**
+- [x] **Step 8: Commit internal acceptance evidence**
 
 ```bash
 git add scripts/prepare_p2_blackbox.py docs README.md tests/integration/test_p2_blackbox_setup.py tests/integration/test_p2_postgres.py

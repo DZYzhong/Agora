@@ -1861,3 +1861,7 @@ Postgres runtime verification
 Status:
 
 - P2 remains active until Postgres runtime verification and the user-confirmed real AI-tool/Web black-box pass.
+
+Commit:
+
+- `85b54f0 docs: prepare p2 real ai tool acceptance`
