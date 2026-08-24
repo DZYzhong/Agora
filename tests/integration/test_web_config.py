@@ -33,6 +33,8 @@ def test_product_context_page_is_read_only_audit_view():
     context_page = Path("apps/web/app/projects/[projectId]/context/page.tsx").read_text()
 
     assert "Context state" in context_page
+    assert "Context streams" in context_page
+    assert "Context proposals" in context_page
     assert "Context Tester" not in context_page
     assert "Run context query" not in context_page
     assert "/harness/plan-context" not in context_page

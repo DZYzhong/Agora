@@ -259,3 +259,96 @@ class IdempotencyRecordModel(Base):
     replay_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+
+class ContextStreamModel(Base):
+    __tablename__ = "context_streams"
+    __table_args__ = (
+        UniqueConstraint("project_id", "name", "branch", name="uq_context_streams_project_name_branch"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    org_id: Mapped[str] = mapped_column(String, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    name: Mapped[str] = mapped_column(String)
+    branch: Mapped[str] = mapped_column(String)
+    repository_identity: Mapped[dict] = mapped_column(JSON, default=dict)
+    head_revision_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, default="active", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+
+class ContextRevisionModel(Base):
+    __tablename__ = "context_revisions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    org_id: Mapped[str] = mapped_column(String, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    stream_id: Mapped[str] = mapped_column(ForeignKey("context_streams.id"), index=True)
+    schema_version: Mapped[str] = mapped_column(String, default="context-revision/v1")
+    parent_revision_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    commit_sha: Mapped[str | None] = mapped_column(String, nullable=True)
+    content: Mapped[dict] = mapped_column(JSON, default=dict)
+    source_anchors: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    provenance: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class ContextProposalModel(Base):
+    __tablename__ = "context_proposals"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    org_id: Mapped[str] = mapped_column(String, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    stream_id: Mapped[str] = mapped_column(ForeignKey("context_streams.id"), index=True)
+    work_item_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    session_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    type: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, default="submitted", index=True)
+    title: Mapped[str] = mapped_column(String)
+    summary: Mapped[str] = mapped_column(Text)
+    content: Mapped[dict] = mapped_column(JSON, default=dict)
+    source_anchors: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    provenance: Mapped[dict] = mapped_column(JSON, default=dict)
+    target_branch: Mapped[str] = mapped_column(String)
+    expected_head_revision_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    from_commit_sha: Mapped[str | None] = mapped_column(String, nullable=True)
+    to_commit_sha: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    reviewed_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    review_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    accepted_revision_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+
+class ApprovalDecisionModel(Base):
+    __tablename__ = "approval_decisions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    org_id: Mapped[str] = mapped_column(String, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    proposal_id: Mapped[str] = mapped_column(ForeignKey("context_proposals.id"), index=True)
+    decision: Mapped[str] = mapped_column(String)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decided_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class OutboxEventModel(Base):
+    __tablename__ = "outbox_events"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_outbox_events_idempotency_key"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    org_id: Mapped[str] = mapped_column(String, index=True)
+    aggregate_type: Mapped[str] = mapped_column(String)
+    aggregate_id: Mapped[str] = mapped_column(String)
+    type: Mapped[str] = mapped_column(String, index=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String, default="pending", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    idempotency_key: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)

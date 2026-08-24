@@ -10,12 +10,21 @@ class ContextPlanner:
         return self._plan_context_pack(session_id=session_id, query=query, token_budget=token_budget)
 
     def prepare(self, *, session_id: str, query: str, token_budget: int = 4000, event_type: str = "context_prepared"):
+        session = self.core.get_session(session_id)
+        if session is None:
+            raise ValueError(f"Session not found: {session_id}")
+        accepted_revision = (
+            self.core.get_head_context_revision_for_project(project_id=session.project_id)
+            if hasattr(self.core, "get_head_context_revision_for_project")
+            else None
+        )
         context = self._plan_context_pack(session_id=session_id, query=query, token_budget=token_budget, record_event=False)
         bundle = build_context_bundle(
             session_id=session_id,
             query=query,
             token_budget=token_budget,
             context_pack=context,
+            accepted_revision=accepted_revision,
         )
         if hasattr(self.core, "record_event"):
             self.core.record_event(
@@ -27,6 +36,7 @@ class ContextPlanner:
                     "source_count": len(context.source_refs),
                     "budget": bundle["budget"],
                     "freshness": bundle["freshness"],
+                    "capability_pins": bundle.get("capability_pins", {}),
                 },
             )
         return bundle

@@ -5,6 +5,7 @@ from sqlalchemy.orm import sessionmaker
 
 from apps.api.routers.harness import router as harness_router
 from apps.api.routers.health import router as health_router
+from apps.api.routers.context_governance import router as context_governance_router
 from apps.api.routers.projects import router as projects_router
 from apps.api.routers.assets import router as assets_router
 from apps.api.routers.sessions import router as sessions_router
@@ -43,5 +44,6 @@ app.include_router(assets_router)
 app.include_router(harness_router)
 app.include_router(sessions_router)
 app.include_router(skills_router)
+app.include_router(context_governance_router)
 app.include_router(work_items_router)
 app.include_router(writebacks_router)

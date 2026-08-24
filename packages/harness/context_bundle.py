@@ -13,8 +13,10 @@ def build_context_bundle(
     query: str,
     token_budget: int,
     context_pack,
+    accepted_revision=None,
 ) -> dict[str, Any]:
     has_sources = bool(context_pack.source_refs)
+    accepted_revision_id = accepted_revision.id if accepted_revision is not None else None
     payload = {
         "protocol_version": PROTOCOL_VERSION,
         "operation": "prepare_context",
@@ -26,15 +28,22 @@ def build_context_bundle(
         "level": context_pack.level,
         "intent": context_pack.intent,
         "query": query,
-        "provisional": True,
+        "provisional": accepted_revision is None,
         "freshness": {
-            "repository_relation": "unknown",
+            "repository_relation": "same_project" if accepted_revision is not None else "unknown",
             "workspace_state": "unknown",
-            "context_coverage": "potentially_stale" if has_sources else "missing",
+            "context_coverage": "fresh" if accepted_revision is not None else "potentially_stale" if has_sources else "missing",
             "proposal_state": "none",
-            "accepted_revision_id": None,
-            "observed_commit_sha": None,
-            "recommended_action": "use_provisional_context" if has_sources else "analyze_local_project",
+            "accepted_revision_id": accepted_revision_id,
+            "observed_commit_sha": accepted_revision.commit_sha if accepted_revision is not None else None,
+            "recommended_action": "use_accepted_context"
+            if accepted_revision is not None
+            else "use_provisional_context" if has_sources else "analyze_local_project",
+        },
+        "capability_pins": {
+            "context_revision_id": accepted_revision_id,
+            "workflow_version_id": None,
+            "skill_version_id": None,
         },
         "summary": context_pack.summary,
         "key_facts": list(context_pack.key_facts),
@@ -43,7 +52,9 @@ def build_context_bundle(
         "next_actions": [
             {
                 "type": "fetch_context_ref" if has_sources else "analyze_local_project",
-                "reason": "Use provisional project context pending accepted ContextRevision."
+                "reason": "Use accepted team ContextRevision."
+                if accepted_revision is not None
+                else "Use provisional project context pending accepted ContextRevision."
                 if has_sources
                 else "No reusable Agora context exists for this request.",
             }

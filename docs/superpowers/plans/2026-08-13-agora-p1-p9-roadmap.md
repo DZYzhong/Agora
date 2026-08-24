@@ -1865,3 +1865,39 @@ Status:
 Commit:
 
 - `85b54f0 docs: prepare p2 real ai tool acceptance`
+
+### 2026-08-24: P3 Task 1 Context Governance Foundation
+
+Scope:
+
+- Added current P3 implementation plan for Context Governance.
+- Added `context_streams`, `context_revisions`, `context_proposals`, `approval_decisions` and `outbox_events`.
+- Added project context governance API under `/projects/{project_id}/context`.
+- AI/agent credentials can submit ContextProposal as reviewable candidate state; this does not directly create accepted context.
+- Human approval uses expected stream head and RevisionSignal evidence to create immutable ContextRevision, update stream head and emit `context_head_changed` outbox in one transaction.
+- Stale proposal acceptance returns 409 and marks the proposal `needs_rebase`.
+- `agora_prepare_context` now returns `fresh` coverage and pins `context_revision_id` when an accepted head revision exists; otherwise P2 provisional behavior remains.
+- Web Context state page now shows ContextStreams and ContextProposals as read-only governance state.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_context_governance_api.py tests/integration/test_p3_context_governance_migration.py -q
+# 3 passed
+
+.venv/bin/pytest tests/integration/api/test_context_governance_api.py tests/unit/harness/test_context_bundle.py tests/unit/harness/test_harness_service.py tests/integration/api/test_harness_api.py -q
+# 28 passed
+
+.venv/bin/pytest
+# 178 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+Browser validation
+# 1440x900 and 390x844 Context page checks passed; streams/proposals visible, no old tester entry, no horizontal overflow.
+```
+
+Next:
+
+- Add canonical Harness/MCP proposal upload path so AI tools can submit ContextProposal without using project Web/API routes directly.

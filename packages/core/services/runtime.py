@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from packages.core.repositories.assets import AssetRepository
+from packages.core.repositories.context_governance import ContextGovernanceRepository
 from packages.core.repositories.context_packs import ContextPackRepository
 from packages.core.repositories.projects import ProjectRepository
 from packages.core.repositories.sessions import TaskSessionRepository
@@ -83,6 +84,36 @@ class CoreRuntime:
 
     def list_context_packs_by_ids(self, context_pack_ids: list[str]):
         return ContextPackRepository(self.session).list_by_ids(context_pack_ids)
+
+    def ensure_context_stream(self, **kwargs):
+        return ContextGovernanceRepository(self.session).ensure_stream(**kwargs)
+
+    def get_context_stream(self, stream_id: str):
+        return ContextGovernanceRepository(self.session).get_stream(stream_id)
+
+    def list_context_streams_by_project(self, project_id: str):
+        return ContextGovernanceRepository(self.session).list_streams_by_project(project_id)
+
+    def get_head_context_revision_for_project(self, *, project_id: str, branch: str | None = None):
+        return ContextGovernanceRepository(self.session).get_head_revision_for_project(project_id=project_id, branch=branch)
+
+    def create_context_proposal(self, **kwargs):
+        return ContextGovernanceRepository(self.session).create_proposal(**kwargs)
+
+    def get_context_proposal(self, proposal_id: str):
+        return ContextGovernanceRepository(self.session).get_proposal(proposal_id)
+
+    def list_context_proposals_by_project(self, project_id: str):
+        return ContextGovernanceRepository(self.session).list_proposals_by_project(project_id)
+
+    def create_context_revision(self, **kwargs):
+        return ContextGovernanceRepository(self.session).create_revision(**kwargs)
+
+    def create_approval_decision(self, **kwargs):
+        return ContextGovernanceRepository(self.session).create_approval_decision(**kwargs)
+
+    def create_outbox_event(self, **kwargs):
+        return ContextGovernanceRepository(self.session).create_outbox_event(**kwargs)
 
     def create_skill(self, **kwargs):
         return SkillRepository(self.session).create(**kwargs)

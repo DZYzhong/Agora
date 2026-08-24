@@ -40,6 +40,27 @@ type WorkItem = {
   latest_context_state: ContextState | null;
 };
 
+type ContextStream = {
+  id: string;
+  name: string;
+  branch: string;
+  head_revision_id: string | null;
+  status: string;
+  updated_at: string;
+};
+
+type ContextProposal = {
+  id: string;
+  type: string;
+  status: string;
+  title: string;
+  summary: string;
+  target_branch: string;
+  expected_head_revision_id: string | null;
+  accepted_revision_id: string | null;
+  updated_at: string;
+};
+
 function healthLabel(state: ContextState | null): string {
   if (!state) return "missing";
   return state.provisional ? "provisional" : "accepted";
@@ -49,10 +70,21 @@ export default async function ContextStatePage({ params }: { params: Promise<{ p
   const { projectId } = await params;
   const project = await apiGet<Project>(`/projects/${projectId}`);
   let workItems: WorkItem[] = [];
+  let streams: ContextStream[] = [];
+  let proposals: ContextProposal[] = [];
   try {
     workItems = await apiGet<WorkItem[]>(`/projects/${projectId}/work-items`);
   } catch {
     workItems = [];
+  }
+  try {
+    [streams, proposals] = await Promise.all([
+      apiGet<ContextStream[]>(`/projects/${projectId}/context/streams`),
+      apiGet<ContextProposal[]>(`/projects/${projectId}/context/proposals`),
+    ]);
+  } catch {
+    streams = [];
+    proposals = [];
   }
   const withContext = workItems.filter((item) => item.latest_context_state);
   const latest = withContext
@@ -126,6 +158,64 @@ export default async function ContextStatePage({ params }: { params: Promise<{ p
             </Link>
           );
         })}
+      </section>
+
+      <section className="panel">
+        <h2>Context streams</h2>
+        {streams.length ? (
+          <div className="event-list">
+            {streams.map((stream) => (
+              <article className="event-row" key={stream.id}>
+                <div className="session-header">
+                  <div>
+                    <strong>{stream.name} · {stream.branch}</strong>
+                    <p className="asset-uri">{stream.head_revision_id ?? "No accepted head"}</p>
+                  </div>
+                  <span className="asset-type">{stream.status}</span>
+                </div>
+                <p className="muted">Updated {new Date(stream.updated_at).toLocaleString()}</p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">No ContextStream exists yet. An AI tool can submit an initial ContextProposal for review.</p>
+        )}
+      </section>
+
+      <section className="panel">
+        <h2>Context proposals</h2>
+        {proposals.length ? (
+          <div className="event-list">
+            {proposals.map((proposal) => (
+              <article className="event-row" key={proposal.id}>
+                <div className="session-header">
+                  <div>
+                    <strong>{proposal.title}</strong>
+                    <p className="asset-uri">{proposal.type} · {proposal.target_branch}</p>
+                  </div>
+                  <span className="asset-type">{proposal.status}</span>
+                </div>
+                <p>{proposal.summary}</p>
+                <dl className="status-metrics">
+                  <div>
+                    <dt>Expected head</dt>
+                    <dd>{proposal.expected_head_revision_id ?? "None"}</dd>
+                  </div>
+                  <div>
+                    <dt>Accepted revision</dt>
+                    <dd>{proposal.accepted_revision_id ?? "Not accepted"}</dd>
+                  </div>
+                  <div>
+                    <dt>Updated</dt>
+                    <dd>{new Date(proposal.updated_at).toLocaleString()}</dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">No ContextProposal has been uploaded for review.</p>
+        )}
       </section>
 
       {workItems.length === 0 ? (
