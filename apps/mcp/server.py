@@ -44,8 +44,8 @@ TOOLS = [
         ["user_message", "agent_type"],
     ),
     _tool(
-        "agora_plan_context",
-        "Retrieve a compressed, traceable project context pack for the current work session.",
+        "agora_prepare_context",
+        "Prepare a budgeted, traceable ContextBundle for the current work session.",
         {
             "session_id": {"type": "string"},
             "query": {"type": "string"},
@@ -55,35 +55,13 @@ TOOLS = [
     ),
     _tool(
         "agora_fetch_context_ref",
-        "Fetch the full content for a source reference returned by agora_plan_context.",
+        "Fetch the full content for a source reference returned by agora_prepare_context.",
         {
             "session_id": {"type": "string"},
             "asset_id": {"type": "string", "description": "The asset_id from a ContextPack source_refs item."},
             "max_tokens": {"type": "integer", "default": 2000},
         },
         ["session_id", "asset_id"],
-    ),
-    _tool(
-        "agora_record_event",
-        "Record an AI work event into Agora.",
-        {
-            "session_id": {"type": "string"},
-            "event_type": {"type": "string"},
-            "payload": {"type": "object"},
-        },
-        ["session_id", "event_type", "payload"],
-    ),
-    _tool(
-        "agora_prepare_writeback",
-        "Prepare AI-generated project knowledge for human review.",
-        {
-            "session_id": {"type": "string"},
-            "type": {"type": "string", "default": "development_summary"},
-            "title": {"type": "string"},
-            "content": {"type": "string"},
-            "asset_refs": {"type": "array", "items": {"type": "string"}},
-        },
-        ["session_id", "type", "title", "content"],
     ),
     _tool(
         "agora_close_work",
@@ -98,16 +76,6 @@ TOOLS = [
             "test_result": {"type": "string", "description": "Tests or checks run by the agent."},
         },
         ["session_id"],
-    ),
-    _tool(
-        "agora_search_knowledge",
-        "Search Agora project knowledge through the current session context planner.",
-        {
-            "session_id": {"type": "string"},
-            "query": {"type": "string"},
-            "token_budget": {"type": "integer", "default": 4000},
-        },
-        ["session_id", "query"],
     ),
 ]
 
@@ -149,8 +117,17 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                 "agent_type": arguments.get("agent_type", "codex"),
             },
         )
-    if name == "agora_plan_context":
+    if name == "agora_prepare_context":
         return await _post(
+            "/harness/prepare-context",
+            {
+                "session_id": arguments["session_id"],
+                "query": arguments.get("query"),
+                "token_budget": arguments.get("token_budget", 4000),
+            },
+        )
+    if name == "agora_plan_context":
+        result = await _post(
             "/harness/plan-context",
             {
                 "session_id": arguments["session_id"],
@@ -158,6 +135,7 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                 "token_budget": arguments.get("token_budget", 4000),
             },
         )
+        return _with_tool_deprecation(result, legacy_tool=name, canonical_tool="agora_prepare_context")
     if name == "agora_fetch_context_ref":
         return await _post(
             "/harness/fetch-context-ref",
@@ -168,7 +146,7 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
             },
         )
     if name == "agora_record_event":
-        return await _post(
+        result = await _post(
             "/harness/record-event",
             {
                 "session_id": arguments["session_id"],
@@ -176,8 +154,9 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                 "payload": arguments["payload"],
             },
         )
+        return _with_tool_deprecation(result, legacy_tool=name, canonical_tool=None)
     if name == "agora_prepare_writeback":
-        return await _post(
+        result = await _post(
             "/harness/prepare-writeback",
             {
                 "session_id": arguments["session_id"],
@@ -187,6 +166,7 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                 "asset_refs": arguments.get("asset_refs", []),
             },
         )
+        return _with_tool_deprecation(result, legacy_tool=name, canonical_tool=None)
     if name == "agora_close_work":
         return await _post(
             "/harness/close-work",
@@ -201,7 +181,7 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
             },
         )
     if name == "agora_search_knowledge":
-        return await _post(
+        result = await _post(
             "/harness/plan-context",
             {
                 "session_id": arguments["session_id"],
@@ -209,7 +189,22 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                 "token_budget": arguments.get("token_budget", 4000),
             },
         )
+        return _with_tool_deprecation(result, legacy_tool=name, canonical_tool="agora_prepare_context")
     raise ValueError(f"Unknown tool: {name}")
+
+
+def _with_tool_deprecation(result: dict[str, Any], *, legacy_tool: str, canonical_tool: str | None) -> dict[str, Any]:
+    deprecation = {
+        "legacy_tool": legacy_tool,
+        "canonical_tool": canonical_tool,
+        "remove_after": "P2",
+    }
+    existing = result.get("deprecation")
+    if isinstance(existing, dict):
+        result["deprecation"] = {**existing, **deprecation}
+    else:
+        result["deprecation"] = deprecation
+    return result
 
 
 async def run() -> None:

@@ -684,6 +684,24 @@ agora_get_quality_status
 
 项目解析和 freshness check 是 `agora_start_work` / `agora_prepare_context` 的内部步骤，不要求开发者或 AI 工具手工串联多个底层调用。
 
+P2 当前广告的 MCP 子集只包含：
+
+```text
+agora_start_work
+agora_prepare_context
+agora_fetch_context_ref
+agora_close_work
+```
+
+兼容映射：
+
+| Legacy tool / endpoint | P2 canonical target | Error mapping | Deprecation marker | Removal target |
+| --- | --- | --- | --- | --- |
+| `agora_plan_context` / `/harness/plan-context` | `agora_prepare_context` / `/harness/prepare-context` | `TOKEN_BUDGET_TOO_SMALL` | `deprecation.legacy_tool`, `deprecation.legacy_endpoint` | after P2 |
+| `agora_record_event` | not advertised; use workflow/evidence tools in P4 | stable Harness `error.code` when rejected | `deprecation.legacy_tool` | after P2 |
+| `agora_prepare_writeback` | not advertised; proposal submission in P3/P5 | stable Harness `error.code` when rejected | `deprecation.legacy_tool` | after P2 |
+| `agora_search_knowledge` | `agora_prepare_context` | `TOKEN_BUDGET_TOO_SMALL` | `deprecation.legacy_tool` | after P2 |
+
 ## 14.3 start_work
 
 输入不包含服务端可用的本地绝对路径：

@@ -27,6 +27,10 @@ class FakeHarness:
         self.closed_with = kwargs
         return {"session_id": kwargs["session_id"], "status": kwargs.get("status", "closed"), "writeback": {"id": "wb_1"}}
 
+    def prepare_context(self, **kwargs):
+        self.prepared_with = kwargs
+        return {"operation": "prepare_context", "session_id": kwargs["session_id"], "budget": {"estimated_tokens": 100}}
+
     def fetch_context_ref(self, **kwargs):
         self.fetched_with = kwargs
         return {
@@ -91,4 +95,18 @@ def test_mcp_fetch_context_ref_delegates_to_harness():
         "session_id": "sess_1",
         "asset_id": "asset_1",
         "max_tokens": 100,
+    }
+
+
+def test_mcp_prepare_context_delegates_to_harness():
+    fake_harness = FakeHarness()
+    tools = AgoraMcpTools(harness=fake_harness)
+
+    result = tools.agora_prepare_context(session_id="sess_1", query="refund retry", token_budget=800)
+
+    assert result["operation"] == "prepare_context"
+    assert fake_harness.prepared_with == {
+        "session_id": "sess_1",
+        "query": "refund retry",
+        "token_budget": 800,
     }

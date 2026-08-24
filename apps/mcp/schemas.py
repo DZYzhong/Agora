@@ -17,6 +17,10 @@ class PlanContextInput(BaseModel):
     token_budget: int = 4000
 
 
+class PrepareContextInput(PlanContextInput):
+    pass
+
+
 class RunSkillInput(BaseModel):
     session_id: str
     skill_slug: str

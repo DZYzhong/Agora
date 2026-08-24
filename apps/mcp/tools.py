@@ -26,9 +26,13 @@ class AgoraMcpTools:
         result = self.harness.plan_context(session_id=session_id, query=query, token_budget=token_budget)
         return _object_to_dict(result)
 
+    def agora_prepare_context(self, *, session_id: str, query: str | None = None, token_budget: int = 4000) -> dict:
+        result = self.harness.prepare_context(session_id=session_id, query=query, token_budget=token_budget)
+        return _object_to_dict(result)
+
     def agora_fetch_context_ref(self, *, session_id: str, asset_id: str, max_tokens: int = 2000) -> dict:
         if not hasattr(self.harness, "fetch_context_ref"):
-            return {"session_id": session_id, "asset_id": asset_id, "max_tokens": max_tokens, "status": "not_implemented"}
+            raise NotImplementedError("Harness does not implement fetch_context_ref")
         return _object_to_dict(self.harness.fetch_context_ref(session_id=session_id, asset_id=asset_id, max_tokens=max_tokens))
 
     def agora_run_skill(self, *, session_id: str, skill_slug: str, input: dict) -> dict:
