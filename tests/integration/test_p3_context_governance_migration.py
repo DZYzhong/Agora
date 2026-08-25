@@ -22,3 +22,5 @@ def test_p3_context_governance_tables_are_created(tmp_path):
         "approval_decisions",
         "outbox_events",
     } <= set(inspector.get_table_names())
+    outbox_columns = {column["name"] for column in inspector.get_columns("outbox_events")}
+    assert "last_error" in outbox_columns

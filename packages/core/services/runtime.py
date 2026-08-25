@@ -109,6 +109,9 @@ class CoreRuntime:
     def create_context_revision(self, **kwargs):
         return ContextGovernanceRepository(self.session).create_revision(**kwargs)
 
+    def get_context_revision(self, revision_id: str):
+        return ContextGovernanceRepository(self.session).get_revision(revision_id)
+
     def create_approval_decision(self, **kwargs):
         return ContextGovernanceRepository(self.session).create_approval_decision(**kwargs)
 

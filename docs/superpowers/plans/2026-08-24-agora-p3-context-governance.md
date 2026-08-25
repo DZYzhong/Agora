@@ -53,7 +53,7 @@ Browser validation
 
 - [x] Add Harness/MCP `agora_submit_context_proposal` for AI tools.
 - [x] Add Web proposal detail and review workflow with explicit RevisionSignal display.
-- Add outbox consumer retry semantics and idempotent projection updates.
+- [x] Add outbox consumer retry semantics and idempotent projection updates.
 - Add branch-stream rules for feature branch proposals and merge reachability signals.
 
 ## Task 2: Real AI-tool ContextProposal upload path
@@ -94,11 +94,6 @@ cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
 git diff --check
 # passed
 ```
-
-## Remaining P3 tasks
-
-- Add outbox consumer retry semantics and idempotent projection updates.
-- Add branch-stream rules for feature branch proposals and merge reachability signals.
 
 ## Task 3: Web ContextProposal review workflow
 
@@ -141,3 +136,49 @@ cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
 git diff --check
 # passed
 ```
+
+## Task 4: Outbox retry consumer and idempotent context-head projection
+
+**Files:**
+
+- Create: `alembic/versions/20260825_0004_p3_outbox_retry_state.py`
+- Modify: `packages/core/models.py`
+- Modify: `packages/core/repositories/context_governance.py`
+- Modify: `packages/core/services/runtime.py`
+- Create: `packages/core/services/outbox.py`
+- Create: `apps/workers/workflows/outbox.py`
+- Modify: `apps/workers/main.py`
+- Test: `tests/integration/workers/test_outbox_processor.py`
+- Test: `tests/integration/test_migrations.py`
+- Test: `tests/integration/test_p3_context_governance_migration.py`
+
+- [x] Add `outbox_events.last_error` for retry/dead-letter diagnostics.
+- [x] Add `OutboxProcessor` that reads pending and retryable failed events in stable order.
+- [x] Mark successful events `completed` and prevent completed events from being processed again.
+- [x] Increment attempts on every processing try.
+- [x] Mark failed events `failed` while attempts remain and `dead` after the retry limit.
+- [x] Add a `context_head_changed` workflow handler that validates stream head, revision and proposal consistency before completing the event.
+- [x] Add `python -m apps.workers.main outbox-once` as a runnable worker entrypoint.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/workers/test_outbox_processor.py
+# 5 passed
+
+.venv/bin/pytest tests/integration/workers/test_outbox_processor.py tests/integration/test_migrations.py::test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine tests/integration/test_p3_context_governance_migration.py
+# 8 passed
+
+AGORA_DATABASE_URL=sqlite+pysqlite:////Users/daniel/Documents/Agora/.worktrees/agora-p0/.agora/outbox-cli-smoke.db .venv/bin/python -m apps.workers.main outbox-once --limit 5
+# outbox processed=0 completed=0 failed=0 dead=0
+
+.venv/bin/pytest
+# 187 passed, 2 skipped
+
+git diff --check
+# passed
+```
+
+## Remaining P3 tasks
+
+- Add branch-stream rules for feature branch proposals and merge reachability signals.

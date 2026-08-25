@@ -97,6 +97,9 @@ class ContextGovernanceRepository:
         self.session.refresh(revision)
         return revision
 
+    def get_revision(self, revision_id: str) -> ContextRevisionModel | None:
+        return self.session.get(ContextRevisionModel, revision_id)
+
     def create_approval_decision(self, **kwargs) -> ApprovalDecisionModel:
         decision = ApprovalDecisionModel(**kwargs)
         self.session.add(decision)

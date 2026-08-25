@@ -1976,3 +1976,37 @@ git diff --check
 Next:
 
 - Add outbox consumer retry semantics and idempotent projection updates.
+
+### 2026-08-25: P3 Task 4 Outbox Retry Consumer and Context-head Projection
+
+Scope:
+
+- Added `outbox_events.last_error` in migration `20260825_0004` for retry/dead-letter diagnostics.
+- Added `OutboxProcessor` for stable batch processing of pending and retryable failed outbox events.
+- Successful events are marked `completed` and skipped on later runs, preserving idempotent processing.
+- Failed attempts increment `attempts`; retryable failures remain `failed`; events become `dead` at the configured retry limit.
+- Added worker workflow handler for `context_head_changed` that validates stream head, accepted revision and proposal consistency before marking the event complete.
+- Added runnable worker command: `python -m apps.workers.main outbox-once`.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/workers/test_outbox_processor.py
+# 5 passed
+
+.venv/bin/pytest tests/integration/workers/test_outbox_processor.py tests/integration/test_migrations.py::test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine tests/integration/test_p3_context_governance_migration.py
+# 8 passed
+
+AGORA_DATABASE_URL=sqlite+pysqlite:////Users/daniel/Documents/Agora/.worktrees/agora-p0/.agora/outbox-cli-smoke.db .venv/bin/python -m apps.workers.main outbox-once --limit 5
+# outbox processed=0 completed=0 failed=0 dead=0
+
+.venv/bin/pytest
+# 187 passed, 2 skipped
+
+git diff --check
+# passed
+```
+
+Next:
+
+- Add branch-stream rules for feature branch proposals and merge reachability signals.
