@@ -427,3 +427,40 @@ class WorkflowStepRunModel(Base):
     required_artifacts: Mapped[list[dict]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+
+class WorkArtifactModel(Base):
+    __tablename__ = "work_artifacts"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    org_id: Mapped[str] = mapped_column(String, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    work_item_id: Mapped[str] = mapped_column(ForeignKey("work_items.id"), index=True)
+    session_id: Mapped[str] = mapped_column(ForeignKey("work_sessions.id"), index=True)
+    workflow_execution_id: Mapped[str] = mapped_column(ForeignKey("workflow_executions.id"), index=True)
+    workflow_step_run_id: Mapped[str] = mapped_column(ForeignKey("workflow_step_runs.id"), index=True)
+    step_key: Mapped[str] = mapped_column(String, index=True)
+    type: Mapped[str] = mapped_column(String, index=True)
+    title: Mapped[str] = mapped_column(String)
+    content: Mapped[str] = mapped_column(Text)
+    artifact_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class HumanConfirmationModel(Base):
+    __tablename__ = "human_confirmations"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    org_id: Mapped[str] = mapped_column(String, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    work_item_id: Mapped[str] = mapped_column(ForeignKey("work_items.id"), index=True)
+    session_id: Mapped[str] = mapped_column(ForeignKey("work_sessions.id"), index=True)
+    workflow_execution_id: Mapped[str] = mapped_column(ForeignKey("workflow_executions.id"), index=True)
+    workflow_step_run_id: Mapped[str] = mapped_column(ForeignKey("workflow_step_runs.id"), index=True)
+    step_key: Mapped[str] = mapped_column(String, index=True)
+    confirmation_type: Mapped[str] = mapped_column(String, index=True)
+    decision: Mapped[str] = mapped_column(String, index=True)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confirmed_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

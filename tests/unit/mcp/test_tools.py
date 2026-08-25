@@ -54,6 +54,8 @@ class FakeHarness:
             "operation": "complete_workflow_step",
             "session_id": kwargs["session_id"],
             "completed_step": {"step_key": kwargs["step_key"], "status": "completed"},
+            "artifacts": kwargs.get("artifacts", []),
+            "human_confirmation": kwargs.get("human_confirmation"),
         }
 
 
@@ -176,5 +178,37 @@ def test_mcp_complete_workflow_step_delegates_to_harness():
         "session_id": "sess_1",
         "step_key": "analysis",
         "summary": "分析完成，确认支付状态流转影响面。",
+        "artifacts": [],
+        "human_confirmation": None,
         "principal": "principal",
     }
+
+
+def test_mcp_complete_workflow_step_passes_artifacts_and_human_confirmation():
+    fake_harness = FakeHarness()
+    tools = AgoraMcpTools(harness=fake_harness)
+
+    result = tools.agora_complete_workflow_step(
+        session_id="sess_1",
+        step_key="analysis",
+        summary="完成任务分析。",
+        artifacts=[
+            {
+                "type": "analysis_note",
+                "title": "AG-300 分析记录",
+                "content": "识别权限校验和审计日志影响面。",
+                "metadata": {"path": "docs/tasks/AG-300/analysis.md"},
+            }
+        ],
+        human_confirmation={
+            "confirmation_type": "step_review",
+            "decision": "approved",
+            "comment": "可以进入设计。",
+        },
+        principal="principal",
+    )
+
+    assert result["artifacts"][0]["type"] == "analysis_note"
+    assert result["human_confirmation"]["decision"] == "approved"
+    assert fake_harness.completed_step_with["artifacts"][0]["title"] == "AG-300 分析记录"
+    assert fake_harness.completed_step_with["human_confirmation"]["comment"] == "可以进入设计。"

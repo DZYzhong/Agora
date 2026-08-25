@@ -72,6 +72,12 @@ class CoreRuntime:
             step_key=step_key,
         )
 
+    def create_work_artifact(self, **kwargs):
+        return WorkflowRepository(self.session).create_work_artifact(**kwargs)
+
+    def create_human_confirmation(self, **kwargs):
+        return WorkflowRepository(self.session).create_human_confirmation(**kwargs)
+
     def get_session(self, session_id: str):
         work_session = WorkRepository(self.session).get_work_session(session_id)
         return work_session or TaskSessionRepository(self.session).get(session_id)

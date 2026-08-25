@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 
 from apps.api.dependencies import get_engine, get_keyword_index, get_vector_index
 from apps.api.main import app
-from packages.core.models import WorkItemModel
+from packages.core.models import HumanConfirmationModel, WorkArtifactModel, WorkItemModel
 
 
 def _run_git(repo_path, *args):
@@ -86,6 +86,69 @@ def test_complete_workflow_step_advances_current_step_and_work_item_stage():
     assert work_item["stage"] == "design"
     assert work_item["workflow_execution"]["steps"][0]["status"] == "completed"
     assert work_item["workflow_execution"]["steps"][1]["status"] == "running"
+
+
+def test_complete_workflow_step_captures_artifacts_and_human_confirmation():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_step_evidence",
+            "name": "Step Evidence",
+            "slug": "step-evidence",
+            "git_remotes": [],
+        },
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "帮我做 AG-202：补充账单导出权限校验",
+            "agent_type": "codex",
+        },
+    ).json()
+
+    response = client.post(
+        "/harness/complete-workflow-step",
+        json={
+            "session_id": started["session_id"],
+            "step_key": "analysis",
+            "summary": "完成权限校验任务分析。",
+            "artifacts": [
+                {
+                    "type": "analysis_note",
+                    "title": "AG-202 分析记录",
+                    "content": "账单导出涉及角色权限、审计日志和批量导出限流。",
+                    "metadata": {"path": "docs/tasks/AG-202/analysis.md"},
+                }
+            ],
+            "human_confirmation": {
+                "confirmation_type": "step_review",
+                "decision": "approved",
+                "comment": "分析范围确认，可以进入设计。",
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["artifacts"][0]["type"] == "analysis_note"
+    assert body["artifacts"][0]["title"] == "AG-202 分析记录"
+    assert body["human_confirmation"]["decision"] == "approved"
+
+    db = sessionmaker(bind=get_engine())()
+    try:
+        artifact = db.get(WorkArtifactModel, body["artifacts"][0]["id"])
+        confirmation = db.get(HumanConfirmationModel, body["human_confirmation"]["id"])
+        assert artifact.work_item_id == started["work_item_id"]
+        assert artifact.step_key == "analysis"
+        assert artifact.content == "账单导出涉及角色权限、审计日志和批量导出限流。"
+        assert artifact.created_by_user_id == "auth-bypass-user"
+        assert confirmation.work_item_id == started["work_item_id"]
+        assert confirmation.step_key == "analysis"
+        assert confirmation.confirmed_by_user_id == "auth-bypass-user"
+    finally:
+        db.close()
 
 
 def test_complete_workflow_step_rejects_non_current_step():

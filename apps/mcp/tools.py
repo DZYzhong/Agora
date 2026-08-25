@@ -76,6 +76,8 @@ class AgoraMcpTools:
         session_id: str,
         step_key: str,
         summary: str,
+        artifacts: list[dict] | None = None,
+        human_confirmation: dict | None = None,
         principal=None,
     ) -> dict:
         if not hasattr(self.harness, "complete_workflow_step"):
@@ -84,6 +86,8 @@ class AgoraMcpTools:
             "session_id": session_id,
             "step_key": step_key,
             "summary": summary,
+            "artifacts": artifacts or [],
+            "human_confirmation": human_confirmation,
         }
         if principal is not None:
             payload["principal"] = principal

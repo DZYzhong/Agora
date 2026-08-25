@@ -35,6 +35,8 @@ P4_TABLES = {
     "workflow_versions",
     "workflow_executions",
     "workflow_step_runs",
+    "work_artifacts",
+    "human_confirmations",
 }
 
 
@@ -59,7 +61,7 @@ def test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine(data
 
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT count(*) FROM assets")) == 0
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260825_0005"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260825_0006"
 
 
 def test_p2_schema_has_required_foreign_keys_and_uniqueness(tmp_path):

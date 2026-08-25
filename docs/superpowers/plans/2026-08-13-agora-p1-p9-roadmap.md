@@ -2134,3 +2134,42 @@ git diff --check
 Next:
 
 - Add WorkArtifact and HumanConfirmation capture so required step outputs and human-in-the-loop review evidence become first-class audit records.
+
+### 2026-08-25: P4 Task 3 Work Artifacts and Human Confirmations
+
+Scope:
+
+- Added `work_artifacts` and `human_confirmations` schema in migration `20260825_0006`.
+- Added WorkArtifact and HumanConfirmation ORM models linked to WorkItem, WorkSession, WorkflowExecution and WorkflowStepRun.
+- Extended `agora_complete_workflow_step` to accept fixed step output artifacts and human confirmation payloads.
+- The API/MCP response now returns created artifact and confirmation IDs so AI tools can cite the durable audit records.
+- `workflow_step_completed` events now include artifact IDs and human confirmation ID.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_migrations.py::test_alembic_upgrade_head_creates_current_schema tests/integration/test_migrations.py::test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine
+# failed first before 0006 migration, then 3 passed
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_complete_workflow_step_captures_artifacts_and_human_confirmation
+# failed first before models existed, then 1 passed
+
+.venv/bin/pytest tests/unit/mcp/test_tools.py::test_mcp_complete_workflow_step_delegates_to_harness tests/unit/mcp/test_tools.py::test_mcp_complete_workflow_step_passes_artifacts_and_human_confirmation
+# failed first before MCP accepted artifacts, then 2 passed
+
+.venv/bin/pytest tests/integration/test_migrations.py tests/integration/api/test_harness_api.py tests/integration/api/test_work_items_api.py tests/unit/mcp/test_tools.py tests/unit/harness/test_harness_service.py
+# 43 passed
+
+.venv/bin/pytest
+# 194 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+git diff --check
+# passed
+```
+
+Next:
+
+- Extend Web WorkItem detail so project managers, QA and developers can inspect workflow steps, artifacts and confirmations without calling APIs.

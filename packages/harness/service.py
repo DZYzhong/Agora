@@ -57,6 +57,8 @@ class WorkflowStepCompletionResult:
     workflow_execution: dict
     completed_step: dict
     next_step: dict | None
+    artifacts: list[dict]
+    human_confirmation: dict | None
     next_actions: list[dict]
 
 
@@ -278,6 +280,8 @@ class HarnessService:
         session_id: str,
         step_key: str,
         summary: str,
+        artifacts: list[dict] | None = None,
+        human_confirmation: dict | None = None,
         principal: Principal | None = None,
     ) -> WorkflowStepCompletionResult:
         if principal is None:
@@ -296,11 +300,45 @@ class HarnessService:
             workflow_execution_id=workflow_execution_id,
             step_key=step_key,
         )
+        artifact_records = [
+            self.core.create_work_artifact(
+                org_id=execution.org_id,
+                project_id=execution.project_id,
+                work_item_id=execution.work_item_id,
+                session_id=session_id,
+                workflow_execution_id=execution.id,
+                workflow_step_run_id=completed_step.id,
+                step_key=completed_step.step_key,
+                type=str(artifact["type"]),
+                title=str(artifact["title"]),
+                content=str(artifact["content"]),
+                metadata=artifact.get("metadata") or {},
+                created_by_user_id=principal.user_id,
+            )
+            for artifact in artifacts or []
+        ]
+        confirmation_record = None
+        if human_confirmation is not None:
+            confirmation_record = self.core.create_human_confirmation(
+                org_id=execution.org_id,
+                project_id=execution.project_id,
+                work_item_id=execution.work_item_id,
+                session_id=session_id,
+                workflow_execution_id=execution.id,
+                workflow_step_run_id=completed_step.id,
+                step_key=completed_step.step_key,
+                confirmation_type=str(human_confirmation["confirmation_type"]),
+                decision=str(human_confirmation["decision"]),
+                comment=human_confirmation.get("comment"),
+                confirmed_by_user_id=principal.user_id,
+            )
         event_payload = {
             "workflow_execution_id": execution.id,
             "work_item_id": execution.work_item_id,
             "step_key": completed_step.step_key,
             "summary": summary,
+            "artifact_ids": [artifact.id for artifact in artifact_records],
+            "human_confirmation_id": confirmation_record.id if confirmation_record is not None else None,
             "completed_by_user_id": principal.user_id,
         }
         self.session_recorder.record_event(
@@ -321,6 +359,10 @@ class HarnessService:
             },
             completed_step=_serialize_workflow_step_run(completed_step),
             next_step=_serialize_workflow_step_run(next_step) if next_step is not None else None,
+            artifacts=[_serialize_work_artifact(artifact) for artifact in artifact_records],
+            human_confirmation=_serialize_human_confirmation(confirmation_record)
+            if confirmation_record is not None
+            else None,
             next_actions=[
                 {
                     "type": "prepare_context" if next_step is not None else "close_work",
@@ -448,4 +490,37 @@ def _serialize_workflow_step_run(step) -> dict:
         "order_index": step.order_index,
         "status": step.status,
         "required_artifacts": step.required_artifacts,
+    }
+
+
+def _serialize_work_artifact(artifact) -> dict:
+    return {
+        "id": artifact.id,
+        "work_item_id": artifact.work_item_id,
+        "session_id": artifact.session_id,
+        "workflow_execution_id": artifact.workflow_execution_id,
+        "workflow_step_run_id": artifact.workflow_step_run_id,
+        "step_key": artifact.step_key,
+        "type": artifact.type,
+        "title": artifact.title,
+        "content": artifact.content,
+        "metadata": artifact.artifact_metadata,
+        "created_by_user_id": artifact.created_by_user_id,
+        "created_at": artifact.created_at,
+    }
+
+
+def _serialize_human_confirmation(confirmation) -> dict:
+    return {
+        "id": confirmation.id,
+        "work_item_id": confirmation.work_item_id,
+        "session_id": confirmation.session_id,
+        "workflow_execution_id": confirmation.workflow_execution_id,
+        "workflow_step_run_id": confirmation.workflow_step_run_id,
+        "step_key": confirmation.step_key,
+        "confirmation_type": confirmation.confirmation_type,
+        "decision": confirmation.decision,
+        "comment": confirmation.comment,
+        "confirmed_by_user_id": confirmation.confirmed_by_user_id,
+        "created_at": confirmation.created_at,
     }

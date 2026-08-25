@@ -4,6 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from packages.core.models import (
+    HumanConfirmationModel,
+    WorkArtifactModel,
     WorkflowDefinitionModel,
     WorkflowExecutionModel,
     WorkflowStepRunModel,
@@ -183,6 +185,74 @@ class WorkflowRepository:
         if next_step is not None:
             self.session.refresh(next_step)
         return execution, completed_step, next_step
+
+    def create_work_artifact(
+        self,
+        *,
+        org_id: str,
+        project_id: str,
+        work_item_id: str,
+        session_id: str,
+        workflow_execution_id: str,
+        workflow_step_run_id: str,
+        step_key: str,
+        type: str,
+        title: str,
+        content: str,
+        metadata: dict | None,
+        created_by_user_id: str,
+    ) -> WorkArtifactModel:
+        artifact = WorkArtifactModel(
+            org_id=org_id,
+            project_id=project_id,
+            work_item_id=work_item_id,
+            session_id=session_id,
+            workflow_execution_id=workflow_execution_id,
+            workflow_step_run_id=workflow_step_run_id,
+            step_key=step_key,
+            type=type,
+            title=title,
+            content=content,
+            artifact_metadata=metadata or {},
+            created_by_user_id=created_by_user_id,
+        )
+        self.session.add(artifact)
+        self.session.flush()
+        self.session.refresh(artifact)
+        return artifact
+
+    def create_human_confirmation(
+        self,
+        *,
+        org_id: str,
+        project_id: str,
+        work_item_id: str,
+        session_id: str,
+        workflow_execution_id: str,
+        workflow_step_run_id: str,
+        step_key: str,
+        confirmation_type: str,
+        decision: str,
+        comment: str | None,
+        confirmed_by_user_id: str,
+    ) -> HumanConfirmationModel:
+        confirmation = HumanConfirmationModel(
+            org_id=org_id,
+            project_id=project_id,
+            work_item_id=work_item_id,
+            session_id=session_id,
+            workflow_execution_id=workflow_execution_id,
+            workflow_step_run_id=workflow_step_run_id,
+            step_key=step_key,
+            confirmation_type=confirmation_type,
+            decision=decision,
+            comment=comment,
+            confirmed_by_user_id=confirmed_by_user_id,
+        )
+        self.session.add(confirmation)
+        self.session.flush()
+        self.session.refresh(confirmation)
+        return confirmation
 
 
 class WorkflowStepError(ValueError):

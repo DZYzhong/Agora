@@ -81,6 +81,8 @@ class CompleteWorkflowStepRequest(BaseModel):
     session_id: str
     step_key: str
     summary: str
+    artifacts: list[dict[str, Any]] = Field(default_factory=list)
+    human_confirmation: dict[str, Any] | None = None
 
 
 class CloseWorkRequest(BaseModel):

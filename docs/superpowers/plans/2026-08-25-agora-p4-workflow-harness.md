@@ -52,7 +52,6 @@ git diff --check
 
 ## Next P4 tasks
 
-- Add WorkArtifact and HumanConfirmation capture.
 - Extend Web WorkItem detail to show workflow steps, artifacts and confirmations.
 
 ## Task 2: Canonical workflow step completion
@@ -89,6 +88,52 @@ Verification:
 
 .venv/bin/pytest
 # 192 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+git diff --check
+# passed
+```
+
+## Task 3: Work artifacts and human confirmations
+
+**Files:**
+
+- Create: `alembic/versions/20260825_0006_p4_work_artifacts.py`
+- Modify: `packages/core/models.py`
+- Modify: `packages/core/repositories/workflows.py`
+- Modify: `packages/core/services/runtime.py`
+- Modify: `packages/harness/service.py`
+- Modify: `apps/api/routers/harness.py`
+- Modify: `apps/mcp/tools.py`
+- Test: `tests/integration/test_migrations.py`
+- Test: `tests/integration/api/test_harness_api.py`
+- Test: `tests/unit/mcp/test_tools.py`
+
+- [x] Add persistent WorkArtifact records linked to WorkItem, WorkSession, WorkflowExecution and WorkflowStepRun.
+- [x] Add persistent HumanConfirmation records linked to the same workflow audit chain.
+- [x] Extend `agora_complete_workflow_step` to accept artifacts and human confirmation payloads.
+- [x] Return created artifact and confirmation IDs to the AI tool caller.
+- [x] Include artifact and confirmation IDs in `workflow_step_completed` event payloads.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_migrations.py::test_alembic_upgrade_head_creates_current_schema tests/integration/test_migrations.py::test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine
+# failed first before 0006 migration, then 3 passed
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_complete_workflow_step_captures_artifacts_and_human_confirmation
+# failed first before models existed, then 1 passed
+
+.venv/bin/pytest tests/unit/mcp/test_tools.py::test_mcp_complete_workflow_step_delegates_to_harness tests/unit/mcp/test_tools.py::test_mcp_complete_workflow_step_passes_artifacts_and_human_confirmation
+# failed first before MCP accepted artifacts, then 2 passed
+
+.venv/bin/pytest tests/integration/test_migrations.py tests/integration/api/test_harness_api.py tests/integration/api/test_work_items_api.py tests/unit/mcp/test_tools.py tests/unit/harness/test_harness_service.py
+# 43 passed
+
+.venv/bin/pytest
+# 194 passed, 2 skipped
 
 cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
 # Compiled successfully
