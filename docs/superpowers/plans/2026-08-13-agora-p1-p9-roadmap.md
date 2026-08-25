@@ -2010,3 +2010,36 @@ git diff --check
 Next:
 
 - Add branch-stream rules for feature branch proposals and merge reachability signals.
+
+### 2026-08-25: P3 Task 5 Branch Stream Rules and Merge Reachability Signal
+
+Scope:
+
+- Feature branch proposals now update their own branch ContextStream and do not overwrite the default branch stream.
+- RevisionSignal now includes `merge_target_branch` and `merged_to_target`.
+- Default-branch approval is blocked when proposal provenance says the source context came from a feature branch and merge reachability is not proven.
+- Accepted ContextRevision provenance records the normalized RevisionSignal used for approval.
+- Web proposal review form now exposes merge target branch and merged-to-target fields.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_context_governance_api.py::test_feature_branch_context_proposal_updates_feature_stream_without_overwriting_main tests/integration/api/test_context_governance_api.py::test_feature_branch_context_cannot_update_default_stream_without_merge_signal
+# 2 passed
+
+.venv/bin/pytest tests/integration/api/test_context_governance_api.py tests/integration/test_web_config.py::test_context_proposal_review_pages_are_available
+# 7 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+.venv/bin/pytest
+# 189 passed, 2 skipped
+
+git diff --check
+# passed
+```
+
+Next:
+
+- Prepare full P3 black-box validation steps.

@@ -121,6 +121,14 @@ export default async function ContextProposalPage({
               Contains target commit
             </label>
             <label>
+              Merge target branch
+              <input name="merge_target_branch" defaultValue="" />
+            </label>
+            <label className="checkbox-label">
+              <input type="checkbox" name="merged_to_target" />
+              Merged to target branch
+            </label>
+            <label>
               Comment
               <textarea name="comment" defaultValue="" />
             </label>

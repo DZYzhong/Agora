@@ -54,6 +54,8 @@ def test_context_proposal_review_pages_are_available():
     assert "Revision signal" in detail
     assert "observed_head_sha" in detail
     assert "contains_to_commit" in detail
+    assert "merge_target_branch" in detail
+    assert "merged_to_target" in detail
     assert "source_anchors" in detail
     assert "/approve" in detail
     assert "/context/proposals" in route

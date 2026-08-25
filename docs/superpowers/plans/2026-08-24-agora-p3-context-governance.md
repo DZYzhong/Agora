@@ -54,7 +54,7 @@ Browser validation
 - [x] Add Harness/MCP `agora_submit_context_proposal` for AI tools.
 - [x] Add Web proposal detail and review workflow with explicit RevisionSignal display.
 - [x] Add outbox consumer retry semantics and idempotent projection updates.
-- Add branch-stream rules for feature branch proposals and merge reachability signals.
+- [x] Add branch-stream rules for feature branch proposals and merge reachability signals.
 
 ## Task 2: Real AI-tool ContextProposal upload path
 
@@ -179,6 +179,42 @@ git diff --check
 # passed
 ```
 
+## Task 5: Branch stream rules and merge reachability signal
+
+**Files:**
+
+- Modify: `apps/api/routers/context_governance.py`
+- Modify: `apps/web/app/projects/[projectId]/context/proposals/[proposalId]/page.tsx`
+- Modify: `apps/web/app/projects/[projectId]/context/proposals/[proposalId]/approve/route.ts`
+- Test: `tests/integration/api/test_context_governance_api.py`
+- Test: `tests/integration/test_web_config.py`
+
+- [x] Keep feature branch proposals in their own ContextStream.
+- [x] Preserve the default branch stream head when approving a feature branch proposal.
+- [x] Extend RevisionSignal with `merge_target_branch` and `merged_to_target`.
+- [x] Reject default-branch approval for feature-branch source context unless merge reachability is proven.
+- [x] Persist normalized RevisionSignal in accepted ContextRevision provenance.
+- [x] Expose merge reachability fields in the Web proposal review form.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_context_governance_api.py::test_feature_branch_context_proposal_updates_feature_stream_without_overwriting_main tests/integration/api/test_context_governance_api.py::test_feature_branch_context_cannot_update_default_stream_without_merge_signal
+# 2 passed
+
+.venv/bin/pytest tests/integration/api/test_context_governance_api.py tests/integration/test_web_config.py::test_context_proposal_review_pages_are_available
+# 7 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# compiled successfully
+
+.venv/bin/pytest
+# 189 passed, 2 skipped
+
+git diff --check
+# passed
+```
+
 ## Remaining P3 tasks
 
-- Add branch-stream rules for feature branch proposals and merge reachability signals.
+- Prepare black-box validation steps for the full P3 flow.

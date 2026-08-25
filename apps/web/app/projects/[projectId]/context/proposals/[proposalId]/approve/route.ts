@@ -9,6 +9,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
   const observedHead = String(formData.get("observed_head_sha") ?? "").trim();
   const comment = String(formData.get("comment") ?? "").trim();
   const targetBranch = String(formData.get("target_branch") ?? "main").trim() || "main";
+  const mergeTargetBranch = String(formData.get("merge_target_branch") ?? "").trim();
 
   try {
     await apiPost(`/projects/${projectId}/context/proposals/${proposalId}/approve`, {
@@ -18,6 +19,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
         target_branch: targetBranch,
         observed_head_sha: observedHead || null,
         contains_to_commit: formData.get("contains_to_commit") === "on",
+        merge_target_branch: mergeTargetBranch || null,
+        merged_to_target: formData.get("merged_to_target") === "on",
       },
     });
   } catch (error) {

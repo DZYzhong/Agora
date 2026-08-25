@@ -35,6 +35,8 @@ class RevisionSignal(BaseModel):
     target_branch: str
     observed_head_sha: str | None = None
     contains_to_commit: bool = False
+    merge_target_branch: str | None = None
+    merged_to_target: bool = False
 
 
 class ContextProposalApprove(BaseModel):
@@ -128,10 +130,28 @@ def approve_context_proposal(
         stream = runtime.get_context_stream(proposal.stream_id)
         if stream is None or stream.project_id != project_id:
             raise HTTPException(status_code=404, detail="Context stream not found")
+        project = ProjectRepository(session).get(project_id)
+        if project is None:
+            raise HTTPException(status_code=404, detail="Project not found")
         if proposal.target_branch != stream.branch or payload.revision_signal.target_branch != stream.branch:
             raise HTTPException(status_code=400, detail="Revision signal branch does not match target stream")
         if proposal.to_commit_sha and not payload.revision_signal.contains_to_commit:
             raise HTTPException(status_code=400, detail="Target commit is not reachable from the revision signal")
+        source_branch = proposal.provenance.get("source_branch")
+        default_branch = project.default_branch or "main"
+        if (
+            stream.branch == default_branch
+            and source_branch
+            and source_branch != default_branch
+            and (
+                not payload.revision_signal.merged_to_target
+                or payload.revision_signal.merge_target_branch != default_branch
+            )
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Feature branch context cannot update the default stream before merge reachability is proven",
+            )
         expected_head = payload.expected_head_revision_id
         if expected_head != stream.head_revision_id or proposal.expected_head_revision_id != stream.head_revision_id:
             proposal.status = "needs_rebase"
@@ -156,6 +176,7 @@ def approve_context_proposal(
                 **proposal.provenance,
                 "approved_by_user_id": principal.user_id,
                 "proposal_id": proposal.id,
+                "revision_signal": payload.revision_signal.model_dump(),
             },
             created_by_user_id=proposal.created_by_user_id,
         )

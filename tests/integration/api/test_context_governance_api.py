@@ -245,3 +245,104 @@ def test_ai_tool_submits_context_proposal_through_harness_session(monkeypatch):
         assert body["stream"]["branch"] == "main"
         assert body["capability_pins"]["context_revision_id"] is None
         assert body["next_actions"][0]["type"] == "human_review_context_proposal"
+
+
+def test_feature_branch_context_proposal_updates_feature_stream_without_overwriting_main(monkeypatch):
+    _production_auth(monkeypatch)
+    with TestClient(app) as client:
+        project = _create_project(client)
+        main_proposal = client.post(
+            f"/projects/{project['id']}/context/proposals",
+            headers=_headers(AGENT_TOKEN),
+            json=_proposal_payload(),
+        ).json()
+        main_accepted = client.post(
+            f"/projects/{project['id']}/context/proposals/{main_proposal['id']}/approve",
+            headers=_headers(HUMAN_TOKEN),
+            json={
+                "expected_head_revision_id": None,
+                "revision_signal": {
+                    "target_branch": "main",
+                    "observed_head_sha": "abc123",
+                    "contains_to_commit": True,
+                },
+            },
+        ).json()
+        feature_payload = {
+            **_proposal_payload(expected_head_revision_id=None),
+            "type": "task_update",
+            "title": "PAY-318 feature branch context",
+            "target_branch": "feature/PAY-318-refund-audit",
+            "to_commit_sha": "feature123",
+            "provenance": {
+                "generating_tool": "codex",
+                "schema_version": "context-revision/v1",
+                "repository_commit": "feature123",
+                "source_branch": "feature/PAY-318-refund-audit",
+            },
+        }
+        feature_proposal = client.post(
+            f"/projects/{project['id']}/context/proposals",
+            headers=_headers(AGENT_TOKEN),
+            json=feature_payload,
+        ).json()
+
+        feature_accepted = client.post(
+            f"/projects/{project['id']}/context/proposals/{feature_proposal['id']}/approve",
+            headers=_headers(HUMAN_TOKEN),
+            json={
+                "expected_head_revision_id": None,
+                "revision_signal": {
+                    "target_branch": "feature/PAY-318-refund-audit",
+                    "observed_head_sha": "feature123",
+                    "contains_to_commit": True,
+                },
+            },
+        ).json()
+
+        streams = client.get(f"/projects/{project['id']}/context/streams", headers=_headers(HUMAN_TOKEN)).json()
+        stream_heads = {stream["branch"]: stream["head_revision_id"] for stream in streams}
+        assert feature_accepted["stream"]["branch"] == "feature/PAY-318-refund-audit"
+        assert stream_heads["main"] == main_accepted["revision"]["id"]
+        assert stream_heads["feature/PAY-318-refund-audit"] == feature_accepted["revision"]["id"]
+
+
+def test_feature_branch_context_cannot_update_default_stream_without_merge_signal(monkeypatch):
+    _production_auth(monkeypatch)
+    with TestClient(app) as client:
+        project = _create_project(client)
+        proposal = client.post(
+            f"/projects/{project['id']}/context/proposals",
+            headers=_headers(AGENT_TOKEN),
+            json={
+                **_proposal_payload(),
+                "type": "task_update",
+                "title": "PAY-319 merge candidate",
+                "target_branch": "main",
+                "to_commit_sha": "feature456",
+                "provenance": {
+                    "generating_tool": "codex",
+                    "schema_version": "context-revision/v1",
+                    "repository_commit": "feature456",
+                    "source_branch": "feature/PAY-319-refund-ledger",
+                },
+            },
+        ).json()
+
+        response = client.post(
+            f"/projects/{project['id']}/context/proposals/{proposal['id']}/approve",
+            headers=_headers(HUMAN_TOKEN),
+            json={
+                "expected_head_revision_id": None,
+                "revision_signal": {
+                    "target_branch": "main",
+                    "observed_head_sha": "feature456",
+                    "contains_to_commit": True,
+                    "merge_target_branch": "main",
+                    "merged_to_target": False,
+                },
+            },
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Feature branch context cannot update the default stream before merge reachability is proven"
