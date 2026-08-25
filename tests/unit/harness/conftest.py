@@ -45,6 +45,8 @@ class FakeWorkSession:
     agent_type: str
     intent: str
     initial_request_id: str | None = None
+    workflow_version_id: str | None = None
+    workflow_execution_id: str | None = None
     status: str = "started"
     id: str = field(default_factory=lambda: uuid4().hex)
     closed_at: object | None = None

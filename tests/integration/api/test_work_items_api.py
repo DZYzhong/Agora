@@ -57,16 +57,23 @@ def test_start_work_creates_listable_work_item_for_authorized_project():
     assert work_item["external_key"] == "AG-128"
     assert work_item["title"] == "实现支付状态流转"
     assert work_item["status"] == "active"
-    assert work_item["stage"] == "backlog"
+    assert work_item["stage"] == "analysis"
     assert work_item["source"] == "manual"
     assert work_item["session_count"] == 1
     assert work_item["participants"] == ["auth-bypass-user"]
     assert work_item["latest_context_state"] is None
-    assert work_item["capability_pins"] == {
-        "context_revision_id": None,
-        "workflow_version_id": None,
-        "skill_version_id": None,
-    }
+    assert work_item["capability_pins"]["workflow_version_id"] == started["workflow_version_id"]
+    assert work_item["workflow_execution"]["status"] == "running"
+    assert [step["step_key"] for step in work_item["workflow_execution"]["steps"]] == [
+        "analysis",
+        "design",
+        "review",
+        "implementation",
+        "self_test",
+        "delivery",
+    ]
+    assert work_item["workflow_execution"]["steps"][0]["status"] == "running"
+    assert work_item["workflow_execution"]["steps"][1]["status"] == "pending"
 
 
 def test_work_item_detail_projects_sessions_and_latest_context_without_secrets(tmp_path):
@@ -126,11 +133,9 @@ def test_work_item_detail_projects_sessions_and_latest_context_without_secrets(t
     assert detail["external_key"] == "AG-900"
     assert detail["title"] == "实现退款幂等"
     assert detail["participants"] == ["auth-bypass-user"]
-    assert detail["capability_pins"] == {
-        "context_revision_id": None,
-        "workflow_version_id": None,
-        "skill_version_id": None,
-    }
+    assert detail["capability_pins"]["workflow_version_id"] == started["workflow_version_id"]
+    assert detail["workflow_execution"]["status"] == "running"
+    assert detail["workflow_execution"]["steps"][0]["step_key"] == "analysis"
     assert detail["latest_context_state"]["context_pack_id"] == context["context_pack_id"]
     assert detail["latest_context_state"]["provisional"] is True
     assert detail["latest_context_state"]["freshness"]["context_coverage"] != "fresh"

@@ -114,6 +114,17 @@ class HarnessService:
                 clarification=work_resolution.clarification,
             )
 
+        workflow_version_id = None
+        workflow_execution_id = None
+        if hasattr(self.core, "ensure_standard_workflow_version") and hasattr(self.core, "ensure_workflow_execution_for_work_item"):
+            workflow_version = self.core.ensure_standard_workflow_version(org_id=project.org_id, project_id=project.id)
+            workflow_execution = self.core.ensure_workflow_execution_for_work_item(
+                work_item=work_resolution.work_item,
+                workflow_version=workflow_version,
+            )
+            workflow_version_id = workflow_version.id
+            workflow_execution_id = workflow_execution.id
+
         session = self.session_recorder.start(
             work_item_id=work_resolution.work_item.id,
             user_id=principal.user_id,
@@ -121,6 +132,8 @@ class HarnessService:
             agent_type=agent_type,
             intent=work_resolution.intent,
             initial_request_id=initial_request_id,
+            workflow_version_id=workflow_version_id,
+            workflow_execution_id=workflow_execution_id,
         )
         return WorkStartResult(
             session_id=session.id,
@@ -130,6 +143,7 @@ class HarnessService:
             task_id=work_resolution.external_key,
             intent=work_resolution.intent,
             next_action="plan_context",
+            workflow_version_id=workflow_version_id,
         )
 
     def plan_context(self, *, session_id: str, query: str | None = None, token_budget: int = 4000):

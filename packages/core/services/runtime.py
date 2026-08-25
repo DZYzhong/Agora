@@ -7,6 +7,7 @@ from packages.core.repositories.projects import ProjectRepository
 from packages.core.repositories.sessions import TaskSessionRepository
 from packages.core.repositories.skills import SkillRepository
 from packages.core.repositories.work import WorkRepository
+from packages.core.repositories.workflows import WorkflowRepository
 from packages.core.repositories.writebacks import WritebackRepository
 
 
@@ -49,6 +50,21 @@ class CoreRuntime:
 
     def create_work_session(self, **kwargs):
         return WorkRepository(self.session).create_work_session(**kwargs)
+
+    def ensure_standard_workflow_version(self, *, org_id: str, project_id: str | None = None):
+        return WorkflowRepository(self.session).ensure_standard_workflow_version(org_id=org_id, project_id=project_id)
+
+    def ensure_workflow_execution_for_work_item(self, *, work_item, workflow_version):
+        return WorkflowRepository(self.session).ensure_execution_for_work_item(
+            work_item=work_item,
+            workflow_version=workflow_version,
+        )
+
+    def get_workflow_execution_by_work_item(self, work_item_id: str):
+        return WorkflowRepository(self.session).get_execution_by_work_item(work_item_id)
+
+    def list_workflow_step_runs(self, workflow_execution_id: str):
+        return WorkflowRepository(self.session).list_step_runs(workflow_execution_id)
 
     def get_session(self, session_id: str):
         work_session = WorkRepository(self.session).get_work_session(session_id)

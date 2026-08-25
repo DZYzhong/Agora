@@ -2060,3 +2060,41 @@ Documentation-only change.
 Next:
 
 - Wait for user black-box validation feedback before moving to P4.
+
+### 2026-08-25: P4 Task 1 Workflow Persistence and Start-work Pinning
+
+Scope:
+
+- Added current P4 implementation plan: `docs/superpowers/plans/2026-08-25-agora-p4-workflow-harness.md`.
+- Added WorkflowDefinition, immutable WorkflowVersion, WorkflowExecution and WorkflowStepRun schema.
+- Added built-in `standard-ai-development` workflow with analysis, design, review, implementation, self_test and delivery.
+- `agora_start_work` now ensures one authoritative WorkflowExecution per WorkItem, creates step runs, pins WorkflowVersion to WorkSession and returns `workflow_version_id`.
+- WorkItem API projections now include workflow execution state and step runs.
+- New WorkItems start at workflow stage `analysis` instead of `backlog`.
+- Existing P0 e2e fake core now accepts workflow-pinned WorkSessions so old black-box loop coverage stays active.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_migrations.py::test_alembic_upgrade_head_creates_current_schema tests/integration/api/test_harness_api.py::test_start_work_endpoint_returns_session tests/integration/api/test_work_items_api.py::test_start_work_creates_listable_work_item_for_authorized_project
+# 3 passed
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py tests/integration/api/test_work_items_api.py tests/unit/harness/test_harness_service.py tests/integration/test_migrations.py
+# 33 passed
+
+.venv/bin/pytest tests/e2e/test_p0_loop.py::test_p0_loop
+# 1 passed
+
+.venv/bin/pytest
+# 189 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+git diff --check
+# passed
+```
+
+Next:
+
+- Add canonical `agora_complete_workflow_step` with prerequisite and role checks.

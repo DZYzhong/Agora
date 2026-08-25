@@ -52,7 +52,8 @@ def _serialize_work_item_projection(runtime: CoreRuntime, work_item) -> dict:
         "session_count": len(session_views),
         "participants": sorted({session_view.session.user_id for session_view in session_views}),
         "latest_context_state": _latest_context_state(runtime, session_views),
-        "capability_pins": _capability_pins(),
+        "capability_pins": _capability_pins(work_item),
+        "workflow_execution": _workflow_execution(runtime, work_item),
     }
 
 
@@ -113,9 +114,32 @@ def _latest_context_state(runtime: CoreRuntime, session_views) -> dict | None:
     return latest
 
 
-def _capability_pins() -> dict:
+def _capability_pins(work_item) -> dict:
     return {
         "context_revision_id": None,
-        "workflow_version_id": None,
+        "workflow_version_id": work_item.workflow_version_id,
         "skill_version_id": None,
+    }
+
+
+def _workflow_execution(runtime: CoreRuntime, work_item) -> dict | None:
+    execution = runtime.get_workflow_execution_by_work_item(work_item.id)
+    if execution is None:
+        return None
+    return {
+        "id": execution.id,
+        "workflow_version_id": execution.workflow_version_id,
+        "status": execution.status,
+        "current_step_key": execution.current_step_key,
+        "steps": [
+            {
+                "id": step.id,
+                "step_key": step.step_key,
+                "title": step.title,
+                "order_index": step.order_index,
+                "status": step.status,
+                "required_artifacts": step.required_artifacts,
+            }
+            for step in runtime.list_workflow_step_runs(execution.id)
+        ],
     }

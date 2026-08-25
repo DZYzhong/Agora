@@ -48,6 +48,8 @@ class WorkSession:
     agent_type: str
     intent: str
     initial_request_id: str | None = None
+    workflow_version_id: str | None = None
+    workflow_execution_id: str | None = None
     status: str = "started"
     id: str = field(default_factory=lambda: uuid4().hex)
 
@@ -145,6 +147,8 @@ class E2eCore:
                 "agent_type": work_session.agent_type,
                 "intent": work_session.intent,
                 "status": work_session.status,
+                "workflow_version_id": work_session.workflow_version_id,
+                "workflow_execution_id": work_session.workflow_execution_id,
             },
         )()
 
@@ -163,6 +167,8 @@ class E2eCore:
                     "agent_type": work_session.agent_type,
                     "intent": work_session.intent,
                     "status": work_session.status,
+                    "workflow_version_id": work_session.workflow_version_id,
+                    "workflow_execution_id": work_session.workflow_execution_id,
                 },
             )()
         return next((session for session in self.sessions if session.id == session_id), None)

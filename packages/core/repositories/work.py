@@ -133,6 +133,8 @@ class WorkRepository:
         agent_type: str,
         intent: str,
         initial_request_id: str | None = None,
+        workflow_version_id: str | None = None,
+        workflow_execution_id: str | None = None,
     ) -> WorkSessionView:
         work_session = WorkSessionModel(
             work_item_id=work_item_id,
@@ -141,6 +143,8 @@ class WorkRepository:
             agent_type=agent_type,
             intent=intent,
             initial_request_id=initial_request_id,
+            workflow_version_id=workflow_version_id,
+            workflow_execution_id=workflow_execution_id,
         )
         self.session.add(work_session)
         self.session.flush()

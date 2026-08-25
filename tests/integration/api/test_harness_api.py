@@ -41,6 +41,7 @@ def test_start_work_endpoint_returns_session():
     assert body["next_actions"][0]["type"] == "plan_context"
     assert body["session_id"]
     assert body["project"]["id"] == project["id"]
+    assert body["workflow_version_id"]
 
 
 def test_start_work_endpoint_resolves_project_from_local_observation():

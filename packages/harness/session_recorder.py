@@ -11,6 +11,8 @@ class SessionRecorder:
         agent_type: str,
         intent: str,
         initial_request_id: str | None = None,
+        workflow_version_id: str | None = None,
+        workflow_execution_id: str | None = None,
     ):
         return self.core.create_work_session(
             work_item_id=work_item_id,
@@ -19,6 +21,8 @@ class SessionRecorder:
             agent_type=agent_type,
             intent=intent,
             initial_request_id=initial_request_id,
+            workflow_version_id=workflow_version_id,
+            workflow_execution_id=workflow_execution_id,
         )
 
     def record_event(self, *, session_id: str, event_type: str, payload: dict):
