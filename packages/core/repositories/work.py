@@ -58,6 +58,22 @@ class WorkSessionView:
     def closed_at(self, value: datetime | None) -> None:
         self.session.closed_at = value
 
+    @property
+    def user_id(self) -> str:
+        return self.session.user_id
+
+    @property
+    def credential_id(self) -> str | None:
+        return self.session.credential_id
+
+    @property
+    def workflow_version_id(self) -> str | None:
+        return self.session.workflow_version_id
+
+    @property
+    def workflow_execution_id(self) -> str | None:
+        return self.session.workflow_execution_id
+
 
 class WorkRepository:
     def __init__(self, session: Session):

@@ -13,6 +13,7 @@ from apps.api.auth import get_current_principal, require_project_member
 from apps.api.dependencies import get_db_session, get_keyword_index, get_vector_index
 from packages.core.auth import Principal
 from packages.core.models import utc_now
+from packages.core.repositories.workflows import WorkflowStepError
 from packages.core.services.runtime import CoreRuntime
 from packages.core.uow import SqlAlchemyUnitOfWork
 from packages.domain.local_workspace import LocalWorkspaceObservation
@@ -74,6 +75,12 @@ class SubmitContextProposalRequest(BaseModel):
     content: dict[str, Any] = Field(default_factory=dict)
     source_anchors: list[dict[str, Any]] = Field(default_factory=list)
     provenance: dict[str, Any] = Field(default_factory=dict)
+
+
+class CompleteWorkflowStepRequest(BaseModel):
+    session_id: str
+    step_key: str
+    summary: str
 
 
 class CloseWorkRequest(BaseModel):
@@ -234,6 +241,34 @@ def submit_context_proposal(
         response_dict = response.__dict__
         response_dict["request_id"] = task_session.id
         uow.commit()
+    return response_dict
+
+
+@router.post("/complete-workflow-step")
+def complete_workflow_step(
+    payload: CompleteWorkflowStepRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+    keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
+    vector_index: FakeVectorIndex = Depends(get_vector_index),
+):
+    try:
+        with SqlAlchemyUnitOfWork(session) as uow:
+            _ensure_session_member(session, principal, session_id=payload.session_id)
+            response = _harness(session, keyword_index, vector_index).complete_workflow_step(
+                **payload.model_dump(),
+                principal=principal,
+            )
+            response_dict = response.__dict__
+            response_dict["request_id"] = payload.session_id
+            uow.commit()
+    except WorkflowStepError as exc:
+        raise _protocol_error(
+            exc.code,
+            str(exc),
+            status_code=400,
+            next_action_type="complete_current_workflow_step",
+        ) from exc
     return response_dict
 
 

@@ -2098,3 +2098,39 @@ git diff --check
 Next:
 
 - Add canonical `agora_complete_workflow_step` with prerequisite and role checks.
+
+### 2026-08-25: P4 Task 2 Canonical Workflow Step Completion
+
+Scope:
+
+- Added `agora_complete_workflow_step` to the MCP tool facade so AI tools can advance the workflow through Agora instead of calling ad hoc helpers.
+- Added `/harness/complete-workflow-step` as the canonical API endpoint.
+- Reused project-session membership enforcement before workflow advancement.
+- Workflow execution now rejects non-current step completion with `WORKFLOW_STEP_NOT_CURRENT`.
+- Completing a step marks it `completed`, moves the next step to `running`, synchronizes WorkItem `stage` and records a `workflow_step_completed` event with actor and summary metadata.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_complete_workflow_step_advances_current_step_and_work_item_stage tests/integration/api/test_harness_api.py::test_complete_workflow_step_rejects_non_current_step
+# failed first with 404 before implementation, then 2 passed
+
+.venv/bin/pytest tests/unit/mcp/test_tools.py::test_mcp_complete_workflow_step_delegates_to_harness
+# failed first with missing agora_complete_workflow_step, then 1 passed
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py tests/integration/api/test_work_items_api.py tests/unit/mcp/test_tools.py tests/unit/harness/test_harness_service.py
+# 34 passed
+
+.venv/bin/pytest
+# 192 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+git diff --check
+# passed
+```
+
+Next:
+
+- Add WorkArtifact and HumanConfirmation capture so required step outputs and human-in-the-loop review evidence become first-class audit records.

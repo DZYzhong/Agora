@@ -52,6 +52,47 @@ git diff --check
 
 ## Next P4 tasks
 
-- Add `agora_complete_workflow_step` with prerequisite and role checks.
 - Add WorkArtifact and HumanConfirmation capture.
 - Extend Web WorkItem detail to show workflow steps, artifacts and confirmations.
+
+## Task 2: Canonical workflow step completion
+
+**Files:**
+
+- Modify: `packages/core/repositories/work.py`
+- Modify: `packages/core/repositories/workflows.py`
+- Modify: `packages/core/services/runtime.py`
+- Modify: `packages/harness/service.py`
+- Modify: `apps/api/routers/harness.py`
+- Modify: `apps/mcp/tools.py`
+- Test: `tests/integration/api/test_harness_api.py`
+- Test: `tests/unit/mcp/test_tools.py`
+
+- [x] Add canonical `agora_complete_workflow_step` MCP tool delegation.
+- [x] Add `/harness/complete-workflow-step` API endpoint.
+- [x] Require authenticated project-session membership before workflow advancement.
+- [x] Reject non-current step completion with `WORKFLOW_STEP_NOT_CURRENT`.
+- [x] Advance the next step to `running` and synchronize WorkItem `stage`.
+- [x] Record `workflow_step_completed` events with summary and actor metadata.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_complete_workflow_step_advances_current_step_and_work_item_stage tests/integration/api/test_harness_api.py::test_complete_workflow_step_rejects_non_current_step
+# failed first with 404 before implementation, then 2 passed
+
+.venv/bin/pytest tests/unit/mcp/test_tools.py::test_mcp_complete_workflow_step_delegates_to_harness
+# failed first with missing agora_complete_workflow_step, then 1 passed
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py tests/integration/api/test_work_items_api.py tests/unit/mcp/test_tools.py tests/unit/harness/test_harness_service.py
+# 34 passed
+
+.venv/bin/pytest
+# 192 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+git diff --check
+# passed
+```

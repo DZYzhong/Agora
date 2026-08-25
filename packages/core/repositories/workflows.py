@@ -137,3 +137,55 @@ class WorkflowRepository:
             .order_by(WorkflowStepRunModel.order_index)
         )
         return list(self.session.scalars(statement).all())
+
+    def complete_current_step(
+        self,
+        *,
+        workflow_execution_id: str,
+        step_key: str,
+    ) -> tuple[WorkflowExecutionModel, WorkflowStepRunModel, WorkflowStepRunModel | None]:
+        execution = self.session.get(WorkflowExecutionModel, workflow_execution_id)
+        if execution is None:
+            raise WorkflowStepError("WORKFLOW_EXECUTION_NOT_FOUND", f"Workflow execution not found: {workflow_execution_id}")
+        if execution.status != "running" or execution.current_step_key is None:
+            raise WorkflowStepError("WORKFLOW_ALREADY_COMPLETED", "Workflow execution is not running")
+        if execution.current_step_key != step_key:
+            raise WorkflowStepError(
+                "WORKFLOW_STEP_NOT_CURRENT",
+                f"Current workflow step is {execution.current_step_key}; cannot complete {step_key}",
+            )
+        steps = self.list_step_runs(workflow_execution_id)
+        current_index = next((index for index, step in enumerate(steps) if step.step_key == step_key), None)
+        if current_index is None:
+            raise WorkflowStepError("WORKFLOW_STEP_NOT_FOUND", f"Workflow step not found: {step_key}")
+
+        completed_step = steps[current_index]
+        if completed_step.status != "running":
+            raise WorkflowStepError("WORKFLOW_STEP_NOT_RUNNING", f"Workflow step is not running: {step_key}")
+
+        completed_step.status = "completed"
+        next_step = steps[current_index + 1] if current_index + 1 < len(steps) else None
+        work_item = self.session.get(WorkItemModel, execution.work_item_id)
+        if next_step is None:
+            execution.status = "completed"
+            execution.current_step_key = None
+            if work_item is not None:
+                work_item.status = "completed"
+                work_item.stage = completed_step.step_key
+        else:
+            next_step.status = "running"
+            execution.current_step_key = next_step.step_key
+            if work_item is not None:
+                work_item.stage = next_step.step_key
+        self.session.flush()
+        self.session.refresh(execution)
+        self.session.refresh(completed_step)
+        if next_step is not None:
+            self.session.refresh(next_step)
+        return execution, completed_step, next_step
+
+
+class WorkflowStepError(ValueError):
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code

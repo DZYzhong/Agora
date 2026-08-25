@@ -7,6 +7,7 @@ class FakeHarness:
         self.closed_with = None
         self.fetched_with = None
         self.submitted_with = None
+        self.completed_step_with = None
 
     def start_work(self, **kwargs):
         self.started = True
@@ -45,6 +46,14 @@ class FakeHarness:
         return {
             "operation": "submit_context_proposal",
             "proposal": {"id": "proposal_1", "session_id": kwargs["session_id"]},
+        }
+
+    def complete_workflow_step(self, **kwargs):
+        self.completed_step_with = kwargs
+        return {
+            "operation": "complete_workflow_step",
+            "session_id": kwargs["session_id"],
+            "completed_step": {"step_key": kwargs["step_key"], "status": "completed"},
         }
 
 
@@ -148,4 +157,24 @@ def test_mcp_submit_context_proposal_delegates_to_harness():
         "content": {"risks": ["状态重复流转会产生重复审计"]},
         "source_anchors": [{"kind": "code", "path": "src/refund/service.py"}],
         "provenance": {"generating_tool": "codex"},
+    }
+
+
+def test_mcp_complete_workflow_step_delegates_to_harness():
+    fake_harness = FakeHarness()
+    tools = AgoraMcpTools(harness=fake_harness)
+
+    result = tools.agora_complete_workflow_step(
+        session_id="sess_1",
+        step_key="analysis",
+        summary="分析完成，确认支付状态流转影响面。",
+        principal="principal",
+    )
+
+    assert result["completed_step"]["step_key"] == "analysis"
+    assert fake_harness.completed_step_with == {
+        "session_id": "sess_1",
+        "step_key": "analysis",
+        "summary": "分析完成，确认支付状态流转影响面。",
+        "principal": "principal",
     }

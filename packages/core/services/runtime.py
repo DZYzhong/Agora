@@ -66,6 +66,12 @@ class CoreRuntime:
     def list_workflow_step_runs(self, workflow_execution_id: str):
         return WorkflowRepository(self.session).list_step_runs(workflow_execution_id)
 
+    def complete_current_workflow_step(self, *, workflow_execution_id: str, step_key: str):
+        return WorkflowRepository(self.session).complete_current_step(
+            workflow_execution_id=workflow_execution_id,
+            step_key=step_key,
+        )
+
     def get_session(self, session_id: str):
         work_session = WorkRepository(self.session).get_work_session(session_id)
         return work_session or TaskSessionRepository(self.session).get(session_id)

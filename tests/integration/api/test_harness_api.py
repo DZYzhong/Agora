@@ -44,6 +44,85 @@ def test_start_work_endpoint_returns_session():
     assert body["workflow_version_id"]
 
 
+def test_complete_workflow_step_advances_current_step_and_work_item_stage():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_complete_step",
+            "name": "Complete Step",
+            "slug": "complete-step",
+            "git_remotes": [],
+        },
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "帮我做 AG-200：补充结算审计",
+            "agent_type": "codex",
+        },
+    ).json()
+
+    response = client.post(
+        "/harness/complete-workflow-step",
+        json={
+            "session_id": started["session_id"],
+            "step_key": "analysis",
+            "summary": "已确认结算审计涉及状态流转、幂等和重试边界。",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["workflow_execution"]["current_step_key"] == "design"
+    assert body["completed_step"]["step_key"] == "analysis"
+    assert body["completed_step"]["status"] == "completed"
+    assert body["next_step"]["step_key"] == "design"
+    assert body["next_step"]["status"] == "running"
+    assert body["next_actions"][0]["type"] == "prepare_context"
+
+    work_item = client.get(f"/projects/{project['id']}/work-items/{started['work_item_id']}").json()
+    assert work_item["stage"] == "design"
+    assert work_item["workflow_execution"]["steps"][0]["status"] == "completed"
+    assert work_item["workflow_execution"]["steps"][1]["status"] == "running"
+
+
+def test_complete_workflow_step_rejects_non_current_step():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_complete_step_guard",
+            "name": "Complete Step Guard",
+            "slug": "complete-step-guard",
+            "git_remotes": [],
+        },
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "帮我做 AG-201：补充风控审计",
+            "agent_type": "codex",
+        },
+    ).json()
+
+    response = client.post(
+        "/harness/complete-workflow-step",
+        json={
+            "session_id": started["session_id"],
+            "step_key": "implementation",
+            "summary": "尝试跳过分析设计评审。",
+        },
+    )
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["error"]["code"] == "WORKFLOW_STEP_NOT_CURRENT"
+    assert detail["next_actions"][0]["type"] == "complete_current_workflow_step"
+
+
 def test_start_work_endpoint_resolves_project_from_local_observation():
     client = TestClient(app)
     project = client.post(

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from packages.core.auth import Principal
 from packages.core.models import utc_now
+from packages.core.repositories.workflows import WorkflowStepError
 from packages.domain.local_workspace import LocalWorkspaceObservation
 from packages.harness.context_planner import ContextPlanner
 from packages.harness.development_capture import capture_development_change
@@ -44,6 +45,18 @@ class ContextProposalSubmission:
     proposal: dict
     stream: dict
     capability_pins: dict
+    next_actions: list[dict]
+
+
+@dataclass(frozen=True)
+class WorkflowStepCompletionResult:
+    protocol_version: str
+    operation: str
+    session_id: str
+    work_item_id: str
+    workflow_execution: dict
+    completed_step: dict
+    next_step: dict | None
     next_actions: list[dict]
 
 
@@ -259,6 +272,64 @@ class HarnessService:
             ],
         )
 
+    def complete_workflow_step(
+        self,
+        *,
+        session_id: str,
+        step_key: str,
+        summary: str,
+        principal: Principal | None = None,
+    ) -> WorkflowStepCompletionResult:
+        if principal is None:
+            raise ValueError("HarnessService.complete_workflow_step requires an authenticated Principal")
+        session = self.core.get_session(session_id)
+        if session is None:
+            raise ValueError(f"Session not found: {session_id}")
+        workflow_execution_id = getattr(session, "workflow_execution_id", None) or getattr(
+            getattr(session, "work_item", None),
+            "workflow_execution_id",
+            None,
+        )
+        if workflow_execution_id is None:
+            raise WorkflowStepError("WORKFLOW_EXECUTION_NOT_FOUND", f"Session has no workflow execution: {session_id}")
+        execution, completed_step, next_step = self.core.complete_current_workflow_step(
+            workflow_execution_id=workflow_execution_id,
+            step_key=step_key,
+        )
+        event_payload = {
+            "workflow_execution_id": execution.id,
+            "work_item_id": execution.work_item_id,
+            "step_key": completed_step.step_key,
+            "summary": summary,
+            "completed_by_user_id": principal.user_id,
+        }
+        self.session_recorder.record_event(
+            session_id=session_id,
+            event_type="workflow_step_completed",
+            payload=event_payload,
+        )
+        return WorkflowStepCompletionResult(
+            protocol_version="1.0",
+            operation="complete_workflow_step",
+            session_id=session_id,
+            work_item_id=execution.work_item_id,
+            workflow_execution={
+                "id": execution.id,
+                "workflow_version_id": execution.workflow_version_id,
+                "status": execution.status,
+                "current_step_key": execution.current_step_key,
+            },
+            completed_step=_serialize_workflow_step_run(completed_step),
+            next_step=_serialize_workflow_step_run(next_step) if next_step is not None else None,
+            next_actions=[
+                {
+                    "type": "prepare_context" if next_step is not None else "close_work",
+                    "tool": "agora_prepare_context" if next_step is not None else "agora_close_work",
+                    "reason": "Workflow advanced to the next step." if next_step is not None else "Workflow completed.",
+                }
+            ],
+        )
+
     def close_work(
         self,
         *,
@@ -366,4 +437,15 @@ def _serialize_context_proposal(core, proposal) -> dict:
         "accepted_revision_id": proposal.accepted_revision_id,
         "created_at": proposal.created_at,
         "updated_at": proposal.updated_at,
+    }
+
+
+def _serialize_workflow_step_run(step) -> dict:
+    return {
+        "id": step.id,
+        "step_key": step.step_key,
+        "title": step.title,
+        "order_index": step.order_index,
+        "status": step.status,
+        "required_artifacts": step.required_artifacts,
     }
