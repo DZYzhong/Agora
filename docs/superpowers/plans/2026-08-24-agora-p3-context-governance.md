@@ -217,4 +217,27 @@ git diff --check
 
 ## Remaining P3 tasks
 
-- Prepare black-box validation steps for the full P3 flow.
+- [x] Prepare black-box validation steps for the full P3 flow.
+
+## Task 6: P3 black-box validation guide
+
+**Files:**
+
+- Create: `docs/development/p3-context-governance-blackbox.zh-CN.md`
+
+- [x] Document service startup for API, Web and outbox worker.
+- [x] Document real AI-tool proposal upload flow.
+- [x] Document Web human review and approval flow.
+- [x] Document accepted ContextRevision reuse through `agora_prepare_context`.
+- [x] Document feature-branch stream and merge reachability validation.
+- [x] Document outbox worker validation.
+
+Verification:
+
+```text
+Documentation-only change.
+```
+
+## Remaining P3 tasks
+
+- Await user black-box validation feedback.

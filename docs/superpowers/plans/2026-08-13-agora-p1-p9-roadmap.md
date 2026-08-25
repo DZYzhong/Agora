@@ -2043,3 +2043,20 @@ git diff --check
 Next:
 
 - Prepare full P3 black-box validation steps.
+
+### 2026-08-25: P3 Task 6 Black-box Validation Guide
+
+Scope:
+
+- Added `docs/development/p3-context-governance-blackbox.zh-CN.md`.
+- The guide covers service startup, real AI-tool ContextProposal upload, Web human review, accepted ContextRevision reuse, feature branch stream protection, merge reachability and outbox worker validation.
+
+Verification:
+
+```text
+Documentation-only change.
+```
+
+Next:
+
+- Wait for user black-box validation feedback before moving to P4.
