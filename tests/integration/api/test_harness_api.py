@@ -151,6 +151,70 @@ def test_complete_workflow_step_captures_artifacts_and_human_confirmation():
         db.close()
 
 
+def test_submit_skill_candidate_from_work_session_creates_reviewable_project_skill():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_skill_candidate_from_ai",
+            "name": "Skill Candidate From AI",
+            "slug": "skill-candidate-from-ai",
+            "git_remotes": [],
+        },
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "帮我做 AG-601：补充发布风险检查",
+            "agent_type": "codex",
+        },
+    ).json()
+    completed = client.post(
+        "/harness/complete-workflow-step",
+        json={
+            "session_id": started["session_id"],
+            "step_key": "analysis",
+            "summary": "完成发布风险检查经验总结。",
+            "artifacts": [
+                {
+                    "type": "analysis_note",
+                    "title": "AG-601 风险检查经验",
+                    "content": "发布前必须检查回滚方案、测试证据和配置开关。",
+                    "metadata": {"path": "docs/tasks/AG-601/analysis.md"},
+                }
+            ],
+        },
+    ).json()
+
+    response = client.post(
+        "/harness/submit-skill-candidate",
+        json={
+            "session_id": started["session_id"],
+            "slug": "release-risk-review",
+            "name": "Release Risk Review",
+            "summary": "把发布风险检查经验沉淀成团队 skill。",
+            "triggers": ["release", "risk", "rollback"],
+            "instructions": "检查回滚方案、测试证据、配置开关和风险说明。",
+            "artifact_ids": [completed["artifacts"][0]["id"]],
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["operation"] == "submit_skill_candidate"
+    assert body["skill"]["status"] == "candidate"
+    assert body["skill"]["definition"]["source"] == "ai_tool_submission"
+    assert body["skill"]["definition"]["work_item_id"] == started["work_item_id"]
+    assert body["skill"]["definition"]["evidence_artifact_ids"] == [completed["artifacts"][0]["id"]]
+    assert body["next_actions"][0]["type"] == "human_review_skill_candidate"
+
+    skills = client.get(f"/projects/{project['id']}/skills").json()
+    candidate = next(skill for skill in skills if skill["id"] == body["skill"]["id"])
+    assert candidate["status"] == "candidate"
+    assert candidate["evidence_refs"][0]["title"] == "AG-601 风险检查经验"
+
+
 def test_complete_workflow_step_rejects_non_current_step():
     client = TestClient(app)
     project = client.post(

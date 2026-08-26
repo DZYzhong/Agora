@@ -4,7 +4,7 @@
 
 **Current branch:** `codex/agora-p0`
 
-**Current baseline:** P0 and the original P1 local trial are implemented. Their code remains a useful foundation, but P2-P9 have been realigned to the Agent-first, Harness-first product design. The next phase is the realigned P2.
+**Current baseline:** P0-P4 are implemented on the realigned Agent-first, Harness-first architecture. P5 Skill and Team Memory Governance is in progress.
 
 **Canonical product design:** `docs/superpowers/specs/2026-08-14-agora-product-functional-design.zh-CN.md`
 
@@ -221,6 +221,12 @@ Exit criteria:
 ## P5: Skill and Team Memory Governance
 
 **Goal:** Turn approved team methods and repeated experience into versioned, reusable AI work capabilities.
+
+**Status:** In progress.
+
+Current plan:
+
+- `docs/superpowers/plans/2026-08-26-agora-p5-skill-governance.md`
 
 Scope:
 
@@ -2247,3 +2253,62 @@ git diff --check
 Next:
 
 - Wait for user black-box validation feedback before moving to P5.
+
+### 2026-08-26: P5 Task 1-2 SkillVersion Pins and AI-tool SkillCandidate Submission
+
+Scope:
+
+- Added current P5 implementation plan: `docs/superpowers/plans/2026-08-26-agora-p5-skill-governance.md`.
+- Added immutable `skill_versions` schema and pins from logical Skill to current approved version.
+- Skill approval now creates or reuses an approved immutable SkillVersion.
+- Skill runs and WorkSessions now record `skill_version_id`, so historical work is tied to the exact team capability used.
+- Skills API and Web now expose current SkillVersion metadata, and WorkItem capability projections include SkillVersion pins.
+- Added canonical AI-tool submission path for SkillCandidates from a real WorkSession through `/harness/submit-skill-candidate` and `agora_submit_skill_candidate`.
+- SkillCandidate submissions preserve WorkItem/session provenance, triggers, instructions and WorkArtifact evidence IDs, record a session audit event, and return the next human review action.
+- Skill review payloads can now show WorkArtifact evidence references in addition to legacy source assets.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_migrations.py::test_alembic_upgrade_head_creates_current_schema tests/integration/test_migrations.py::test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine
+# failed first before 0007 migration and SkillVersion schema, then 3 passed
+
+.venv/bin/pytest tests/integration/api/test_skills_api.py::test_approving_and_running_skill_creates_and_pins_immutable_skill_version
+# failed first before SkillVersionModel and pins existed, then 1 passed
+
+.venv/bin/pytest tests/integration/test_web_config.py::test_skills_page_renders_current_skill_version
+# failed first before Web rendered current version, then passed in grouped verification
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_submit_skill_candidate_from_work_session_creates_reviewable_project_skill
+# failed first with route not found, then 1 passed
+
+.venv/bin/pytest tests/unit/mcp/test_tools.py::test_mcp_submit_skill_candidate_delegates_to_harness
+# failed first with missing agora_submit_skill_candidate, then 1 passed
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py tests/integration/api/test_skills_api.py tests/integration/api/test_work_items_api.py tests/unit/mcp/test_tools.py tests/integration/test_migrations.py tests/integration/test_web_config.py tests/unit/harness/test_skill_runner.py
+# 52 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+.venv/bin/pytest tests/integration/test_p2_migration.py
+# 16 passed after fixing the legacy P1 migration test fixture to create a real Alembic 0001 schema before dropping alembic_version
+
+.venv/bin/pytest
+# 201 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+git diff --check
+# passed
+```
+
+Black-box path:
+
+- Not handed to the user yet. P5 black-box verification should wait until the complete submit-review-publish-reuse loop is implemented, so the user can validate a meaningful end-to-end capability instead of a tiny partial step.
+
+Next:
+
+- Add reviewer edit-and-approve flow that publishes a new immutable SkillVersion from a SkillCandidate.
+- Make ContextPlanner/Harness select only approved applicable SkillVersions and include them in the task ContextBundle.

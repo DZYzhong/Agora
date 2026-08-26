@@ -1,0 +1,107 @@
+# Agora P5 Skill and Team Memory Governance Implementation Plan
+
+**Goal:** Turn approved team methods and repeated project experience into versioned, reusable AI work capabilities.
+
+This is the current realigned P5 plan. The older `2026-08-13-agora-p5-session-audit.md` remains historical implementation evidence for session audit, but it is not the canonical P5 scope after the product realignment.
+
+## Task 1: SkillVersion foundation and usage pinning
+
+**Files:**
+
+- Create: `alembic/versions/20260826_0007_p5_skill_versions.py`
+- Modify: `packages/core/models.py`
+- Modify: `packages/core/repositories/skills.py`
+- Modify: `packages/core/repositories/work.py`
+- Modify: `packages/core/services/runtime.py`
+- Modify: `packages/harness/skill_orchestrator.py`
+- Modify: `apps/api/routers/skills.py`
+- Modify: `apps/api/routers/work_items.py`
+- Modify: `apps/web/app/projects/[projectId]/skills/page.tsx`
+- Test: `tests/integration/test_migrations.py`
+- Test: `tests/integration/api/test_skills_api.py`
+- Test: `tests/integration/test_web_config.py`
+- Test: `tests/unit/harness/test_skill_runner.py`
+
+- [x] Add immutable `skill_versions` schema linked to logical `skills`.
+- [x] Pin `skills.current_version_id` after approval.
+- [x] Pin `skill_runs.skill_version_id` when an approved Skill is executed.
+- [x] Pin `work_sessions.skill_version_id` so historical work remains tied to the exact capability used.
+- [x] Return current version metadata in Skills API and Web.
+- [x] Include SkillVersion pins in WorkItem capability projections.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_migrations.py::test_alembic_upgrade_head_creates_current_schema tests/integration/test_migrations.py::test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine
+# failed first before 0007 migration and SkillVersion schema, then 3 passed
+
+.venv/bin/pytest tests/integration/api/test_skills_api.py::test_approving_and_running_skill_creates_and_pins_immutable_skill_version
+# failed first before SkillVersionModel and pins existed, then 1 passed
+
+.venv/bin/pytest tests/integration/test_web_config.py::test_skills_page_renders_current_skill_version
+# failed first before Web rendered the current version, then passed in grouped verification
+
+.venv/bin/pytest tests/integration/api/test_skills_api.py tests/integration/api/test_work_items_api.py tests/integration/test_migrations.py tests/integration/test_web_config.py tests/unit/harness/test_skill_runner.py
+# 29 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+git diff --check
+# passed
+```
+
+## Task 2: AI-tool SkillCandidate submission from real work
+
+**Files:**
+
+- Modify: `packages/core/repositories/workflows.py`
+- Modify: `packages/core/services/runtime.py`
+- Modify: `packages/harness/service.py`
+- Modify: `apps/api/routers/harness.py`
+- Modify: `apps/api/routers/skills.py`
+- Modify: `apps/mcp/tools.py`
+- Test: `tests/integration/api/test_harness_api.py`
+- Test: `tests/unit/mcp/test_tools.py`
+
+- [x] Add canonical Harness/API operation for an AI tool to submit a SkillCandidate from a WorkSession.
+- [x] Add MCP facade `agora_submit_skill_candidate`.
+- [x] Preserve candidate provenance: session, WorkItem, submitting user, triggers, instructions and evidence artifact IDs.
+- [x] Record a `skill_candidate_submitted` WorkSession event for audit.
+- [x] Return the next action `human_review_skill_candidate`, keeping publish approval human-governed.
+- [x] Show WorkArtifact evidence references on the Skills review page.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_submit_skill_candidate_from_work_session_creates_reviewable_project_skill
+# failed first with route not found, then 1 passed
+
+.venv/bin/pytest tests/unit/mcp/test_tools.py::test_mcp_submit_skill_candidate_delegates_to_harness
+# failed first with missing agora_submit_skill_candidate, then 1 passed
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py tests/integration/api/test_skills_api.py tests/integration/api/test_work_items_api.py tests/unit/mcp/test_tools.py tests/integration/test_migrations.py tests/integration/test_web_config.py tests/unit/harness/test_skill_runner.py
+# 52 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+.venv/bin/pytest tests/integration/test_p2_migration.py
+# 16 passed after fixing the legacy P1 test fixture to use Alembic 0001 schema instead of current ORM create_all
+
+.venv/bin/pytest
+# 201 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+git diff --check
+# passed
+```
+
+## Next P5 tasks
+
+- Add reviewer edit-and-approve flow that publishes a new immutable SkillVersion from a SkillCandidate.
+- Make ContextPlanner/Harness select only approved applicable SkillVersions and include them in the task ContextBundle.
+- Add duplicate detection and repeated-experience suggestions from accepted artifacts and completed WorkSessions.
+- Prepare the P5 black-box guide after the full submit-review-publish-reuse loop is available.

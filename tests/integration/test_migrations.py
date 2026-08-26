@@ -39,6 +39,10 @@ P4_TABLES = {
     "human_confirmations",
 }
 
+P5_TABLES = {
+    "skill_versions",
+}
+
 
 def _alembic_config(database_url: str) -> Config:
     config = Config("alembic.ini")
@@ -52,7 +56,7 @@ def test_alembic_upgrade_head_creates_current_schema(tmp_path):
     command.upgrade(_alembic_config(database_url), "head")
 
     inspector = inspect(create_engine(database_url))
-    assert P1_TABLES | P2_TABLES | P4_TABLES <= set(inspector.get_table_names())
+    assert P1_TABLES | P2_TABLES | P4_TABLES | P5_TABLES <= set(inspector.get_table_names())
 
 
 @pytest.mark.parametrize("database_url", ["sqlite:///:memory:", "sqlite+pysqlite:///:memory:"])
@@ -61,7 +65,7 @@ def test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine(data
 
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT count(*) FROM assets")) == 0
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260825_0006"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260826_0007"
 
 
 def test_p2_schema_has_required_foreign_keys_and_uniqueness(tmp_path):

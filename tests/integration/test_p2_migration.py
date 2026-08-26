@@ -46,13 +46,13 @@ def _alembic_config(database_url: str) -> Config:
 
 
 def _create_p1_database(database_url: str, entry_state: str) -> None:
-    if entry_state == "versioned":
-        command.upgrade(_alembic_config(database_url), "20260813_0001")
-        return
+    command.upgrade(_alembic_config(database_url), "20260813_0001")
 
-    engine = create_engine(database_url)
-    Base.metadata.create_all(engine, tables=[Base.metadata.tables[name] for name in sorted(P1_TABLE_NAMES)])
-    engine.dispose()
+    if entry_state == "unversioned_create_all":
+        engine = create_engine(database_url)
+        with engine.begin() as connection:
+            connection.execute(text("DROP TABLE alembic_version"))
+        engine.dispose()
 
 
 def _seed_p1_database(database_url: str) -> None:

@@ -148,6 +148,14 @@ class WorkflowRepository:
         )
         return list(self.session.scalars(statement).all())
 
+    def list_work_artifacts_by_ids(self, artifact_ids: list[str]) -> list[WorkArtifactModel]:
+        if not artifact_ids:
+            return []
+        statement = select(WorkArtifactModel).where(WorkArtifactModel.id.in_(artifact_ids))
+        artifacts = list(self.session.scalars(statement).all())
+        by_id = {artifact.id: artifact for artifact in artifacts}
+        return [by_id[artifact_id] for artifact_id in artifact_ids if artifact_id in by_id]
+
     def list_human_confirmations_by_execution(self, workflow_execution_id: str) -> list[HumanConfirmationModel]:
         statement = (
             select(HumanConfirmationModel)

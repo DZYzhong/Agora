@@ -12,6 +12,14 @@ type Skill = {
     instructions?: string;
     builtin?: boolean;
   };
+  current_version_id: string | null;
+  current_version: {
+    id: string;
+    version: string;
+    status: string;
+    approved_by_user_id: string | null;
+    created_at: string;
+  } | null;
   evidence_refs: {
     id: string;
     type: string;
@@ -26,6 +34,7 @@ type Skill = {
 type SkillRun = {
   id: string;
   skill_id: string;
+  skill_version_id: string | null;
   input: Record<string, unknown>;
   output: Record<string, unknown>;
   warnings: string[];
@@ -95,6 +104,10 @@ export default async function SkillsPage({ params }: { params: Promise<{ project
                 <dd>{skill.definition.version ?? "Not set"}</dd>
               </div>
               <div>
+                <dt>Current version</dt>
+                <dd>{skill.current_version ? `${skill.current_version.version} · ${skill.current_version.status}` : "Not approved"}</dd>
+              </div>
+              <div>
                 <dt>Triggers</dt>
                 <dd>{skill.definition.triggers?.join(", ") || "Not set"}</dd>
               </div>
@@ -103,6 +116,11 @@ export default async function SkillsPage({ params }: { params: Promise<{ project
                 <dd>{runs.filter((run) => run.skill_id === skill.id).length}</dd>
               </div>
             </dl>
+            {skill.current_version ? (
+              <p className="asset-uri">
+                SkillVersion {skill.current_version.id} · approved by {skill.current_version.approved_by_user_id ?? "system"}
+              </p>
+            ) : null}
             {skill.definition.instructions ? <p className="asset-summary">{skill.definition.instructions}</p> : null}
             {skill.evidence_refs.length ? (
               <div className="evidence-list">
@@ -160,7 +178,9 @@ export default async function SkillsPage({ params }: { params: Promise<{ project
             {runs.map((run) => (
               <div className="event-row" key={run.id}>
                 <strong>{skillNames.get(run.skill_id) ?? run.skill_id}</strong>
-                <p className="asset-uri">{run.status} · {new Date(run.created_at).toLocaleString()}</p>
+                <p className="asset-uri">
+                  {run.status} · {new Date(run.created_at).toLocaleString()} · SkillVersion {run.skill_version_id ?? "not pinned"}
+                </p>
                 <pre>{JSON.stringify({ input: run.input, output: run.output, warnings: run.warnings }, null, 2)}</pre>
               </div>
             ))}

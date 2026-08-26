@@ -64,11 +64,13 @@ def _content_preview(content: str, *, limit: int = 160) -> str:
 
 
 def _serialize_evidence_refs(runtime: CoreRuntime, skill) -> list[dict]:
+    refs: list[dict] = []
     evidence_ids = (skill.definition or {}).get("evidence_writeback_ids") or []
     writebacks = runtime.list_writebacks_by_ids(evidence_ids)
-    return [
+    refs.extend(
         {
             "id": writeback.id,
+            "source": "writeback",
             "type": writeback.type,
             "title": writeback.title,
             "status": writeback.status,
@@ -76,10 +78,26 @@ def _serialize_evidence_refs(runtime: CoreRuntime, skill) -> list[dict]:
             "content_preview": _content_preview(writeback.content),
         }
         for writeback in writebacks
-    ]
+    )
+    artifact_ids = (skill.definition or {}).get("evidence_artifact_ids") or []
+    if artifact_ids and hasattr(runtime, "list_work_artifacts_by_ids"):
+        refs.extend(
+            {
+                "id": artifact.id,
+                "source": "work_artifact",
+                "type": artifact.type,
+                "title": artifact.title,
+                "status": "submitted",
+                "accepted_asset_id": None,
+                "content_preview": _content_preview(artifact.content),
+            }
+            for artifact in runtime.list_work_artifacts_by_ids(artifact_ids)
+        )
+    return refs
 
 
 def _serialize_skill(skill, *, runtime: CoreRuntime | None = None, builtin: bool = False) -> dict:
+    current_version = runtime.get_current_skill_version(skill.id) if runtime is not None and hasattr(runtime, "get_current_skill_version") else None
     return {
         "id": skill.id,
         "org_id": skill.org_id,
@@ -88,9 +106,25 @@ def _serialize_skill(skill, *, runtime: CoreRuntime | None = None, builtin: bool
         "name": skill.name,
         "status": skill.status,
         "definition": skill.definition,
+        "current_version_id": skill.current_version_id,
+        "current_version": _serialize_skill_version(current_version) if current_version is not None else None,
         "evidence_refs": _serialize_evidence_refs(runtime, skill) if runtime is not None else [],
         "builtin": builtin,
         "created_at": skill.created_at,
+    }
+
+
+def _serialize_skill_version(version) -> dict:
+    return {
+        "id": version.id,
+        "org_id": version.org_id,
+        "project_id": version.project_id,
+        "skill_id": version.skill_id,
+        "version": version.version,
+        "status": version.status,
+        "definition": version.definition,
+        "approved_by_user_id": version.approved_by_user_id,
+        "created_at": version.created_at,
     }
 
 
@@ -101,6 +135,7 @@ def _serialize_run(run) -> dict:
         "project_id": run.project_id,
         "session_id": run.session_id,
         "skill_id": run.skill_id,
+        "skill_version_id": run.skill_version_id,
         "input": run.input,
         "output": run.output,
         "warnings": run.warnings,
@@ -239,6 +274,7 @@ def approve_skill(
                 raise HTTPException(status_code=404, detail="Skill not found")
             _ensure_project_skill(skill, project_id)
             skill = runtime.update_skill(skill_id, status=SkillStatus.APPROVED.value)
+            runtime.ensure_approved_skill_version(skill.id, approved_by_user_id=principal.user_id)
             response = _serialize_skill(skill, runtime=runtime, builtin=bool((skill.definition or {}).get("builtin")))
             uow.commit()
     except ValueError as exc:

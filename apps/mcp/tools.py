@@ -93,6 +93,33 @@ class AgoraMcpTools:
             payload["principal"] = principal
         return _object_to_dict(self.harness.complete_workflow_step(**payload))
 
+    def agora_submit_skill_candidate(
+        self,
+        *,
+        session_id: str,
+        slug: str,
+        name: str,
+        summary: str,
+        instructions: str,
+        triggers: list[str] | None = None,
+        artifact_ids: list[str] | None = None,
+        principal=None,
+    ) -> dict:
+        if not hasattr(self.harness, "submit_skill_candidate"):
+            raise NotImplementedError("Harness does not implement submit_skill_candidate")
+        payload = {
+            "session_id": session_id,
+            "slug": slug,
+            "name": name,
+            "summary": summary,
+            "triggers": triggers or [],
+            "instructions": instructions,
+            "artifact_ids": artifact_ids or [],
+        }
+        if principal is not None:
+            payload["principal"] = principal
+        return _object_to_dict(self.harness.submit_skill_candidate(**payload))
+
     def agora_run_skill(self, *, session_id: str, skill_slug: str, input: dict) -> dict:
         if not hasattr(self.harness, "run_skill"):
             return {"session_id": session_id, "skill_slug": skill_slug, "input": input, "status": "not_implemented"}

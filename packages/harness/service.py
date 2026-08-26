@@ -62,6 +62,16 @@ class WorkflowStepCompletionResult:
     next_actions: list[dict]
 
 
+@dataclass(frozen=True)
+class SkillCandidateSubmission:
+    protocol_version: str
+    operation: str
+    session_id: str
+    work_item_id: str
+    skill: dict
+    next_actions: list[dict]
+
+
 class HarnessService:
     def __init__(self, *, core, context_engine):
         self.core = core
@@ -368,6 +378,74 @@ class HarnessService:
                     "type": "prepare_context" if next_step is not None else "close_work",
                     "tool": "agora_prepare_context" if next_step is not None else "agora_close_work",
                     "reason": "Workflow advanced to the next step." if next_step is not None else "Workflow completed.",
+                }
+            ],
+        )
+
+    def submit_skill_candidate(
+        self,
+        *,
+        session_id: str,
+        slug: str,
+        name: str,
+        summary: str,
+        instructions: str,
+        triggers: list[str] | None = None,
+        artifact_ids: list[str] | None = None,
+        principal: Principal | None = None,
+    ) -> SkillCandidateSubmission:
+        if principal is None:
+            raise ValueError("HarnessService.submit_skill_candidate requires an authenticated Principal")
+        session = self.core.get_session(session_id)
+        if session is None:
+            raise ValueError(f"Session not found: {session_id}")
+        work_item = getattr(session, "work_item", None)
+        skill = self.core.create_skill(
+            org_id=session.org_id,
+            project_id=session.project_id,
+            slug=slug,
+            name=name,
+            status="candidate",
+            definition={
+                "version": "0.1.0",
+                "source": "ai_tool_submission",
+                "summary": summary,
+                "session_id": session_id,
+                "work_item_id": getattr(work_item, "id", None) or getattr(session, "work_item_id", None),
+                "triggers": triggers or [],
+                "input_schema": {"type": "object"},
+                "output_schema": {"type": "object"},
+                "instructions": instructions,
+                "evidence_artifact_ids": artifact_ids or [],
+                "submitted_by_user_id": principal.user_id,
+            },
+        )
+        self.session_recorder.record_event(
+            session_id=session_id,
+            event_type="skill_candidate_submitted",
+            payload={
+                "skill_id": skill.id,
+                "slug": skill.slug,
+                "artifact_ids": artifact_ids or [],
+                "submitted_by_user_id": principal.user_id,
+            },
+        )
+        return SkillCandidateSubmission(
+            protocol_version="1.0",
+            operation="submit_skill_candidate",
+            session_id=session_id,
+            work_item_id=getattr(work_item, "id", None) or getattr(session, "work_item_id", None),
+            skill={
+                "id": skill.id,
+                "slug": skill.slug,
+                "name": skill.name,
+                "status": skill.status,
+                "definition": skill.definition,
+            },
+            next_actions=[
+                {
+                    "type": "human_review_skill_candidate",
+                    "reason": "Skill candidate was submitted and requires human review before becoming an approved team capability.",
                 }
             ],
         )

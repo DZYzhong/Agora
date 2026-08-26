@@ -93,6 +93,24 @@ class SkillModel(Base):
     name: Mapped[str] = mapped_column(String)
     status: Mapped[str] = mapped_column(String, default="approved")
     definition: Mapped[dict] = mapped_column(JSON, default=dict)
+    current_version_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class SkillVersionModel(Base):
+    __tablename__ = "skill_versions"
+    __table_args__ = (
+        UniqueConstraint("skill_id", "version", name="uq_skill_versions_skill_version"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    org_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    project_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    skill_id: Mapped[str] = mapped_column(ForeignKey("skills.id"), index=True)
+    version: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, default="approved", index=True)
+    definition: Mapped[dict] = mapped_column(JSON, default=dict)
+    approved_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
@@ -104,6 +122,7 @@ class SkillRunModel(Base):
     project_id: Mapped[str] = mapped_column(String, index=True)
     session_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     skill_id: Mapped[str] = mapped_column(String, index=True)
+    skill_version_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     input: Mapped[dict] = mapped_column(JSON, default=dict)
     output: Mapped[dict] = mapped_column(JSON, default=dict)
     warnings: Mapped[list[str]] = mapped_column(JSON, default=list)
@@ -236,6 +255,7 @@ class WorkSessionModel(Base):
     status: Mapped[str] = mapped_column(String, default="started", index=True)
     workflow_version_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     workflow_execution_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    skill_version_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     legacy_imported: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -8,6 +8,7 @@ class FakeHarness:
         self.fetched_with = None
         self.submitted_with = None
         self.completed_step_with = None
+        self.submitted_skill_candidate_with = None
 
     def start_work(self, **kwargs):
         self.started = True
@@ -56,6 +57,13 @@ class FakeHarness:
             "completed_step": {"step_key": kwargs["step_key"], "status": "completed"},
             "artifacts": kwargs.get("artifacts", []),
             "human_confirmation": kwargs.get("human_confirmation"),
+        }
+
+    def submit_skill_candidate(self, **kwargs):
+        self.submitted_skill_candidate_with = kwargs
+        return {
+            "operation": "submit_skill_candidate",
+            "skill": {"slug": kwargs["slug"], "status": "candidate"},
         }
 
 
@@ -212,3 +220,31 @@ def test_mcp_complete_workflow_step_passes_artifacts_and_human_confirmation():
     assert result["human_confirmation"]["decision"] == "approved"
     assert fake_harness.completed_step_with["artifacts"][0]["title"] == "AG-300 分析记录"
     assert fake_harness.completed_step_with["human_confirmation"]["comment"] == "可以进入设计。"
+
+
+def test_mcp_submit_skill_candidate_delegates_to_harness():
+    fake_harness = FakeHarness()
+    tools = AgoraMcpTools(harness=fake_harness)
+
+    result = tools.agora_submit_skill_candidate(
+        session_id="sess_1",
+        slug="release-risk-review",
+        name="Release Risk Review",
+        summary="沉淀发布风险检查经验。",
+        triggers=["release", "risk"],
+        instructions="检查回滚方案和测试证据。",
+        artifact_ids=["artifact_1"],
+        principal="principal",
+    )
+
+    assert result["skill"]["status"] == "candidate"
+    assert fake_harness.submitted_skill_candidate_with == {
+        "session_id": "sess_1",
+        "slug": "release-risk-review",
+        "name": "Release Risk Review",
+        "summary": "沉淀发布风险检查经验。",
+        "triggers": ["release", "risk"],
+        "instructions": "检查回滚方案和测试证据。",
+        "artifact_ids": ["artifact_1"],
+        "principal": "principal",
+    }

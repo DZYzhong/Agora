@@ -38,16 +38,26 @@ class SkillOrchestrator:
             raise ValueError(f"Skill not found: {skill_slug}")
         if skill.status != "approved":
             raise ValueError(f"Skill is not approved: {skill_slug}")
+        skill_version = None
+        if hasattr(self.core, "get_current_skill_version"):
+            skill_version = self.core.get_current_skill_version(skill.id)
+        if skill_version is None and hasattr(self.core, "ensure_approved_skill_version"):
+            skill_version = self.core.ensure_approved_skill_version(skill.id)
 
         output = ensure_dict_output(self.llm.generate_structured(task=skill_slug, context=context))
-        run = self.core.create_skill_run(
-            org_id=org_id,
-            project_id=project_id,
-            session_id=session_id,
-            skill_id=skill.id,
-            input=input,
-            output=output,
-            warnings=[],
-            status="completed",
-        )
+        run_payload = {
+            "org_id": org_id,
+            "project_id": project_id,
+            "session_id": session_id,
+            "skill_id": skill.id,
+            "input": input,
+            "output": output,
+            "warnings": [],
+            "status": "completed",
+        }
+        if skill_version is not None:
+            run_payload["skill_version_id"] = skill_version.id
+        run = self.core.create_skill_run(**run_payload)
+        if session_id is not None and skill_version is not None and hasattr(self.core, "pin_work_session_skill_version"):
+            self.core.pin_work_session_skill_version(session_id=session_id, skill_version_id=skill_version.id)
         return SkillRunResult(skill_run_id=run.id, output=output, warnings=[])

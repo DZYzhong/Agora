@@ -85,6 +85,16 @@ class CompleteWorkflowStepRequest(BaseModel):
     human_confirmation: dict[str, Any] | None = None
 
 
+class SubmitSkillCandidateRequest(BaseModel):
+    session_id: str
+    slug: str
+    name: str
+    summary: str
+    triggers: list[str] = Field(default_factory=list)
+    instructions: str
+    artifact_ids: list[str] = Field(default_factory=list)
+
+
 class CloseWorkRequest(BaseModel):
     session_id: str
     status: str = "closed"
@@ -271,6 +281,26 @@ def complete_workflow_step(
             status_code=400,
             next_action_type="complete_current_workflow_step",
         ) from exc
+    return response_dict
+
+
+@router.post("/submit-skill-candidate", status_code=status.HTTP_201_CREATED)
+def submit_skill_candidate(
+    payload: SubmitSkillCandidateRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+    keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
+    vector_index: FakeVectorIndex = Depends(get_vector_index),
+):
+    with SqlAlchemyUnitOfWork(session) as uow:
+        _ensure_session_member(session, principal, session_id=payload.session_id)
+        response = _harness(session, keyword_index, vector_index).submit_skill_candidate(
+            **payload.model_dump(),
+            principal=principal,
+        )
+        response_dict = response.__dict__
+        response_dict["request_id"] = payload.session_id
+        uow.commit()
     return response_dict
 
 

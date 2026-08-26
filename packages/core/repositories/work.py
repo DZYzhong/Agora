@@ -74,6 +74,10 @@ class WorkSessionView:
     def workflow_execution_id(self) -> str | None:
         return self.session.workflow_execution_id
 
+    @property
+    def skill_version_id(self) -> str | None:
+        return self.session.skill_version_id
+
 
 class WorkRepository:
     def __init__(self, session: Session):

@@ -69,6 +69,9 @@ class CoreRuntime:
     def list_work_artifacts_by_execution(self, workflow_execution_id: str):
         return WorkflowRepository(self.session).list_work_artifacts_by_execution(workflow_execution_id)
 
+    def list_work_artifacts_by_ids(self, artifact_ids: list[str]):
+        return WorkflowRepository(self.session).list_work_artifacts_by_ids(artifact_ids)
+
     def list_human_confirmations_by_execution(self, workflow_execution_id: str):
         return WorkflowRepository(self.session).list_human_confirmations_by_execution(workflow_execution_id)
 
@@ -167,8 +170,20 @@ class CoreRuntime:
     def update_skill(self, skill_id: str, **kwargs):
         return SkillRepository(self.session).update(skill_id, **kwargs)
 
+    def ensure_approved_skill_version(self, skill_id: str, *, approved_by_user_id: str | None = None):
+        return SkillRepository(self.session).ensure_approved_version(skill_id, approved_by_user_id=approved_by_user_id)
+
+    def get_current_skill_version(self, skill_id: str):
+        return SkillRepository(self.session).get_current_version(skill_id)
+
     def create_skill_run(self, **kwargs):
         return SkillRepository(self.session).create_run(**kwargs)
+
+    def pin_work_session_skill_version(self, *, session_id: str, skill_version_id: str):
+        return SkillRepository(self.session).pin_work_session_skill_version(
+            session_id=session_id,
+            skill_version_id=skill_version_id,
+        )
 
     def list_skill_runs_by_project(self, project_id: str):
         return SkillRepository(self.session).list_runs_by_project(project_id)

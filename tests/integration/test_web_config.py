@@ -97,3 +97,10 @@ def test_p4_workflow_audit_blackbox_guide_exists():
     assert "Workflow audit" in content
     assert "WORKFLOW_STEP_NOT_CURRENT" in content
     assert "用户只通过 AI 工具和 Web 页面完成验证" in content
+
+
+def test_skills_page_renders_current_skill_version():
+    skills_page = Path("apps/web/app/projects/[projectId]/skills/page.tsx").read_text()
+
+    assert "Current version" in skills_page
+    assert "current_version" in skills_page

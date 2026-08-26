@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from packages.core.models import SkillModel, SkillRunModel
+from packages.core.models import SkillModel, SkillRunModel, SkillVersionModel, WorkSessionModel
 
 
 class SkillRepository:
@@ -65,12 +65,51 @@ class SkillRepository:
         self.session.refresh(skill)
         return skill
 
+    def ensure_approved_version(self, skill_id: str, *, approved_by_user_id: str | None = None) -> SkillVersionModel:
+        skill = self.get(skill_id)
+        if skill is None:
+            raise ValueError(f"Skill not found: {skill_id}")
+        version = str((skill.definition or {}).get("version") or "1")
+        existing = self.session.scalars(
+            select(SkillVersionModel).where(
+                SkillVersionModel.skill_id == skill.id,
+                SkillVersionModel.version == version,
+            )
+        ).first()
+        if existing is None:
+            existing = SkillVersionModel(
+                org_id=skill.org_id,
+                project_id=skill.project_id,
+                skill_id=skill.id,
+                version=version,
+                status="approved",
+                definition=skill.definition or {},
+                approved_by_user_id=approved_by_user_id,
+            )
+            self.session.add(existing)
+            self.session.flush()
+            self.session.refresh(existing)
+        skill.current_version_id = existing.id
+        self.session.flush()
+        self.session.refresh(skill)
+        return existing
+
+    def get_version(self, skill_version_id: str) -> SkillVersionModel | None:
+        return self.session.get(SkillVersionModel, skill_version_id)
+
+    def get_current_version(self, skill_id: str) -> SkillVersionModel | None:
+        skill = self.get(skill_id)
+        if skill is None or skill.current_version_id is None:
+            return None
+        return self.get_version(skill.current_version_id)
+
     def create_run(
         self,
         *,
         org_id: str,
         project_id: str,
         skill_id: str,
+        skill_version_id: str | None = None,
         input: dict,
         output: dict,
         session_id: str | None = None,
@@ -82,6 +121,7 @@ class SkillRepository:
             project_id=project_id,
             session_id=session_id,
             skill_id=skill_id,
+            skill_version_id=skill_version_id,
             input=input,
             output=output,
             warnings=warnings or [],
@@ -91,6 +131,13 @@ class SkillRepository:
         self.session.flush()
         self.session.refresh(run)
         return run
+
+    def pin_work_session_skill_version(self, *, session_id: str, skill_version_id: str) -> None:
+        work_session = self.session.get(WorkSessionModel, session_id)
+        if work_session is None:
+            return
+        work_session.skill_version_id = skill_version_id
+        self.session.flush()
 
     def list_runs_by_project(self, project_id: str) -> list[SkillRunModel]:
         statement = select(SkillRunModel).where(SkillRunModel.project_id == project_id).order_by(SkillRunModel.created_at.desc())

@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 
 from apps.api.dependencies import get_engine
 from apps.api.main import app
-from packages.core.models import SkillModel, SkillRunModel
+from packages.core.models import SkillModel, SkillRunModel, SkillVersionModel, WorkSessionModel
 from packages.core.repositories.projects import ProjectRepository
 from packages.core.repositories.skills import SkillRepository
 from packages.core.uow import SqlAlchemyUnitOfWork
@@ -103,6 +103,72 @@ def test_project_skill_lifecycle_and_run_history():
     skills = client.get(f"/projects/{project['id']}/skills").json()
     assert any(item["slug"] == "task-context-summary" and item["builtin"] for item in skills)
     assert any(item["slug"] == "release-risk-review" and not item["builtin"] for item in skills)
+
+
+def test_approving_and_running_skill_creates_and_pins_immutable_skill_version():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_skill_versions",
+            "name": "Skill Versions",
+            "slug": "skill-versions",
+            "git_remotes": [],
+        },
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "帮我做 AG-501：复用发布风险检查经验",
+            "agent_type": "codex",
+        },
+    ).json()
+    skill = client.post(
+        f"/projects/{project['id']}/skills",
+        json={
+            "slug": "release-risk-review",
+            "name": "Release Risk Review",
+            "status": "candidate",
+            "definition": {
+                "version": "1.0.0",
+                "triggers": ["release", "risk"],
+                "input_schema": {"type": "object"},
+                "output_schema": {"type": "object"},
+                "instructions": "检查发布风险、回滚方案和测试证据。",
+                "risk_constraints": ["不要把缺失测试说成通过"],
+            },
+        },
+    ).json()
+
+    approved = client.post(f"/projects/{project['id']}/skills/{skill['id']}/approve").json()
+
+    assert approved["status"] == "approved"
+    assert approved["current_version"]["version"] == "1.0.0"
+    assert approved["current_version"]["status"] == "approved"
+    version_id = approved["current_version"]["id"]
+
+    run_response = client.post(
+        f"/projects/{project['id']}/skills/{skill['id']}/run",
+        json={
+            "session_id": started["session_id"],
+            "input": {"change": "支付导出权限审计发布"},
+            "context": {"summary": "本次发布涉及权限审计和导出限流。"},
+        },
+    )
+
+    assert run_response.status_code == 200
+    run = run_response.json()
+    assert run["skill_version_id"] == version_id
+
+    with sessionmaker(bind=get_engine())() as session:
+        version = session.get(SkillVersionModel, version_id)
+        skill_run = session.get(SkillRunModel, run["id"])
+        work_session = session.get(WorkSessionModel, started["session_id"])
+        assert version.skill_id == skill["id"]
+        assert version.definition["instructions"] == "检查发布风险、回滚方案和测试证据。"
+        assert skill_run.skill_version_id == version_id
+        assert work_session.skill_version_id == version_id
 
 
 def test_repeated_accepted_writebacks_create_candidate_skill():

@@ -52,7 +52,7 @@ def _serialize_work_item_projection(runtime: CoreRuntime, work_item) -> dict:
         "session_count": len(session_views),
         "participants": sorted({session_view.session.user_id for session_view in session_views}),
         "latest_context_state": _latest_context_state(runtime, session_views),
-        "capability_pins": _capability_pins(work_item),
+        "capability_pins": _capability_pins(work_item, session_views),
         "workflow_execution": _workflow_execution(runtime, work_item),
     }
 
@@ -114,11 +114,15 @@ def _latest_context_state(runtime: CoreRuntime, session_views) -> dict | None:
     return latest
 
 
-def _capability_pins(work_item) -> dict:
+def _capability_pins(work_item, session_views) -> dict:
+    pinned_skill_version_id = next(
+        (session_view.skill_version_id for session_view in session_views if getattr(session_view, "skill_version_id", None)),
+        None,
+    )
     return {
         "context_revision_id": None,
         "workflow_version_id": work_item.workflow_version_id,
-        "skill_version_id": None,
+        "skill_version_id": pinned_skill_version_id,
     }
 
 
