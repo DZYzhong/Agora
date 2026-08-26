@@ -117,6 +117,9 @@ class CoreRuntime:
     def create_repository_revision_signal(self, **kwargs):
         return IntegrationRepository(self.session).create_repository_revision_signal(**kwargs)
 
+    def create_pull_request_signal(self, **kwargs):
+        return IntegrationRepository(self.session).create_pull_request_signal(**kwargs)
+
     def get_session(self, session_id: str):
         work_session = WorkRepository(self.session).get_work_session(session_id)
         return work_session or TaskSessionRepository(self.session).get(session_id)

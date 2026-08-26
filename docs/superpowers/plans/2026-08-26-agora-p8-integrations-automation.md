@@ -164,6 +164,51 @@ Verification:
 # failed first because work_item_links/task_link/task_links documentation did not exist, then 5 passed
 ```
 
+## Chunk 4: PR/MR signal automation
+
+### Task 1: Pull request signal persistence
+
+**Files:**
+
+- Create: `alembic/versions/20260826_0012_p8_pull_request_signals.py`
+- Modify: `packages/core/models.py`
+- Modify: `packages/core/repositories/integrations.py`
+- Modify: `packages/core/services/runtime.py`
+- Test: `tests/integration/test_migrations.py`
+
+- [x] Add `pull_request_signals` linked to Project, optional WorkItem and reporting User.
+- [x] Store provider, repository identity, PR/MR id/url/title, action, branches and commit SHAs.
+
+### Task 2: Pull request signal API
+
+**Files:**
+
+- Modify: `apps/api/routers/integrations.py`
+- Test: `tests/integration/api/test_integrations_api.py`
+
+- [x] Add `POST /integrations/repository/pull-request-signal`.
+- [x] Resolve Project from `project_id` when supplied, otherwise from `repository_identity`.
+- [x] Resolve WorkItem from explicit key, task URL, branch name or PR/MR title.
+- [x] Upsert external task WorkItem mapping when `task_provider` and task identity are present.
+- [x] Create a submitted refresh ContextProposal when a merged PR/MR advances the target branch beyond accepted context.
+
+### Task 3: Black-box guide expansion
+
+**Files:**
+
+- Modify: `docs/development/p8-ci-quality-signal-blackbox.zh-CN.md`
+- Test: `tests/integration/test_web_config.py`
+
+- [x] Add PR/MR signal validation path.
+- [x] Explain that PR/MR merge signals can be quiet unless context refresh requires human review.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_migrations.py::test_p8_pull_request_signals_schema_links_project_work_item_and_actor tests/integration/api/test_integrations_api.py::test_pull_request_signal_resolves_project_from_repository_and_creates_refresh_proposal tests/integration/test_web_config.py::test_p8_ci_quality_signal_blackbox_guide_exists
+# failed first because pull_request_signals and /integrations/repository/pull-request-signal did not exist, then 3 passed
+```
+
 ### Verification
 
 Run:

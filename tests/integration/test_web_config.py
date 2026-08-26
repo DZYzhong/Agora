@@ -184,9 +184,11 @@ def test_p8_ci_quality_signal_blackbox_guide_exists():
     assert "AGORA_BOOTSTRAP_CI_TOKEN" in content
     assert "/integrations/ci/quality-signal" in content
     assert "/integrations/repository/revision-signal" in content
+    assert "/integrations/repository/pull-request-signal" in content
     assert "task_provider" in content
     assert "task_url" in content
     assert "WorkItem mapping" in content
+    assert "PR/MR" in content
     assert "ContextProposal" in content
     assert "CI_CREDENTIAL_REQUIRED" in content
     assert "Project status" in content

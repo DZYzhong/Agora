@@ -251,3 +251,86 @@ def test_repository_revision_signal_reuses_existing_task_link_work_item(monkeypa
     assert repo_body["task_link"]["id"] == ci_body["task_link"]["id"]
     assert repo_body["task_link"]["provider"] == "jira"
     assert repo_body["task_link"]["external_url"] == "https://jira.example.com/browse/AG-1301"
+
+
+def test_pull_request_signal_resolves_project_from_repository_and_creates_refresh_proposal(monkeypatch):
+    _production_auth(monkeypatch)
+
+    with TestClient(app) as client:
+        project = client.post(
+            "/projects",
+            headers=_headers(HUMAN_TOKEN),
+            json={
+                "org_id": "ignored-org",
+                "name": "PR Signal Project",
+                "slug": "pr-signal-project",
+                "git_remotes": ["git@example.com:team/billing-service.git"],
+                "default_branch": "main",
+            },
+        ).json()
+        initial = client.post(
+            f"/projects/{project['id']}/context/proposals",
+            headers=_headers(AGENT_TOKEN),
+            json={
+                "type": "initial",
+                "title": "Initial billing context",
+                "summary": "账单服务上下文初始版本。",
+                "target_branch": "main",
+                "expected_head_revision_id": None,
+                "to_commit_sha": "billing-old",
+                "content": {"project_overview": "账单服务负责订阅账单与发票。"},
+                "source_anchors": [],
+                "provenance": {"generating_tool": "codex", "schema_version": "context-revision/v1"},
+            },
+        ).json()
+        client.post(
+            f"/projects/{project['id']}/context/proposals/{initial['id']}/approve",
+            headers=_headers(HUMAN_TOKEN),
+            json={
+                "expected_head_revision_id": None,
+                "comment": "批准初始上下文。",
+                "revision_signal": {
+                    "target_branch": "main",
+                    "observed_head_sha": "billing-old",
+                    "contains_to_commit": True,
+                },
+            },
+        )
+
+        response = client.post(
+            "/integrations/repository/pull-request-signal",
+            headers=_headers(CI_TOKEN),
+            json={
+                "provider": "gitlab",
+                "repository_identity": "git@example.com:team/billing-service.git",
+                "pull_request_id": "118",
+                "pull_request_url": "https://gitlab.example.com/team/billing-service/-/merge_requests/118",
+                "title": "AG-1401 账单重算接口幂等修复",
+                "action": "merged",
+                "source_branch": "feature/AG-1401-billing-recalculate-idempotency",
+                "target_branch": "main",
+                "head_sha": "billing-head",
+                "merge_commit_sha": "billing-new",
+                "task_provider": "jira",
+                "task_url": "https://jira.example.com/browse/AG-1401",
+            },
+        )
+        status = client.post(
+            "/harness/get-project-status",
+            headers=_headers(AGENT_TOKEN),
+            json={"project_id": project["id"]},
+        ).json()
+
+    body = response.json()
+    assert response.status_code == 201
+    assert body["operation"] == "ingest_pull_request_signal"
+    assert body["project"]["id"] == project["id"]
+    assert body["pull_request_signal"]["action"] == "merged"
+    assert body["pull_request_signal"]["status"] == "merged"
+    assert body["work_item"]["external_key"] == "AG-1401"
+    assert body["task_link"]["external_url"] == "https://jira.example.com/browse/AG-1401"
+    assert body["context_freshness"]["state"] == "stale"
+    assert body["context_proposal"]["type"] == "refresh"
+    assert body["context_proposal"]["from_commit_sha"] == "billing-old"
+    assert body["context_proposal"]["to_commit_sha"] == "billing-new"
+    assert status["work_items"][0]["task_links"][0]["external_key"] == "AG-1401"

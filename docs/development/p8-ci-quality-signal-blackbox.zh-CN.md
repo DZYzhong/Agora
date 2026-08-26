@@ -1,6 +1,6 @@
 # P8 CI QualitySignal 黑盒验证步骤
 
-目标：验证 Agora 能接收真实 CI 流水线的质量信号和仓库 RevisionSignal，自动写入项目 WorkItem 的质量证据，并在代码分支更新时创建待审 ContextProposal，让 AI 工具和 Web 同步看到最新质量与上下文状态。
+目标：验证 Agora 能接收真实 CI 流水线的质量信号、仓库 RevisionSignal 和 PR/MR Signal，自动写入项目 WorkItem 的质量证据，并在代码分支或 PR/MR 合并时创建待审 ContextProposal，让 AI 工具和 Web 同步看到最新质量与上下文状态。
 
 本轮同时验证 WorkItem mapping：AI 工具、CI、仓库集成可以随信号传入 `task_provider`、`task_key`、`task_url`，Agora 会把 Jira、飞书项目、禅道、GitLab issue、GitHub issue 等外部任务链接稳定映射到同一个 WorkItem。用户不需要单独维护“Agora 任务”和“外部任务系统”的对应关系。
 
@@ -105,6 +105,41 @@ export AGORA_BOOTSTRAP_ORG_ID=local-org
 
 ## 步骤 4：AI 工具查询项目状态
 
+## 步骤 4：用 CI-like 脚本上报 PR/MR Signal
+
+让 AI 工具准备或执行第三段 CI-like 脚本，模拟 GitLab MR、GitHub PR、Gitee PR 或自建 Git 平台在合并后通知 Agora。
+
+脚本行为：
+
+- 使用 CI service token。
+- 调用 `/integrations/repository/pull-request-signal`。
+- 不必传 `project_id`，Agora 可以通过 `repository_identity` 匹配已有项目。
+- 传入：
+  - `provider`
+  - `repository_identity`
+  - `pull_request_id`
+  - `pull_request_url`
+  - `title`
+  - `action = merged`
+  - `source_branch`
+  - `target_branch`
+  - `head_sha`
+  - `merge_commit_sha`
+  - `task_provider`
+  - `task_url`
+
+期望：
+
+- 返回 `operation = ingest_pull_request_signal`。
+- 返回的 `project.id` 是当前项目。
+- Agora 从 `task_url`、`task_key`、PR 标题或分支名中识别 WorkItem key。
+- 返回 `work_item.external_key`。
+- 返回 `task_link`，并复用 WorkItem mapping。
+- 如果 `merge_commit_sha` 与 accepted ContextRevision 不一致，返回 `context_freshness.state = stale`。
+- 自动创建 `ContextProposal`，`type = refresh`、`status = submitted`。
+
+## 步骤 5：AI 工具查询项目状态
+
 在 AI 工具中输入：
 
 ```text
@@ -119,7 +154,7 @@ export AGORA_BOOTSTRAP_ORG_ID=local-org
 - `work_items[].task_links` 里能看到外部任务链接。
 - `Latest evidence` 对应数据能追溯到 CI command/run id/commit。
 
-## 步骤 5：Web 查看 Project status 和 Context
+## 步骤 6：Web 查看 Project status 和 Context
 
 打开 Web：
 
@@ -142,7 +177,7 @@ http://127.0.0.1:3000/projects
 - `Work item quality` 表格里能看到 `Task links`，点击后能打开对应任务系统页面。
 - `ContextProposal` 列表里能看到仓库 RevisionSignal 创建的 refresh proposal。
 
-## 步骤 6：验证错误凭证不能上报 CI
+## 步骤 7：验证错误凭证不能上报 CI
 
 让 AI 工具或 CI-like 脚本分别尝试使用 human token 和 agent token 上报同一信号。
 
@@ -159,5 +194,6 @@ http://127.0.0.1:3000/projects
 - 外部任务系统链接能通过 WorkItem mapping 自动归档，并被后续 CI/repo 信号复用。
 - CI 信号被保存为 `QualityEvidence`，并进入项目状态聚合。
 - 仓库 RevisionSignal 能在上下文落后时自动创建待审 `ContextProposal`。
+- PR/MR 合并信号能从仓库和任务信息自动解析 Project/WorkItem，并在上下文落后时创建待审 `ContextProposal`。
 - Web `Project status` 和 AI 工具查询看到一致的 CI 证据。
 - 用户不需要手动调用 HTTP API。

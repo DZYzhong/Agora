@@ -54,6 +54,7 @@ P7_TABLES = {
 P8_TABLES = {
     "repository_revision_signals",
     "work_item_links",
+    "pull_request_signals",
 }
 
 
@@ -78,7 +79,38 @@ def test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine(data
 
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT count(*) FROM assets")) == 0
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260826_0011"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260826_0012"
+
+
+def test_p8_pull_request_signals_schema_links_project_work_item_and_actor(tmp_path):
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'agora.db'}"
+    engine = create_engine(database_url)
+    command.upgrade(_alembic_config(database_url), "head")
+    inspector = inspect(engine)
+
+    columns = {column["name"] for column in inspector.get_columns("pull_request_signals")}
+    assert {
+        "id",
+        "org_id",
+        "project_id",
+        "work_item_id",
+        "provider",
+        "repository_identity",
+        "pull_request_id",
+        "pull_request_url",
+        "title",
+        "action",
+        "source_branch",
+        "target_branch",
+        "head_sha",
+        "merge_commit_sha",
+        "status",
+        "metadata",
+        "created_by_user_id",
+        "created_at",
+    } <= columns
+    referred_tables = {foreign_key["referred_table"] for foreign_key in inspector.get_foreign_keys("pull_request_signals")}
+    assert {"projects", "work_items", "users"} <= referred_tables
 
 
 def test_p8_work_item_links_schema_enforces_project_provider_key_identity(tmp_path):

@@ -330,7 +330,7 @@ Current implementation:
 
 **Goal:** Connect Agora to repository, CI, task and PR signals so context and project status stay current with minimal user interruption.
 
-**Status:** In progress; provider-neutral CI QualitySignal ingestion, repository RevisionSignal freshness automation and external task WorkItem mapping are implemented.
+**Status:** In progress; provider-neutral CI QualitySignal ingestion, repository RevisionSignal freshness automation, PR/MR signal ingestion and external task WorkItem mapping are implemented.
 
 Current plan:
 
@@ -363,6 +363,7 @@ Current implementation:
 - CI signals write P6 `QualityEvidence` with source/evidence type `ci`.
 - The response returns project status so CI evidence immediately affects delivery readiness, blockers and quality dimensions.
 - `POST /integrations/repository/revision-signal` stores repository signals and creates a submitted refresh ContextProposal when accepted context is stale.
+- `POST /integrations/repository/pull-request-signal` stores PR/MR signals, resolves Project from repository identity, resolves WorkItem from task URL/key/title/branch and creates a submitted refresh ContextProposal when a merge advances the target branch beyond accepted context.
 - CI and repository signals accept `task_provider`, `task_key` and `task_url`, then upsert a stable external task link for the WorkItem.
 - `agora_get_project_status` and Web `Project status` expose WorkItem `task_links` so PM/QA/developers can trace Jira/飞书项目/禅道/GitLab/GitHub task references without manually managing Agora IDs.
 - Black-box guide: `docs/development/p8-ci-quality-signal-blackbox.zh-CN.md`
@@ -538,6 +539,47 @@ Black-box validation path:
 Commit:
 
 - `49f3491 feat: map external task links`
+
+### 2026-08-26: P8 PR/MR Signal Automation
+
+Scope:
+
+- Added `pull_request_signals` persistence.
+- Added `POST /integrations/repository/pull-request-signal`.
+- Resolved Project from `repository_identity` when Agora project id is not supplied.
+- Resolved WorkItem from explicit task key, task URL, PR/MR title or source branch.
+- Reused external task WorkItem mapping for PR/MR signals.
+- Created submitted refresh ContextProposals when merged PR/MR signals advance the target branch beyond accepted context.
+- Updated the P8 black-box guide with a PR/MR merge path.
+
+Files changed:
+
+- Created: `alembic/versions/20260826_0012_p8_pull_request_signals.py`
+- Modified: `packages/core/models.py`
+- Modified: `packages/core/repositories/integrations.py`
+- Modified: `packages/core/services/runtime.py`
+- Modified: `apps/api/routers/integrations.py`
+- Modified: `tests/integration/test_migrations.py`
+- Modified: `tests/integration/api/test_integrations_api.py`
+- Modified: `tests/integration/test_web_config.py`
+- Modified: `docs/development/p8-ci-quality-signal-blackbox.zh-CN.md`
+- Modified: `docs/superpowers/plans/2026-08-26-agora-p8-integrations-automation.md`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/test_migrations.py::test_p8_pull_request_signals_schema_links_project_work_item_and_actor tests/integration/api/test_integrations_api.py::test_pull_request_signal_resolves_project_from_repository_and_creates_refresh_proposal tests/integration/test_web_config.py::test_p8_ci_quality_signal_blackbox_guide_exists
+# failed first, then 3 passed
+```
+
+Black-box validation path:
+
+- Use `docs/development/p8-ci-quality-signal-blackbox.zh-CN.md`.
+
+Commit:
+
+- Pending after full verification.
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 

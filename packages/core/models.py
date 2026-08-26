@@ -440,6 +440,29 @@ class RepositoryRevisionSignalModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
+class PullRequestSignalModel(Base):
+    __tablename__ = "pull_request_signals"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    org_id: Mapped[str] = mapped_column(String, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    work_item_id: Mapped[str | None] = mapped_column(ForeignKey("work_items.id"), nullable=True, index=True)
+    provider: Mapped[str] = mapped_column(String, index=True)
+    repository_identity: Mapped[str] = mapped_column(String, index=True)
+    pull_request_id: Mapped[str] = mapped_column(String, index=True)
+    pull_request_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    title: Mapped[str | None] = mapped_column(String, nullable=True)
+    action: Mapped[str] = mapped_column(String, index=True)
+    source_branch: Mapped[str | None] = mapped_column(String, nullable=True)
+    target_branch: Mapped[str] = mapped_column(String)
+    head_sha: Mapped[str | None] = mapped_column(String, nullable=True)
+    merge_commit_sha: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, index=True)
+    signal_metadata: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
 class OutboxEventModel(Base):
     __tablename__ = "outbox_events"
     __table_args__ = (UniqueConstraint("idempotency_key", name="uq_outbox_events_idempotency_key"),)
