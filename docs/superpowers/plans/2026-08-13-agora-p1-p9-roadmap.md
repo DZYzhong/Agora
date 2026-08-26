@@ -443,7 +443,7 @@ Black-box validation path:
 
 Commit:
 
-- Pending.
+- `40ae08c feat: add p6 delivery readiness status`
 
 ### 2026-08-13: P4 Skill Lifecycle Started
 
