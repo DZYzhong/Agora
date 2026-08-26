@@ -126,6 +126,8 @@ def _workflow_execution(runtime: CoreRuntime, work_item) -> dict | None:
     execution = runtime.get_workflow_execution_by_work_item(work_item.id)
     if execution is None:
         return None
+    artifacts_by_step_run = _group_by_step_run(runtime.list_work_artifacts_by_execution(execution.id))
+    confirmations_by_step_run = _group_by_step_run(runtime.list_human_confirmations_by_execution(execution.id))
     return {
         "id": execution.id,
         "workflow_version_id": execution.workflow_version_id,
@@ -139,7 +141,48 @@ def _workflow_execution(runtime: CoreRuntime, work_item) -> dict | None:
                 "order_index": step.order_index,
                 "status": step.status,
                 "required_artifacts": step.required_artifacts,
+                "artifacts": [_serialize_work_artifact(artifact) for artifact in artifacts_by_step_run.get(step.id, [])],
+                "human_confirmations": [
+                    _serialize_human_confirmation(confirmation)
+                    for confirmation in confirmations_by_step_run.get(step.id, [])
+                ],
             }
             for step in runtime.list_workflow_step_runs(execution.id)
         ],
+    }
+
+
+def _group_by_step_run(records) -> dict[str, list]:
+    grouped: dict[str, list] = {}
+    for record in records:
+        grouped.setdefault(record.workflow_step_run_id, []).append(record)
+    return grouped
+
+
+def _serialize_work_artifact(artifact) -> dict:
+    return {
+        "id": artifact.id,
+        "session_id": artifact.session_id,
+        "workflow_step_run_id": artifact.workflow_step_run_id,
+        "step_key": artifact.step_key,
+        "type": artifact.type,
+        "title": artifact.title,
+        "content": artifact.content,
+        "metadata": artifact.artifact_metadata,
+        "created_by_user_id": artifact.created_by_user_id,
+        "created_at": artifact.created_at,
+    }
+
+
+def _serialize_human_confirmation(confirmation) -> dict:
+    return {
+        "id": confirmation.id,
+        "session_id": confirmation.session_id,
+        "workflow_step_run_id": confirmation.workflow_step_run_id,
+        "step_key": confirmation.step_key,
+        "confirmation_type": confirmation.confirmation_type,
+        "decision": confirmation.decision,
+        "comment": confirmation.comment,
+        "confirmed_by_user_id": confirmation.confirmed_by_user_id,
+        "created_at": confirmation.created_at,
     }

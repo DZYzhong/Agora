@@ -2173,3 +2173,45 @@ git diff --check
 Next:
 
 - Extend Web WorkItem detail so project managers, QA and developers can inspect workflow steps, artifacts and confirmations without calling APIs.
+
+### 2026-08-26: P4 Task 4 Web Workflow Audit Detail
+
+Scope:
+
+- Added read projections for WorkArtifact and HumanConfirmation records by WorkflowExecution.
+- WorkItem detail API now includes per-step `artifacts` and `human_confirmations`.
+- WorkItem detail Web page now renders a `Workflow audit` section with step status, required outputs, submitted step outputs and human confirmations.
+- Verified the page through a production-style local API/Web SSR request with human/agent bearer tokens and a temporary SQLite database.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_work_items_api.py::test_work_item_detail_includes_workflow_artifacts_and_confirmations
+# failed first before API returned artifacts, then 1 passed
+
+.venv/bin/pytest tests/integration/test_web_config.py::test_work_item_detail_page_renders_workflow_audit_evidence
+# failed first before page rendered Workflow audit, then 1 passed
+
+.venv/bin/pytest tests/integration/api/test_work_items_api.py tests/integration/api/test_harness_api.py tests/integration/test_web_config.py tests/unit/harness/test_harness_service.py
+# 38 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+.venv/bin/pytest
+# 196 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+Production-style local SSR check:
+# API: 127.0.0.1:18110, Web: 127.0.0.1:13110, temporary database /tmp/agora-p4-web-audit.db
+# HTML contained Workflow audit, Step outputs, Human confirmations, AG-888 分析记录 and 人工确认文本.
+
+git diff --check
+# passed
+```
+
+Next:
+
+- Add the P4 black-box validation guide and then hand the whole P4 workflow audit flow to the user for browser validation.

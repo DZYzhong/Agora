@@ -52,7 +52,7 @@ git diff --check
 
 ## Next P4 tasks
 
-- Extend Web WorkItem detail to show workflow steps, artifacts and confirmations.
+- Add black-box validation guide for P4 workflow audit.
 
 ## Task 2: Canonical workflow step completion
 
@@ -91,6 +91,52 @@ Verification:
 
 cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
 # Compiled successfully
+
+git diff --check
+# passed
+```
+
+## Task 4: Web workflow audit detail
+
+**Files:**
+
+- Modify: `packages/core/repositories/workflows.py`
+- Modify: `packages/core/services/runtime.py`
+- Modify: `apps/api/routers/work_items.py`
+- Modify: `apps/web/app/projects/[projectId]/work-items/[workItemId]/page.tsx`
+- Test: `tests/integration/api/test_work_items_api.py`
+- Test: `tests/integration/test_web_config.py`
+
+- [x] Add read projections for WorkArtifact and HumanConfirmation records by WorkflowExecution.
+- [x] Include per-step `artifacts` and `human_confirmations` in WorkItem detail API.
+- [x] Render a Web `Workflow audit` section on WorkItem detail.
+- [x] Show each workflow step status, required outputs, submitted step outputs and human confirmations.
+- [x] Verify the page through a real local API/Web SSR request using production-style tokens and a temporary database.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_work_items_api.py::test_work_item_detail_includes_workflow_artifacts_and_confirmations
+# failed first before API returned artifacts, then 1 passed
+
+.venv/bin/pytest tests/integration/test_web_config.py::test_work_item_detail_page_renders_workflow_audit_evidence
+# failed first before page rendered Workflow audit, then 1 passed
+
+.venv/bin/pytest tests/integration/api/test_work_items_api.py tests/integration/api/test_harness_api.py tests/integration/test_web_config.py tests/unit/harness/test_harness_service.py
+# 38 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+.venv/bin/pytest
+# 196 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+Production-style local SSR check:
+# API: 127.0.0.1:18110, Web: 127.0.0.1:13110, temporary database /tmp/agora-p4-web-audit.db
+# HTML contained Workflow audit, Step outputs, Human confirmations, AG-888 分析记录 and 人工确认文本.
 
 git diff --check
 # passed

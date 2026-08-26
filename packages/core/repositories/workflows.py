@@ -140,6 +140,22 @@ class WorkflowRepository:
         )
         return list(self.session.scalars(statement).all())
 
+    def list_work_artifacts_by_execution(self, workflow_execution_id: str) -> list[WorkArtifactModel]:
+        statement = (
+            select(WorkArtifactModel)
+            .where(WorkArtifactModel.workflow_execution_id == workflow_execution_id)
+            .order_by(WorkArtifactModel.created_at, WorkArtifactModel.id)
+        )
+        return list(self.session.scalars(statement).all())
+
+    def list_human_confirmations_by_execution(self, workflow_execution_id: str) -> list[HumanConfirmationModel]:
+        statement = (
+            select(HumanConfirmationModel)
+            .where(HumanConfirmationModel.workflow_execution_id == workflow_execution_id)
+            .order_by(HumanConfirmationModel.created_at, HumanConfirmationModel.id)
+        )
+        return list(self.session.scalars(statement).all())
+
     def complete_current_step(
         self,
         *,

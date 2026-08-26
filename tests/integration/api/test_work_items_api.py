@@ -150,6 +150,57 @@ def test_work_item_detail_projects_sessions_and_latest_context_without_secrets(t
     assert "repo_path" not in encoded
 
 
+def test_work_item_detail_includes_workflow_artifacts_and_confirmations():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_work_item_workflow_audit",
+            "name": "Work Item Workflow Audit",
+            "slug": "work-item-workflow-audit",
+            "git_remotes": [],
+        },
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "帮我做 AG-777：补充导出权限审计",
+            "agent_type": "codex",
+        },
+    ).json()
+    client.post(
+        "/harness/complete-workflow-step",
+        json={
+            "session_id": started["session_id"],
+            "step_key": "analysis",
+            "summary": "完成导出权限审计分析。",
+            "artifacts": [
+                {
+                    "type": "analysis_note",
+                    "title": "AG-777 分析记录",
+                    "content": "导出权限审计涉及角色、批量导出和操作日志。",
+                    "metadata": {"path": "docs/tasks/AG-777/analysis.md"},
+                }
+            ],
+            "human_confirmation": {
+                "confirmation_type": "step_review",
+                "decision": "approved",
+                "comment": "分析范围确认。",
+            },
+        },
+    )
+
+    detail = client.get(f"/projects/{project['id']}/work-items/{started['work_item_id']}").json()
+
+    analysis_step = detail["workflow_execution"]["steps"][0]
+    assert analysis_step["step_key"] == "analysis"
+    assert analysis_step["artifacts"][0]["title"] == "AG-777 分析记录"
+    assert analysis_step["artifacts"][0]["metadata"] == {"path": "docs/tasks/AG-777/analysis.md"}
+    assert analysis_step["human_confirmations"][0]["decision"] == "approved"
+    assert analysis_step["human_confirmations"][0]["comment"] == "分析范围确认。"
+
+
 def test_work_items_are_scoped_to_project_membership(monkeypatch):
     _production_auth(monkeypatch)
 

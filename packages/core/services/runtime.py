@@ -66,6 +66,12 @@ class CoreRuntime:
     def list_workflow_step_runs(self, workflow_execution_id: str):
         return WorkflowRepository(self.session).list_step_runs(workflow_execution_id)
 
+    def list_work_artifacts_by_execution(self, workflow_execution_id: str):
+        return WorkflowRepository(self.session).list_work_artifacts_by_execution(workflow_execution_id)
+
+    def list_human_confirmations_by_execution(self, workflow_execution_id: str):
+        return WorkflowRepository(self.session).list_human_confirmations_by_execution(workflow_execution_id)
+
     def complete_current_workflow_step(self, *, workflow_execution_id: str, step_key: str):
         return WorkflowRepository(self.session).complete_current_step(
             workflow_execution_id=workflow_execution_id,

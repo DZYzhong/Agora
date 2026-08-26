@@ -75,3 +75,13 @@ def test_work_item_pages_are_available_and_linked_from_project_home():
     assert list_page.exists()
     assert detail_page.exists()
     assert "/work-items" in project_page
+
+
+def test_work_item_detail_page_renders_workflow_audit_evidence():
+    detail_page = Path("apps/web/app/projects/[projectId]/work-items/[workItemId]/page.tsx").read_text()
+
+    assert "Workflow audit" in detail_page
+    assert "Step outputs" in detail_page
+    assert "Human confirmations" in detail_page
+    assert "workflow_execution" in detail_page
+    assert "human_confirmations" in detail_page
