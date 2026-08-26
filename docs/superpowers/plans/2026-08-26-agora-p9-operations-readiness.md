@@ -102,6 +102,29 @@ Verification:
 # failed first because backup-sqlite and restore-sqlite did not exist, then 1 passed
 ```
 
+## Chunk 5: Project governance export archive
+
+### Task 1: Admin CLI project export
+
+**Files:**
+
+- Modify: `scripts/agora_admin.py`
+- Modify: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Test: `tests/integration/test_admin_cli.py`
+
+- [x] Add `export-project` command.
+- [x] Resolve project by slug.
+- [x] Export project governance tables as JSONL.
+- [x] Write `manifest.json` with schema revision, project identity and file counts.
+- [x] Document project archive validation for audit and migration dry-runs.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_admin_cli.py::test_admin_cli_export_project_archive_writes_manifest_and_jsonl_assets
+# failed first because export-project did not exist, then 1 passed
+```
+
 ## Verification
 
 Run:

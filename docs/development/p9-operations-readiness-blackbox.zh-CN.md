@@ -127,6 +127,24 @@ python -m scripts.agora_admin restore-sqlite \
 - AI 工具能继续查询 `agora_get_project_status`。
 - 已审批的 ContextRevision、SkillVersion、WorkItem、QualityEvidence 和 SecurityAuditEvent 没有丢失。
 
+## 步骤 8：项目治理资产导出
+
+让运维人员或审计人员导出一个项目归档：
+
+```bash
+python -m scripts.agora_admin export-project \
+  --database-url "$AGORA_DATABASE_URL" \
+  --project-slug your-project-slug \
+  --output-dir .agora/exports/your-project-slug
+```
+
+期望：
+
+- 目录中存在 `manifest.json`。
+- `manifest.json` 包含 `schema_revision`、项目 id、项目 slug 和每个 JSONL 文件的记录数。
+- 导出目录至少包含 `projects.jsonl`、`work_items.jsonl`、`context_revisions.jsonl`、`context_proposals.jsonl`、`skills.jsonl`、`skill_versions.jsonl`、`quality_evidence.jsonl`、`security_audit_events.jsonl`。
+- 审计人员可以不连接生产库，直接检查导出文件中的上下文、技能、质量证据和审批记录。
+
 ## 通过标准
 
 - 生产-like 环境能启动 API 和 Web。
@@ -134,3 +152,4 @@ python -m scripts.agora_admin restore-sqlite \
 - `/metrics` 能被监控系统抓取。
 - Developer、Reviewer、Project Manager、Quality 四类角色的核心路径都能通过 AI 工具和 Web 完成。
 - 备份恢复后，治理状态和项目资产仍可查询。
+- 项目治理资产可以导出为 JSONL 归档，用于审计、迁移前比对和离线留档。

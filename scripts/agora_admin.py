@@ -1,12 +1,36 @@
 import argparse
+from datetime import datetime, timezone
+import json
 from pathlib import Path
 import sqlite3
 import sys
 
+from sqlalchemy import select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 from apps.api.dependencies import create_app_engine
+from packages.core.models import (
+    ApprovalDecisionModel,
+    AssetModel,
+    ContextProposalModel,
+    ContextRevisionModel,
+    ContextStreamModel,
+    HumanConfirmationModel,
+    ProjectModel,
+    PullRequestSignalModel,
+    QualityEvidenceModel,
+    RepositoryRevisionSignalModel,
+    SecurityAuditEventModel,
+    SkillModel,
+    SkillRunModel,
+    SkillVersionModel,
+    WorkArtifactModel,
+    WorkItemLinkModel,
+    WorkItemModel,
+    WorkSessionModel,
+    WritebackModel,
+)
 from packages.core.schema_manager import MigrationRequiredError, ensure_schema
 from packages.knowledge.index_rebuilder import rebuild_indexes_from_assets
 from packages.storage.opensearch.fake import FakeKeywordIndex
@@ -82,6 +106,91 @@ def restore_sqlite(*, backup: Path, database_url: str, yes: bool) -> Path:
     return database_path
 
 
+def export_project(*, database_url: str, project_slug: str, output_dir: Path) -> Path:
+    ensure_schema(database_url)
+    engine = create_app_engine(database_url)
+    output_dir = output_dir.expanduser().resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with sessionmaker(bind=engine)() as session:
+        project = session.scalar(select(ProjectModel).where(ProjectModel.slug == project_slug))
+        if project is None:
+            raise SystemExit(f"Project not found: {project_slug}")
+        revision = session.scalar(text("SELECT version_num FROM alembic_version"))
+        work_item_ids = [
+            item.id
+            for item in session.scalars(select(WorkItemModel).where(WorkItemModel.project_id == project.id)).all()
+        ]
+        session_ids = [
+            item.id
+            for item in session.scalars(select(WorkSessionModel).where(WorkSessionModel.work_item_id.in_(work_item_ids))).all()
+        ] if work_item_ids else []
+        stream_ids = [
+            item.id
+            for item in session.scalars(select(ContextStreamModel).where(ContextStreamModel.project_id == project.id)).all()
+        ]
+        export_specs = {
+            "projects.jsonl": [project],
+            "assets.jsonl": session.scalars(select(AssetModel).where(AssetModel.project_id == project.id)).all(),
+            "work_items.jsonl": session.scalars(select(WorkItemModel).where(WorkItemModel.project_id == project.id)).all(),
+            "work_item_links.jsonl": session.scalars(select(WorkItemLinkModel).where(WorkItemLinkModel.project_id == project.id)).all(),
+            "work_sessions.jsonl": session.scalars(select(WorkSessionModel).where(WorkSessionModel.work_item_id.in_(work_item_ids))).all()
+            if work_item_ids
+            else [],
+            "work_artifacts.jsonl": session.scalars(select(WorkArtifactModel).where(WorkArtifactModel.project_id == project.id)).all(),
+            "human_confirmations.jsonl": session.scalars(select(HumanConfirmationModel).where(HumanConfirmationModel.project_id == project.id)).all(),
+            "writebacks.jsonl": session.scalars(select(WritebackModel).where(WritebackModel.project_id == project.id)).all(),
+            "context_streams.jsonl": session.scalars(select(ContextStreamModel).where(ContextStreamModel.project_id == project.id)).all(),
+            "context_revisions.jsonl": session.scalars(select(ContextRevisionModel).where(ContextRevisionModel.project_id == project.id)).all(),
+            "context_proposals.jsonl": session.scalars(select(ContextProposalModel).where(ContextProposalModel.project_id == project.id)).all(),
+            "approval_decisions.jsonl": session.scalars(select(ApprovalDecisionModel).where(ApprovalDecisionModel.project_id == project.id)).all(),
+            "skills.jsonl": session.scalars(select(SkillModel).where(SkillModel.project_id == project.id)).all(),
+            "skill_versions.jsonl": session.scalars(select(SkillVersionModel).where(SkillVersionModel.project_id == project.id)).all(),
+            "skill_runs.jsonl": session.scalars(select(SkillRunModel).where(SkillRunModel.project_id == project.id)).all(),
+            "quality_evidence.jsonl": session.scalars(select(QualityEvidenceModel).where(QualityEvidenceModel.project_id == project.id)).all(),
+            "security_audit_events.jsonl": session.scalars(select(SecurityAuditEventModel).where(SecurityAuditEventModel.project_id == project.id)).all(),
+            "repository_revision_signals.jsonl": session.scalars(select(RepositoryRevisionSignalModel).where(RepositoryRevisionSignalModel.project_id == project.id)).all(),
+            "pull_request_signals.jsonl": session.scalars(select(PullRequestSignalModel).where(PullRequestSignalModel.project_id == project.id)).all(),
+        }
+        counts = {}
+        for filename, records in export_specs.items():
+            counts[filename] = _write_jsonl(output_dir / filename, records)
+        manifest = {
+            "format": "agora-project-export/v1",
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "schema_revision": revision,
+            "project": {
+                "id": project.id,
+                "org_id": project.org_id,
+                "slug": project.slug,
+                "name": project.name,
+            },
+            "files": counts,
+            "relationships": {
+                "work_item_ids": work_item_ids,
+                "work_session_ids": session_ids,
+                "context_stream_ids": stream_ids,
+            },
+        }
+    (output_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+    return output_dir
+
+
+def _write_jsonl(path: Path, records) -> int:
+    count = 0
+    with path.open("w", encoding="utf-8") as handle:
+        for record in records:
+            handle.write(json.dumps(_model_to_dict(record), ensure_ascii=False, sort_keys=True, default=str) + "\n")
+            count += 1
+    return count
+
+
+def _model_to_dict(record) -> dict:
+    data = {}
+    for column in record.__table__.columns:
+        data[column.name] = getattr(record, column.key)
+    return data
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Agora local administration commands")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -110,6 +219,11 @@ def build_parser() -> argparse.ArgumentParser:
     restore.add_argument("--backup", required=True, type=Path)
     restore.add_argument("--database-url", required=True)
     restore.add_argument("--yes", action="store_true", help="Confirm replacing the target SQLite database")
+
+    export = subparsers.add_parser("export-project", help="Export one project governance archive as JSONL files")
+    export.add_argument("--database-url", required=True)
+    export.add_argument("--project-slug", required=True)
+    export.add_argument("--output-dir", required=True, type=Path)
     return parser
 
 
@@ -145,6 +259,14 @@ def main() -> int:
     if args.command == "restore-sqlite":
         path = restore_sqlite(backup=args.backup, database_url=args.database_url, yes=args.yes)
         print(f"SQLite backup restored: {path}")
+        return 0
+    if args.command == "export-project":
+        path = export_project(
+            database_url=args.database_url,
+            project_slug=args.project_slug,
+            output_dir=args.output_dir,
+        )
+        print(f"Project export written: {path}")
         return 0
     raise SystemExit(f"Unknown command: {args.command}")
 

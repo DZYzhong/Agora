@@ -409,6 +409,7 @@ Current implementation:
 - `infra/docker-compose.yml` runs API, Web, Local Connector and dependency services with API/Postgres health checks.
 - `.env.example` includes production-like database/token defaults, including CI service token.
 - `scripts.agora_admin backup-sqlite` and `restore-sqlite` support local/SQLite backup and recovery drills.
+- `scripts.agora_admin export-project` writes project governance archives as JSONL plus a manifest for audit, migration dry-runs and offline review.
 - Black-box guide: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
 
 ---
@@ -673,6 +674,39 @@ Black-box validation path:
 Commit:
 
 - `df1c20c feat: add sqlite backup recovery commands`
+
+### 2026-08-26: P9 Project Governance Export Archive
+
+Scope:
+
+- Added `export-project` admin CLI command.
+- Exported project-scoped governance tables as JSONL files.
+- Wrote `manifest.json` with schema revision, project identity, file counts and relationship ids.
+- Updated the P9 black-box guide with project archive validation.
+
+Files changed:
+
+- Modified: `scripts/agora_admin.py`
+- Modified: `tests/integration/test_admin_cli.py`
+- Modified: `tests/integration/test_web_config.py`
+- Modified: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Modified: `docs/superpowers/plans/2026-08-26-agora-p9-operations-readiness.md`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/test_admin_cli.py::test_admin_cli_export_project_archive_writes_manifest_and_jsonl_assets
+# failed first, then 1 passed
+```
+
+Black-box validation path:
+
+- Use `docs/development/p9-operations-readiness-blackbox.zh-CN.md`.
+
+Commit:
+
+- Pending after full verification.
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 

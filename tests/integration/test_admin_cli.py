@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import json
 
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
@@ -7,8 +8,10 @@ from sqlalchemy.orm import sessionmaker
 from apps.api.dependencies import create_app_engine
 from packages.core.database import Base
 import packages.core.models  # noqa: F401
+from packages.core.models import QualityEvidenceModel
 from packages.core.repositories.assets import AssetRepository
 from packages.core.repositories.projects import ProjectRepository
+from packages.core.repositories.work import WorkRepository
 from packages.core.uow import SqlAlchemyUnitOfWork
 
 
@@ -151,3 +154,70 @@ def test_admin_cli_backup_and_restore_sqlite_database(tmp_path):
     with sessionmaker(bind=create_engine(restored_database_url))() as restored_session:
         projects = ProjectRepository(restored_session).list()
     assert [project.slug for project in projects] == ["dev-productivity"]
+
+
+def test_admin_cli_export_project_archive_writes_manifest_and_jsonl_assets(tmp_path):
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'agora.db'}"
+    export_dir = tmp_path / "export"
+    engine = create_app_engine(database_url)
+    session = sessionmaker(bind=engine)()
+    with SqlAlchemyUnitOfWork(session) as uow:
+        project = ProjectRepository(session).create(
+            org_id="org_1",
+            name="订单研发平台",
+            slug="order-dev-platform",
+            git_remotes=["git@example.com:order-dev-platform.git"],
+        )
+        work_item = WorkRepository(session).create_work_item(
+            org_id="org_1",
+            project_id=project.id,
+            external_key="AG-9101",
+            title="订单取消补偿任务",
+            source="manual",
+        )
+        session.add(
+            QualityEvidenceModel(
+                org_id="org_1",
+                project_id=project.id,
+                work_item_id=work_item.id,
+                session_id=None,
+                evidence_type="test",
+                source="pytest",
+                status="passed",
+                conclusion="订单取消补偿回归测试通过。",
+                evidence_metadata={"suite": "order"},
+            )
+        )
+        uow.commit()
+    session.close()
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.agora_admin",
+            "export-project",
+            "--database-url",
+            database_url,
+            "--project-slug",
+            "order-dev-platform",
+            "--output-dir",
+            str(export_dir),
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    assert "Project export written" in result.stdout
+    manifest = json.loads((export_dir / "manifest.json").read_text())
+    assert manifest["project"]["slug"] == "order-dev-platform"
+    assert manifest["schema_revision"] == "20260826_0012"
+    assert manifest["files"]["projects.jsonl"] == 1
+    assert manifest["files"]["work_items.jsonl"] == 1
+    assert manifest["files"]["quality_evidence.jsonl"] == 1
+    project_records = [json.loads(line) for line in (export_dir / "projects.jsonl").read_text().splitlines()]
+    quality_records = [json.loads(line) for line in (export_dir / "quality_evidence.jsonl").read_text().splitlines()]
+    assert project_records[0]["slug"] == "order-dev-platform"
+    assert quality_records[0]["conclusion"] == "订单取消补偿回归测试通过。"
