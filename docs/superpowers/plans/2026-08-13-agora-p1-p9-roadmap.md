@@ -474,7 +474,7 @@ Black-box validation path:
 
 Commit:
 
-- Pending.
+- `728e2c2 docs: add p6 blackbox validation guide`
 
 ### 2026-08-13: P4 Skill Lifecycle Started
 
