@@ -125,6 +125,30 @@ Verification:
 # failed first because export-project did not exist, then 1 passed
 ```
 
+## Chunk 6: Deployment smoke command
+
+### Task 1: HTTP smoke checks
+
+**Files:**
+
+- Modify: `scripts/agora_admin.py`
+- Modify: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Modify: `tests/integration/test_web_config.py`
+- Test: `tests/integration/test_admin_cli.py`
+
+- [x] Add `smoke` admin CLI command.
+- [x] Check API `/ready` and require `status = ready`.
+- [x] Check API `/metrics` and require `agora_ready 1`.
+- [x] Check optional Web base URL.
+- [x] Return non-zero on failed deployment checks.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_admin_cli.py::test_admin_cli_smoke_checks_api_readiness_metrics_and_web
+# failed first because smoke did not exist, then 1 passed
+```
+
 ## Verification
 
 Run:

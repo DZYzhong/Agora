@@ -46,6 +46,21 @@ GET http://127.0.0.1:8000/metrics
 - `/ready.checks.configuration.missing_required = []`。
 - `/metrics` 包含 `agora_ready`、`agora_schema_revision_info`、`agora_projects_total`、`agora_pending_context_proposals_total`。
 
+部署脚本也可以直接执行：
+
+```bash
+python -m scripts.agora_admin smoke \
+  --api-base-url http://127.0.0.1:8000 \
+  --web-base-url http://127.0.0.1:3000
+```
+
+期望：
+
+- 输出 `API readiness: ready`。
+- 输出 `Metrics: ok`。
+- 输出 `Web: ok`。
+- 任一检查失败时命令返回非 0，部署流程应停止。
+
 ## 步骤 2：Developer 冒烟
 
 在 AI 工具中输入：
@@ -150,6 +165,7 @@ python -m scripts.agora_admin export-project \
 - 生产-like 环境能启动 API 和 Web。
 - `/ready` 能发现数据库、schema 和配置问题。
 - `/metrics` 能被监控系统抓取。
+- `scripts.agora_admin smoke` 能完成部署后自动冒烟检查。
 - Developer、Reviewer、Project Manager、Quality 四类角色的核心路径都能通过 AI 工具和 Web 完成。
 - 备份恢复后，治理状态和项目资产仍可查询。
 - 项目治理资产可以导出为 JSONL 归档，用于审计、迁移前比对和离线留档。

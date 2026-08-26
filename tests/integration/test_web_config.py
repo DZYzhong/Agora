@@ -207,6 +207,7 @@ def test_p9_operations_blackbox_guide_exists():
     assert "备份" in content
     assert "恢复" in content
     assert "export-project" in content
+    assert "scripts.agora_admin smoke" in content
     assert "manifest.json" in content
     assert "JSONL" in content
     assert "Developer" in content

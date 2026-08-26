@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 import sqlite3
 import sys
+from urllib.error import URLError
+from urllib.request import urlopen
 
 from sqlalchemy import select, text
 from sqlalchemy.engine import make_url
@@ -191,6 +193,43 @@ def _model_to_dict(record) -> dict:
     return data
 
 
+def smoke(*, api_base_url: str, web_base_url: str | None = None, timeout: float = 5.0) -> list[str]:
+    api_base_url = api_base_url.rstrip("/")
+    ready = _fetch_json(f"{api_base_url}/ready", timeout=timeout)
+    if ready.get("status") != "ready":
+        raise SystemExit(f"API readiness failed: {ready}")
+    metrics = _fetch_text(f"{api_base_url}/metrics", timeout=timeout)
+    if "agora_ready 1" not in metrics:
+        raise SystemExit("Metrics check failed: agora_ready 1 not found")
+    lines = [
+        f"API readiness: {ready['status']}",
+        "Metrics: ok",
+    ]
+    if web_base_url:
+        _fetch_text(web_base_url.rstrip("/") + "/", timeout=timeout)
+        lines.append("Web: ok")
+    return lines
+
+
+def _fetch_json(url: str, *, timeout: float) -> dict:
+    text_body = _fetch_text(url, timeout=timeout)
+    try:
+        return json.loads(text_body)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Invalid JSON from {url}: {exc}") from exc
+
+
+def _fetch_text(url: str, *, timeout: float) -> str:
+    try:
+        with urlopen(url, timeout=timeout) as response:
+            status = getattr(response, "status", 200)
+            if status >= 400:
+                raise SystemExit(f"HTTP {status} from {url}")
+            return response.read().decode("utf-8")
+    except URLError as exc:
+        raise SystemExit(f"Unable to reach {url}: {exc}") from exc
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Agora local administration commands")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -224,6 +263,11 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--database-url", required=True)
     export.add_argument("--project-slug", required=True)
     export.add_argument("--output-dir", required=True, type=Path)
+
+    smoke_parser = subparsers.add_parser("smoke", help="Run deployment smoke checks against running Agora services")
+    smoke_parser.add_argument("--api-base-url", required=True)
+    smoke_parser.add_argument("--web-base-url")
+    smoke_parser.add_argument("--timeout", type=float, default=5.0)
     return parser
 
 
@@ -267,6 +311,10 @@ def main() -> int:
             output_dir=args.output_dir,
         )
         print(f"Project export written: {path}")
+        return 0
+    if args.command == "smoke":
+        for line in smoke(api_base_url=args.api_base_url, web_base_url=args.web_base_url, timeout=args.timeout):
+            print(line)
         return 0
     raise SystemExit(f"Unknown command: {args.command}")
 

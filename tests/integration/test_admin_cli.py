@@ -1,6 +1,8 @@
 import subprocess
 import sys
 import json
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from threading import Thread
 
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
@@ -221,3 +223,62 @@ def test_admin_cli_export_project_archive_writes_manifest_and_jsonl_assets(tmp_p
     quality_records = [json.loads(line) for line in (export_dir / "quality_evidence.jsonl").read_text().splitlines()]
     assert project_records[0]["slug"] == "order-dev-platform"
     assert quality_records[0]["conclusion"] == "订单取消补偿回归测试通过。"
+
+
+def test_admin_cli_smoke_checks_api_readiness_metrics_and_web(tmp_path):
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/ready":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(
+                    b'{"status":"ready","checks":{"database":{"status":"ok"},"schema":{"revision":"20260826_0012"}}}'
+                )
+                return
+            if self.path == "/metrics":
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"agora_ready 1\nagora_projects_total 1\n")
+                return
+            if self.path == "/":
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(b"<html>Agora</html>")
+                return
+            self.send_response(404)
+            self.end_headers()
+
+        def log_message(self, format, *args):
+            return
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base_url = f"http://127.0.0.1:{server.server_port}"
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "scripts.agora_admin",
+                "smoke",
+                "--api-base-url",
+                base_url,
+                "--web-base-url",
+                base_url,
+            ],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+
+    assert result.returncode == 0
+    assert "API readiness: ready" in result.stdout
+    assert "Metrics: ok" in result.stdout
+    assert "Web: ok" in result.stdout

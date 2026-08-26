@@ -410,6 +410,7 @@ Current implementation:
 - `.env.example` includes production-like database/token defaults, including CI service token.
 - `scripts.agora_admin backup-sqlite` and `restore-sqlite` support local/SQLite backup and recovery drills.
 - `scripts.agora_admin export-project` writes project governance archives as JSONL plus a manifest for audit, migration dry-runs and offline review.
+- `scripts.agora_admin smoke` verifies deployed API readiness, metrics and optional Web reachability.
 - Black-box guide: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
 
 ---
@@ -707,6 +708,40 @@ Black-box validation path:
 Commit:
 
 - `889e952 feat: export project governance archive`
+
+### 2026-08-26: P9 Deployment Smoke Command
+
+Scope:
+
+- Added `smoke` admin CLI command for deployment validation.
+- Checked running API `/ready` and required `status = ready`.
+- Checked running API `/metrics` and required `agora_ready 1`.
+- Checked optional Web base URL.
+- Updated P9 black-box guide with deployment smoke command usage.
+
+Files changed:
+
+- Modified: `scripts/agora_admin.py`
+- Modified: `tests/integration/test_admin_cli.py`
+- Modified: `tests/integration/test_web_config.py`
+- Modified: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Modified: `docs/superpowers/plans/2026-08-26-agora-p9-operations-readiness.md`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/test_admin_cli.py::test_admin_cli_smoke_checks_api_readiness_metrics_and_web
+# failed first, then 1 passed
+```
+
+Black-box validation path:
+
+- Use `docs/development/p9-operations-readiness-blackbox.zh-CN.md`.
+
+Commit:
+
+- Pending after full verification.
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 
