@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from packages.core.repositories.assets import AssetRepository
 from packages.core.repositories.context_governance import ContextGovernanceRepository
+from packages.core.repositories.integrations import IntegrationRepository
 from packages.core.repositories.context_packs import ContextPackRepository
 from packages.core.repositories.projects import ProjectRepository
 from packages.core.repositories.quality import QualityRepository
@@ -106,6 +107,9 @@ class CoreRuntime:
 
     def list_security_audit_events_by_project(self, project_id: str, *, limit: int = 100):
         return SecurityRepository(self.session).list_by_project(project_id, limit=limit)
+
+    def create_repository_revision_signal(self, **kwargs):
+        return IntegrationRepository(self.session).create_repository_revision_signal(**kwargs)
 
     def get_session(self, session_id: str):
         work_session = WorkRepository(self.session).get_work_session(session_id)

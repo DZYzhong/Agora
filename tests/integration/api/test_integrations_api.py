@@ -112,3 +112,77 @@ def test_ci_quality_signal_rejects_non_ci_credentials(monkeypatch):
     assert human_response.json()["detail"]["code"] == "CI_CREDENTIAL_REQUIRED"
     assert agent_response.status_code == 403
     assert agent_response.json()["detail"]["code"] == "CI_CREDENTIAL_REQUIRED"
+
+
+def test_repository_revision_signal_marks_context_stale_and_creates_refresh_proposal(monkeypatch):
+    _production_auth(monkeypatch)
+
+    with TestClient(app) as client:
+        project = client.post(
+            "/projects",
+            headers=_headers(HUMAN_TOKEN),
+            json={
+                "org_id": "ignored-org",
+                "name": "Repository Revision Signal",
+                "slug": "repository-revision-signal",
+                "git_remotes": ["git@example.com:team/order-service.git"],
+                "default_branch": "main",
+            },
+        ).json()
+        initial = client.post(
+            f"/projects/{project['id']}/context/proposals",
+            headers=_headers(AGENT_TOKEN),
+            json={
+                "type": "initial",
+                "title": "Initial order context",
+                "summary": "订单服务上下文初始版本。",
+                "target_branch": "main",
+                "expected_head_revision_id": None,
+                "to_commit_sha": "old123",
+                "content": {"project_overview": "订单服务负责订单状态流转。"},
+                "source_anchors": [],
+                "provenance": {"generating_tool": "codex", "schema_version": "context-revision/v1"},
+            },
+        ).json()
+        client.post(
+            f"/projects/{project['id']}/context/proposals/{initial['id']}/approve",
+            headers=_headers(HUMAN_TOKEN),
+            json={
+                "expected_head_revision_id": None,
+                "comment": "批准初始上下文。",
+                "revision_signal": {
+                    "target_branch": "main",
+                    "observed_head_sha": "old123",
+                    "contains_to_commit": True,
+                },
+            },
+        )
+
+        response = client.post(
+            "/integrations/repository/revision-signal",
+            headers=_headers(CI_TOKEN),
+            json={
+                "project_id": project["id"],
+                "provider": "gitlab",
+                "repository_identity": "git@example.com:team/order-service.git",
+                "branch": "main",
+                "observed_head_sha": "new999",
+                "previous_head_sha": "old123",
+                "signal_type": "push",
+                "work_item_key": "AG-1202",
+                "work_item_title": "订单状态机合并",
+                "raw_ref": "https://gitlab.example.com/team/order-service/-/commit/new999",
+            },
+        )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["operation"] == "ingest_repository_revision_signal"
+    assert body["signal"]["status"] == "stale_context"
+    assert body["context_freshness"]["state"] == "stale"
+    assert body["context_freshness"]["head_commit_sha"] == "old123"
+    assert body["context_freshness"]["observed_head_sha"] == "new999"
+    assert body["context_proposal"]["type"] == "refresh"
+    assert body["context_proposal"]["status"] == "submitted"
+    assert body["context_proposal"]["from_commit_sha"] == "old123"
+    assert body["context_proposal"]["to_commit_sha"] == "new999"

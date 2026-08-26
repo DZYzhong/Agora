@@ -30,6 +30,20 @@ class CiQualitySignalRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class RepositoryRevisionSignalRequest(BaseModel):
+    project_id: str
+    provider: str
+    repository_identity: str
+    branch: str = "main"
+    observed_head_sha: str
+    previous_head_sha: str | None = None
+    signal_type: str = "push"
+    work_item_key: str | None = None
+    work_item_title: str | None = None
+    raw_ref: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 @router.post("/ci/quality-signal", status_code=status.HTTP_201_CREATED)
 def ingest_ci_quality_signal(
     payload: CiQualitySignalRequest,
@@ -99,6 +113,114 @@ def ingest_ci_quality_signal(
     return response
 
 
+@router.post("/repository/revision-signal", status_code=status.HTTP_201_CREATED)
+def ingest_repository_revision_signal(
+    payload: RepositoryRevisionSignalRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
+    require_ci(principal)
+    with SqlAlchemyUnitOfWork(session) as uow:
+        runtime = CoreRuntime(session)
+        project = runtime.get_project(payload.project_id)
+        if project is None:
+            raise HTTPException(status_code=404, detail="Project not found")
+        require_project_member(session, principal, project_id=project.id)
+        work_item = None
+        if payload.work_item_key:
+            work_item = runtime.get_work_item_by_external_key(project_id=project.id, external_key=payload.work_item_key)
+            if work_item is None:
+                work_item = runtime.create_work_item(
+                    org_id=project.org_id,
+                    project_id=project.id,
+                    external_key=payload.work_item_key,
+                    title=payload.work_item_title or payload.work_item_key,
+                    source="repository_signal",
+                )
+        branch = payload.branch or project.default_branch or "main"
+        head_revision = runtime.get_head_context_revision_for_project(project_id=project.id, branch=branch)
+        if head_revision is None:
+            signal_status = "missing_context"
+            freshness_state = "missing"
+        elif head_revision.commit_sha == payload.observed_head_sha:
+            signal_status = "current_context"
+            freshness_state = "current"
+        else:
+            signal_status = "stale_context"
+            freshness_state = "stale"
+        signal = runtime.create_repository_revision_signal(
+            org_id=project.org_id,
+            project_id=project.id,
+            work_item_id=work_item.id if work_item is not None else None,
+            provider=payload.provider,
+            repository_identity=payload.repository_identity,
+            branch=branch,
+            observed_head_sha=payload.observed_head_sha,
+            previous_head_sha=payload.previous_head_sha,
+            signal_type=payload.signal_type,
+            status=signal_status,
+            raw_ref=payload.raw_ref,
+            metadata=payload.metadata,
+            created_by_user_id=principal.user_id,
+        )
+        proposal = None
+        if signal_status == "stale_context":
+            stream = runtime.ensure_context_stream(
+                org_id=project.org_id,
+                project_id=project.id,
+                branch=branch,
+                repository_identity={"git_remotes": project.git_remotes, "observed": payload.repository_identity},
+            )
+            proposal = runtime.create_context_proposal(
+                org_id=project.org_id,
+                project_id=project.id,
+                stream_id=stream.id,
+                work_item_id=work_item.id if work_item is not None else None,
+                session_id=None,
+                type="refresh",
+                status="submitted",
+                title=f"Refresh context for {branch} at {payload.observed_head_sha}",
+                summary="Repository revision signal indicates accepted context is behind the observed branch head.",
+                content={
+                    "refresh_required": True,
+                    "reason": "repository_revision_signal",
+                    "repository_identity": payload.repository_identity,
+                    "branch": branch,
+                    "observed_head_sha": payload.observed_head_sha,
+                    "previous_head_sha": payload.previous_head_sha,
+                },
+                source_anchors=[],
+                provenance={
+                    "source": "repository_revision_signal",
+                    "provider": payload.provider,
+                    "signal_id": signal.id,
+                    "schema_version": "context-revision/v1",
+                },
+                target_branch=branch,
+                expected_head_revision_id=head_revision.id if head_revision is not None else None,
+                from_commit_sha=head_revision.commit_sha if head_revision is not None else payload.previous_head_sha,
+                to_commit_sha=payload.observed_head_sha,
+                created_by_user_id=principal.user_id,
+            )
+        response = {
+            "protocol_version": "1.0",
+            "operation": "ingest_repository_revision_signal",
+            "signal": _serialize_repository_revision_signal(signal),
+            "context_freshness": {
+                "state": freshness_state,
+                "branch": branch,
+                "head_revision_id": head_revision.id if head_revision is not None else None,
+                "head_commit_sha": head_revision.commit_sha if head_revision is not None else None,
+                "observed_head_sha": payload.observed_head_sha,
+            },
+            "work_item": _serialize_work_item(work_item) if work_item is not None else None,
+            "context_proposal": _serialize_context_proposal(proposal) if proposal is not None else None,
+            "next_actions": _revision_signal_next_actions(signal_status),
+        }
+        uow.commit()
+    return response
+
+
 def _serialize_quality_evidence(evidence) -> dict:
     return {
         "id": evidence.id,
@@ -117,3 +239,66 @@ def _serialize_quality_evidence(evidence) -> dict:
         "created_at": evidence.created_at,
         "classification": "evidence",
     }
+
+
+def _serialize_repository_revision_signal(signal) -> dict:
+    return {
+        "id": signal.id,
+        "project_id": signal.project_id,
+        "work_item_id": signal.work_item_id,
+        "provider": signal.provider,
+        "repository_identity": signal.repository_identity,
+        "branch": signal.branch,
+        "observed_head_sha": signal.observed_head_sha,
+        "previous_head_sha": signal.previous_head_sha,
+        "signal_type": signal.signal_type,
+        "status": signal.status,
+        "raw_ref": signal.raw_ref,
+        "metadata": signal.signal_metadata,
+        "created_by_user_id": signal.created_by_user_id,
+        "created_at": signal.created_at,
+    }
+
+
+def _serialize_work_item(work_item) -> dict:
+    return {
+        "id": work_item.id,
+        "external_key": work_item.external_key,
+        "title": work_item.title,
+        "status": work_item.status,
+        "stage": work_item.stage,
+    }
+
+
+def _serialize_context_proposal(proposal) -> dict:
+    return {
+        "id": proposal.id,
+        "project_id": proposal.project_id,
+        "work_item_id": proposal.work_item_id,
+        "type": proposal.type,
+        "status": proposal.status,
+        "title": proposal.title,
+        "summary": proposal.summary,
+        "target_branch": proposal.target_branch,
+        "expected_head_revision_id": proposal.expected_head_revision_id,
+        "from_commit_sha": proposal.from_commit_sha,
+        "to_commit_sha": proposal.to_commit_sha,
+    }
+
+
+def _revision_signal_next_actions(signal_status: str) -> list[dict]:
+    if signal_status == "stale_context":
+        return [
+            {
+                "type": "review_context_refresh_proposal",
+                "reason": "Accepted project context is behind the observed repository branch head.",
+            }
+        ]
+    if signal_status == "missing_context":
+        return [
+            {
+                "type": "generate_initial_context",
+                "reason": "No accepted context revision exists for this branch.",
+            }
+        ]
+    return [{"type": "no_action", "reason": "Accepted context already matches the observed branch head."}]

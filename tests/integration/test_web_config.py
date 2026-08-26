@@ -181,6 +181,8 @@ def test_p8_ci_quality_signal_blackbox_guide_exists():
     assert "P8 CI QualitySignal 黑盒验证步骤" in content
     assert "AGORA_BOOTSTRAP_CI_TOKEN" in content
     assert "/integrations/ci/quality-signal" in content
+    assert "/integrations/repository/revision-signal" in content
+    assert "ContextProposal" in content
     assert "CI_CREDENTIAL_REQUIRED" in content
     assert "Project status" in content
     assert "用户不需要手动调用 HTTP API" in content

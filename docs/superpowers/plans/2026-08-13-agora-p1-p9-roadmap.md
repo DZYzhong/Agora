@@ -330,7 +330,7 @@ Current implementation:
 
 **Goal:** Connect Agora to repository, CI, task and PR signals so context and project status stay current with minimal user interruption.
 
-**Status:** In progress; provider-neutral CI QualitySignal ingestion is implemented.
+**Status:** In progress; provider-neutral CI QualitySignal ingestion and repository RevisionSignal freshness automation are implemented.
 
 Current plan:
 
@@ -362,6 +362,7 @@ Current implementation:
 - CI signals resolve or create WorkItems by `work_item_key`.
 - CI signals write P6 `QualityEvidence` with source/evidence type `ci`.
 - The response returns project status so CI evidence immediately affects delivery readiness, blockers and quality dimensions.
+- `POST /integrations/repository/revision-signal` stores repository signals and creates a submitted refresh ContextProposal when accepted context is stale.
 - Black-box guide: `docs/development/p8-ci-quality-signal-blackbox.zh-CN.md`
 
 ---
@@ -447,6 +448,51 @@ Black-box validation path:
 Commit:
 
 - `e337cf4 feat: ingest ci quality signals`
+
+### 2026-08-26: P8 Repository RevisionSignal Automation
+
+Scope:
+
+- Added `repository_revision_signals` persistence.
+- Added `POST /integrations/repository/revision-signal` for authenticated CI/repository automation.
+- Compared observed repository branch heads against accepted ContextRevision commit SHA.
+- Created submitted refresh ContextProposals when accepted project context is stale.
+- Updated P8 black-box guide to cover CI evidence and repository freshness automation.
+
+Files changed:
+
+- Created: `alembic/versions/20260826_0010_p8_repository_revision_signals.py`
+- Created: `packages/core/repositories/integrations.py`
+- Modified: `packages/core/models.py`
+- Modified: `packages/core/services/runtime.py`
+- Modified: `apps/api/routers/integrations.py`
+- Modified: `tests/integration/test_migrations.py`
+- Modified: `tests/integration/api/test_integrations_api.py`
+- Modified: `tests/integration/test_web_config.py`
+- Modified: `docs/development/p8-ci-quality-signal-blackbox.zh-CN.md`
+- Modified: `docs/superpowers/plans/2026-08-26-agora-p8-integrations-automation.md`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/test_migrations.py::test_p8_repository_revision_signal_schema_links_project_and_work_item tests/integration/test_migrations.py::test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine
+# failed first, then 3 passed
+
+.venv/bin/pytest tests/integration/api/test_integrations_api.py::test_repository_revision_signal_marks_context_stale_and_creates_refresh_proposal
+# failed first, then 1 passed
+
+.venv/bin/pytest tests/integration/test_web_config.py::test_p8_ci_quality_signal_blackbox_guide_exists
+# failed first, then 1 passed
+```
+
+Black-box validation path:
+
+- Use `docs/development/p8-ci-quality-signal-blackbox.zh-CN.md`.
+
+Commit:
+
+- Pending.
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 
