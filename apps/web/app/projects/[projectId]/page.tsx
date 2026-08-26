@@ -143,6 +143,10 @@ export default async function ProjectDetailPage({
           <h2>Work items</h2>
           <p className="muted">Track AI-assisted tasks, sessions, context state, and review flow.</p>
         </Link>
+        <Link className="panel" href={`/projects/${project.id}/status`}>
+          <h2>Project status</h2>
+          <p className="muted">Review work item progress, quality evidence, and pending approvals.</p>
+        </Link>
         <Link className="panel" href={`/projects/${project.id}/assets`}>
           <h2>Assets</h2>
           <p className="muted">Browse normalized project assets.</p>

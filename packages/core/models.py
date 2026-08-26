@@ -261,6 +261,26 @@ class WorkSessionModel(Base):
     legacy_imported: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class QualityEvidenceModel(Base):
+    __tablename__ = "quality_evidence"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    org_id: Mapped[str] = mapped_column(String, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    work_item_id: Mapped[str] = mapped_column(ForeignKey("work_items.id"), index=True)
+    session_id: Mapped[str | None] = mapped_column(ForeignKey("work_sessions.id"), nullable=True, index=True)
+    evidence_type: Mapped[str] = mapped_column(String, index=True)
+    source: Mapped[str] = mapped_column(String, index=True)
+    status: Mapped[str] = mapped_column(String, index=True)
+    conclusion: Mapped[str] = mapped_column(Text)
+    command: Mapped[str | None] = mapped_column(Text, nullable=True)
+    output_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
+    evidence_metadata: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
 class IdempotencyRecordModel(Base):
     __tablename__ = "idempotency_records"
     __table_args__ = (

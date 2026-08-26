@@ -137,6 +137,67 @@ class AgoraMcpTools:
             payload["principal"] = principal
         return _object_to_dict(self.harness.suggest_skills(**payload))
 
+    def agora_record_evidence(
+        self,
+        *,
+        session_id: str,
+        evidence_type: str,
+        source: str,
+        status: str,
+        conclusion: str,
+        command: str | None = None,
+        output_summary: str | None = None,
+        raw_ref: str | None = None,
+        metadata: dict | None = None,
+        principal=None,
+    ) -> dict:
+        if not hasattr(self.harness, "record_evidence"):
+            raise NotImplementedError("Harness does not implement record_evidence")
+        payload = {
+            "session_id": session_id,
+            "evidence_type": evidence_type,
+            "source": source,
+            "status": status,
+            "conclusion": conclusion,
+            "command": command,
+            "output_summary": output_summary,
+            "raw_ref": raw_ref,
+            "metadata": metadata or {},
+        }
+        if principal is not None:
+            payload["principal"] = principal
+        return _object_to_dict(self.harness.record_evidence(**payload))
+
+    def agora_get_quality_status(
+        self,
+        *,
+        session_id: str,
+        scope: str = "work_item",
+        principal=None,
+    ) -> dict:
+        if not hasattr(self.harness, "get_quality_status"):
+            raise NotImplementedError("Harness does not implement get_quality_status")
+        payload = {
+            "session_id": session_id,
+            "scope": scope,
+        }
+        if principal is not None:
+            payload["principal"] = principal
+        return _object_to_dict(self.harness.get_quality_status(**payload))
+
+    def agora_get_project_status(
+        self,
+        *,
+        project_id: str,
+        principal=None,
+    ) -> dict:
+        if not hasattr(self.harness, "get_project_status"):
+            raise NotImplementedError("Harness does not implement get_project_status")
+        payload = {"project_id": project_id}
+        if principal is not None:
+            payload["principal"] = principal
+        return _object_to_dict(self.harness.get_project_status(**payload))
+
     def agora_run_skill(self, *, session_id: str, skill_slug: str, input: dict) -> dict:
         if not hasattr(self.harness, "run_skill"):
             return {"session_id": session_id, "skill_slug": skill_slug, "input": input, "status": "not_implemented"}

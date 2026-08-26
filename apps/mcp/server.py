@@ -123,6 +123,39 @@ TOOLS = [
         ["session_id", "slug", "name", "summary", "instructions"],
     ),
     _tool(
+        "agora_record_evidence",
+        "Record structured quality evidence such as local tests, CI, review findings, or risk findings for the current work session.",
+        {
+            "session_id": {"type": "string"},
+            "evidence_type": {"type": "string", "description": "local_test, ci, review, risk, or another structured evidence type."},
+            "source": {"type": "string", "description": "ai_tool, ci, human_review, or external system."},
+            "status": {"type": "string", "enum": ["passed", "failed", "warning", "unknown"]},
+            "conclusion": {"type": "string"},
+            "command": {"type": "string"},
+            "output_summary": {"type": "string"},
+            "raw_ref": {"type": "string"},
+            "metadata": {"type": "object"},
+        },
+        ["session_id", "evidence_type", "source", "status", "conclusion"],
+    ),
+    _tool(
+        "agora_get_quality_status",
+        "Get evidence-backed quality status for the current WorkItem or whole project. Failed or missing evidence is never converted into a passing claim.",
+        {
+            "session_id": {"type": "string"},
+            "scope": {"type": "string", "enum": ["work_item", "project"], "default": "work_item"},
+        },
+        ["session_id"],
+    ),
+    _tool(
+        "agora_get_project_status",
+        "Get project-manager status for WorkItems, stages, quality state, and pending approvals.",
+        {
+            "project_id": {"type": "string"},
+        },
+        ["project_id"],
+    ),
+    _tool(
         "agora_close_work",
         "Close an Agora work session. When repo_path or agent_summary is provided, Agora captures a development_update draft for human review.",
         {
@@ -240,6 +273,36 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                 "triggers": arguments.get("triggers", []),
                 "instructions": arguments["instructions"],
                 "artifact_ids": arguments.get("artifact_ids", []),
+            },
+        )
+    if name == "agora_record_evidence":
+        return await _post(
+            "/harness/record-evidence",
+            {
+                "session_id": arguments["session_id"],
+                "evidence_type": arguments["evidence_type"],
+                "source": arguments["source"],
+                "status": arguments["status"],
+                "conclusion": arguments["conclusion"],
+                "command": arguments.get("command"),
+                "output_summary": arguments.get("output_summary"),
+                "raw_ref": arguments.get("raw_ref"),
+                "metadata": arguments.get("metadata", {}),
+            },
+        )
+    if name == "agora_get_quality_status":
+        return await _post(
+            "/harness/get-quality-status",
+            {
+                "session_id": arguments["session_id"],
+                "scope": arguments.get("scope", "work_item"),
+            },
+        )
+    if name == "agora_get_project_status":
+        return await _post(
+            "/harness/get-project-status",
+            {
+                "project_id": arguments["project_id"],
             },
         )
     if name == "agora_record_event":

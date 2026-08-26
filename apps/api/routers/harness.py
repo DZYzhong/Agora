@@ -100,6 +100,27 @@ class SuggestSkillsRequest(BaseModel):
     query: str | None = None
 
 
+class RecordEvidenceRequest(BaseModel):
+    session_id: str
+    evidence_type: str
+    source: str
+    status: str
+    conclusion: str
+    command: str | None = None
+    output_summary: str | None = None
+    raw_ref: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class GetQualityStatusRequest(BaseModel):
+    session_id: str
+    scope: str = "work_item"
+
+
+class GetProjectStatusRequest(BaseModel):
+    project_id: str
+
+
 class CloseWorkRequest(BaseModel):
     session_id: str
     status: str = "closed"
@@ -329,6 +350,66 @@ def suggest_skills(
     return response_dict
 
 
+@router.post("/record-evidence", status_code=status.HTTP_201_CREATED)
+def record_evidence(
+    payload: RecordEvidenceRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+    keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
+    vector_index: FakeVectorIndex = Depends(get_vector_index),
+):
+    with SqlAlchemyUnitOfWork(session) as uow:
+        _ensure_session_member(session, principal, session_id=payload.session_id)
+        response = _harness(session, keyword_index, vector_index).record_evidence(
+            **payload.model_dump(),
+            principal=principal,
+        )
+        response_dict = response.__dict__
+        response_dict["request_id"] = payload.session_id
+        uow.commit()
+    return response_dict
+
+
+@router.post("/get-quality-status")
+def get_quality_status(
+    payload: GetQualityStatusRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+    keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
+    vector_index: FakeVectorIndex = Depends(get_vector_index),
+):
+    with SqlAlchemyUnitOfWork(session) as uow:
+        _ensure_session_member(session, principal, session_id=payload.session_id)
+        response = _harness(session, keyword_index, vector_index).get_quality_status(
+            **payload.model_dump(),
+            principal=principal,
+        )
+        response_dict = response.__dict__
+        response_dict["request_id"] = payload.session_id
+        uow.commit()
+    return response_dict
+
+
+@router.post("/get-project-status")
+def get_project_status(
+    payload: GetProjectStatusRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+    keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
+    vector_index: FakeVectorIndex = Depends(get_vector_index),
+):
+    require_project_member(session, principal, project_id=payload.project_id)
+    with SqlAlchemyUnitOfWork(session) as uow:
+        response = _harness(session, keyword_index, vector_index).get_project_status(
+            **payload.model_dump(),
+            principal=principal,
+        )
+        response_dict = response.__dict__
+        response_dict["request_id"] = payload.project_id
+        uow.commit()
+    return response_dict
+
+
 @router.post("/close-work")
 def close_work(
     payload: CloseWorkRequest,
@@ -498,6 +579,7 @@ def _serialize_start_work(result) -> dict:
             "work_items": True,
             "context_revisions": True,
             "skills": True,
+            "quality_evidence": True,
         },
         "session_id": result.session_id,
         "work_item_id": result.work_item_id,

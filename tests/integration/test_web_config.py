@@ -77,6 +77,19 @@ def test_work_item_pages_are_available_and_linked_from_project_home():
     assert "/work-items" in project_page
 
 
+def test_project_status_page_is_available_and_linked_from_project_home():
+    status_page = Path("apps/web/app/projects/[projectId]/status/page.tsx")
+    project_page = Path("apps/web/app/projects/[projectId]/page.tsx").read_text()
+
+    assert status_page.exists()
+    content = status_page.read_text()
+    assert "/status" in project_page
+    assert "Project status" in content
+    assert "Quality evidence" in content
+    assert "Pending approvals" in content
+    assert "quality_state" in content
+
+
 def test_work_item_detail_page_renders_workflow_audit_evidence():
     detail_page = Path("apps/web/app/projects/[projectId]/work-items/[workItemId]/page.tsx").read_text()
 

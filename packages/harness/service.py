@@ -82,6 +82,42 @@ class SkillSuggestionResult:
     next_actions: list[dict]
 
 
+@dataclass(frozen=True)
+class EvidenceRecordResult:
+    protocol_version: str
+    operation: str
+    session_id: str
+    evidence: dict
+    next_actions: list[dict]
+
+
+@dataclass(frozen=True)
+class QualityStatusResult:
+    protocol_version: str
+    operation: str
+    scope: str
+    project_id: str
+    work_item_id: str | None
+    quality_state: str
+    counts: dict
+    evidence: list[dict]
+    gaps: list[dict]
+    unverified_claims: list[dict]
+    next_actions: list[dict]
+
+
+@dataclass(frozen=True)
+class ProjectStatusResult:
+    protocol_version: str
+    operation: str
+    project: dict
+    work_item_counts: dict
+    quality_counts: dict
+    pending_approvals: dict
+    work_items: list[dict]
+    next_actions: list[dict]
+
+
 class HarnessService:
     def __init__(self, *, core, context_engine):
         self.core = core
@@ -538,6 +574,174 @@ class HarnessService:
             ],
         )
 
+    def record_evidence(
+        self,
+        *,
+        session_id: str,
+        evidence_type: str,
+        source: str,
+        status: str,
+        conclusion: str,
+        command: str | None = None,
+        output_summary: str | None = None,
+        raw_ref: str | None = None,
+        metadata: dict | None = None,
+        principal: Principal | None = None,
+    ) -> EvidenceRecordResult:
+        if principal is None:
+            raise ValueError("HarnessService.record_evidence requires an authenticated Principal")
+        session = self.core.get_session(session_id)
+        if session is None:
+            raise ValueError(f"Session not found: {session_id}")
+        work_item_id = getattr(getattr(session, "work_item", None), "id", None) or getattr(session, "work_item_id", None)
+        evidence = self.core.create_quality_evidence(
+            org_id=session.org_id,
+            project_id=session.project_id,
+            work_item_id=work_item_id,
+            session_id=session_id,
+            evidence_type=evidence_type,
+            source=source,
+            status=status,
+            conclusion=conclusion,
+            command=command,
+            output_summary=output_summary,
+            raw_ref=raw_ref,
+            metadata=metadata or {},
+            created_by_user_id=principal.user_id,
+        )
+        self.session_recorder.record_event(
+            session_id=session_id,
+            event_type="quality_evidence_recorded",
+            payload={
+                "evidence_id": evidence.id,
+                "evidence_type": evidence.evidence_type,
+                "status": evidence.status,
+                "created_by_user_id": principal.user_id,
+            },
+        )
+        return EvidenceRecordResult(
+            protocol_version="1.0",
+            operation="record_evidence",
+            session_id=session_id,
+            evidence=_serialize_quality_evidence(evidence),
+            next_actions=[
+                {
+                    "type": "get_quality_status",
+                    "tool": "agora_get_quality_status",
+                    "reason": "Quality evidence was recorded; refresh the quality status before making delivery claims.",
+                }
+            ],
+        )
+
+    def get_quality_status(
+        self,
+        *,
+        session_id: str,
+        scope: str = "work_item",
+        principal: Principal | None = None,
+    ) -> QualityStatusResult:
+        if principal is None:
+            raise ValueError("HarnessService.get_quality_status requires an authenticated Principal")
+        session = self.core.get_session(session_id)
+        if session is None:
+            raise ValueError(f"Session not found: {session_id}")
+        work_item_id = getattr(getattr(session, "work_item", None), "id", None) or getattr(session, "work_item_id", None)
+        if scope == "project":
+            evidence = self.core.list_quality_evidence_by_project(session.project_id)
+            scoped_work_item_id = None
+        else:
+            evidence = self.core.list_quality_evidence_by_work_item(work_item_id)
+            scoped_work_item_id = work_item_id
+        quality_state, counts, gaps, unverified_claims = _quality_summary(evidence)
+        return QualityStatusResult(
+            protocol_version="1.0",
+            operation="get_quality_status",
+            scope=scope,
+            project_id=session.project_id,
+            work_item_id=scoped_work_item_id,
+            quality_state=quality_state,
+            counts=counts,
+            evidence=[_serialize_quality_evidence(item) for item in evidence],
+            gaps=gaps,
+            unverified_claims=unverified_claims,
+            next_actions=_quality_next_actions(quality_state),
+        )
+
+    def get_project_status(
+        self,
+        *,
+        project_id: str,
+        principal: Principal | None = None,
+    ) -> ProjectStatusResult:
+        if principal is None:
+            raise ValueError("HarnessService.get_project_status requires an authenticated Principal")
+        project = self.core.get_project(project_id)
+        if project is None:
+            raise ValueError(f"Project not found: {project_id}")
+        work_items = [work_item for work_item, _ in self.core.list_work_items_by_project(project_id)]
+        evidence_by_work_item: dict[str, list] = {}
+        for evidence in self.core.list_quality_evidence_by_project(project_id):
+            evidence_by_work_item.setdefault(evidence.work_item_id, []).append(evidence)
+        item_summaries = []
+        quality_counts = {"passing": 0, "failing": 0, "warning": 0, "unverified": 0}
+        for work_item in work_items:
+            quality_state, counts, gaps, _claims = _quality_summary(evidence_by_work_item.get(work_item.id, []))
+            quality_counts[quality_state] = quality_counts.get(quality_state, 0) + 1
+            item_summaries.append(
+                {
+                    "id": work_item.id,
+                    "external_key": work_item.external_key,
+                    "title": work_item.title,
+                    "status": work_item.status,
+                    "stage": work_item.stage,
+                    "owner_id": work_item.owner_id,
+                    "quality_state": quality_state,
+                    "quality_counts": counts,
+                    "quality_gaps": gaps,
+                }
+            )
+        pending_context = [
+            proposal
+            for proposal in self.core.list_context_proposals_by_project(project_id)
+            if proposal.status in {"submitted", "needs_rebase"}
+        ]
+        pending_skills = [
+            skill
+            for skill in self.core.list_skills_by_project(project_id)
+            if skill.project_id == project_id and skill.status in {"candidate", "draft"}
+        ]
+        return ProjectStatusResult(
+            protocol_version="1.0",
+            operation="get_project_status",
+            project={
+                "id": project.id,
+                "org_id": project.org_id,
+                "name": project.name,
+                "slug": project.slug,
+                "status": project.status,
+            },
+            work_item_counts={
+                "total": len(work_items),
+                "active": len([item for item in work_items if item.status == "active"]),
+                "completed": len([item for item in work_items if item.status == "completed"]),
+            },
+            quality_counts=quality_counts,
+            pending_approvals={
+                "context_proposals": len(pending_context),
+                "skill_candidates": len(pending_skills),
+            },
+            work_items=item_summaries,
+            next_actions=[
+                {
+                    "type": "review_failing_quality" if quality_counts.get("failing", 0) else "continue_project_tracking",
+                    "tool": "agora_get_quality_status" if quality_counts.get("failing", 0) else None,
+                    "reason": "At least one WorkItem has failed quality evidence."
+                    if quality_counts.get("failing", 0)
+                    else "Project status has no failing quality evidence.",
+                }
+            ],
+        )
+
     def close_work(
         self,
         *,
@@ -690,6 +894,78 @@ def _serialize_human_confirmation(confirmation) -> dict:
         "confirmed_by_user_id": confirmation.confirmed_by_user_id,
         "created_at": confirmation.created_at,
     }
+
+
+def _serialize_quality_evidence(evidence) -> dict:
+    return {
+        "id": evidence.id,
+        "org_id": evidence.org_id,
+        "project_id": evidence.project_id,
+        "work_item_id": evidence.work_item_id,
+        "session_id": evidence.session_id,
+        "evidence_type": evidence.evidence_type,
+        "source": evidence.source,
+        "status": evidence.status,
+        "conclusion": evidence.conclusion,
+        "command": evidence.command,
+        "output_summary": evidence.output_summary,
+        "raw_ref": evidence.raw_ref,
+        "metadata": evidence.evidence_metadata,
+        "created_by_user_id": evidence.created_by_user_id,
+        "created_at": evidence.created_at,
+        "classification": "evidence",
+    }
+
+
+def _quality_summary(evidence: list) -> tuple[str, dict, list[dict], list[dict]]:
+    counts = {
+        "passed": len([item for item in evidence if item.status == "passed"]),
+        "failed": len([item for item in evidence if item.status == "failed"]),
+        "warning": len([item for item in evidence if item.status == "warning"]),
+        "unknown": len([item for item in evidence if item.status not in {"passed", "failed", "warning"}]),
+    }
+    gaps: list[dict] = []
+    unverified_claims: list[dict] = []
+    if counts["failed"]:
+        quality_state = "failing"
+    elif counts["warning"] or counts["unknown"]:
+        quality_state = "warning"
+    elif counts["passed"]:
+        quality_state = "passing"
+    else:
+        quality_state = "unverified"
+        gaps.append(
+            {
+                "code": "NO_QUALITY_EVIDENCE",
+                "message": "No test, CI, review, or risk evidence has been recorded for this scope.",
+            }
+        )
+        unverified_claims.append(
+            {
+                "claim": "No passing tests or CI evidence has been recorded for this scope.",
+                "reason": "Agora does not infer passed quality from AI summaries or workflow progress.",
+            }
+        )
+    return quality_state, counts, gaps, unverified_claims
+
+
+def _quality_next_actions(quality_state: str) -> list[dict]:
+    if quality_state == "failing":
+        return [
+            {
+                "type": "fix_failed_quality",
+                "reason": "Failed evidence is present. Do not claim delivery quality as passed until new passing evidence is recorded.",
+            }
+        ]
+    if quality_state == "unverified":
+        return [
+            {
+                "type": "record_quality_evidence",
+                "tool": "agora_record_evidence",
+                "reason": "No quality evidence exists for this scope.",
+            }
+        ]
+    return [{"type": "continue_work", "reason": "Quality status is based on recorded evidence."}]
 
 
 def _merge_unique(existing: list, incoming: list) -> list:

@@ -14,6 +14,9 @@ def test_stdio_mcp_server_lists_agora_tools():
         "agora_submit_context_proposal",
         "agora_submit_skill_candidate",
         "agora_suggest_skills",
+        "agora_record_evidence",
+        "agora_get_quality_status",
+        "agora_get_project_status",
         "agora_close_work",
     }
 
@@ -38,6 +41,16 @@ def test_stdio_mcp_server_lists_agora_tools():
 
     suggest_tool = next(tool for tool in result.tools if tool.name == "agora_suggest_skills")
     assert "session_id" in suggest_tool.input_schema["required"]
+
+    evidence_tool = next(tool for tool in result.tools if tool.name == "agora_record_evidence")
+    assert "session_id" in evidence_tool.input_schema["required"]
+    assert "status" in evidence_tool.input_schema["required"]
+
+    quality_tool = next(tool for tool in result.tools if tool.name == "agora_get_quality_status")
+    assert "session_id" in quality_tool.input_schema["required"]
+
+    project_tool = next(tool for tool in result.tools if tool.name == "agora_get_project_status")
+    assert "project_id" in project_tool.input_schema["required"]
 
 
 def test_stdio_submit_context_proposal_dispatches_to_harness(monkeypatch):
@@ -126,6 +139,58 @@ def test_stdio_suggest_skills_dispatches_to_harness(monkeypatch):
     assert result["suggestions"][0]["slug"] == "release-risk-review"
     assert captured["path"] == "/harness/suggest-skills"
     assert captured["payload"] == {"session_id": "sess_1", "query": "发布风险检查"}
+
+
+def test_stdio_record_evidence_dispatches_to_harness(monkeypatch):
+    captured = {}
+
+    async def fake_post(path, payload):
+        captured["path"] = path
+        captured["payload"] = payload
+        return {"protocol_version": "1.0", "operation": "record_evidence", "evidence": {"id": "evidence_1"}}
+
+    monkeypatch.setattr("apps.mcp.server._post", fake_post)
+
+    result = asyncio.run(
+        _dispatch(
+            "agora_record_evidence",
+            {
+                "session_id": "sess_1",
+                "evidence_type": "local_test",
+                "source": "ai_tool",
+                "status": "failed",
+                "conclusion": "pytest failed",
+                "command": "pytest tests/payment",
+                "output_summary": "1 failed",
+                "raw_ref": "local://pytest/payment",
+                "metadata": {"commit_sha": "abc123"},
+            },
+        )
+    )
+
+    assert result["evidence"]["id"] == "evidence_1"
+    assert captured["path"] == "/harness/record-evidence"
+    assert captured["payload"]["status"] == "failed"
+
+
+def test_stdio_quality_and_project_status_dispatch_to_harness(monkeypatch):
+    captured = []
+
+    async def fake_post(path, payload):
+        captured.append((path, payload))
+        return {"protocol_version": "1.0", "operation": path.rsplit("/", 1)[-1].replace("-", "_")}
+
+    monkeypatch.setattr("apps.mcp.server._post", fake_post)
+
+    quality = asyncio.run(_dispatch("agora_get_quality_status", {"session_id": "sess_1", "scope": "work_item"}))
+    project = asyncio.run(_dispatch("agora_get_project_status", {"project_id": "project_1"}))
+
+    assert quality["operation"] == "get_quality_status"
+    assert project["operation"] == "get_project_status"
+    assert captured == [
+        ("/harness/get-quality-status", {"session_id": "sess_1", "scope": "work_item"}),
+        ("/harness/get-project-status", {"project_id": "project_1"}),
+    ]
 
 
 def test_stdio_start_work_observes_local_workspace_when_not_supplied(monkeypatch):

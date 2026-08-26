@@ -4,6 +4,7 @@ from packages.core.repositories.assets import AssetRepository
 from packages.core.repositories.context_governance import ContextGovernanceRepository
 from packages.core.repositories.context_packs import ContextPackRepository
 from packages.core.repositories.projects import ProjectRepository
+from packages.core.repositories.quality import QualityRepository
 from packages.core.repositories.sessions import TaskSessionRepository
 from packages.core.repositories.skills import SkillRepository
 from packages.core.repositories.work import WorkRepository
@@ -89,6 +90,15 @@ class CoreRuntime:
 
     def create_human_confirmation(self, **kwargs):
         return WorkflowRepository(self.session).create_human_confirmation(**kwargs)
+
+    def create_quality_evidence(self, **kwargs):
+        return QualityRepository(self.session).create_evidence(**kwargs)
+
+    def list_quality_evidence_by_work_item(self, work_item_id: str):
+        return QualityRepository(self.session).list_by_work_item(work_item_id)
+
+    def list_quality_evidence_by_project(self, project_id: str):
+        return QualityRepository(self.session).list_by_project(project_id)
 
     def get_session(self, session_id: str):
         work_session = WorkRepository(self.session).get_work_session(session_id)

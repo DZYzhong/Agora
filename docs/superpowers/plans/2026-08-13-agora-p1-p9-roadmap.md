@@ -4,7 +4,7 @@
 
 **Current branch:** `codex/agora-p0`
 
-**Current baseline:** P0-P5 are implemented on the realigned Agent-first, Harness-first architecture. P5 is ready for black-box validation.
+**Current baseline:** P0-P5 are implemented on the realigned Agent-first, Harness-first architecture. P6 quality/project-status foundation is in progress.
 
 **Canonical product design:** `docs/superpowers/specs/2026-08-14-agora-product-functional-design.zh-CN.md`
 
@@ -252,6 +252,12 @@ Exit criteria:
 
 **Goal:** Give quality personnel and project managers trustworthy project status through AI tools and Web UI.
 
+**Status:** In progress; QualityEvidence, AI-tool status queries, MCP registration and Web project status foundation implemented.
+
+Current plan:
+
+- `docs/superpowers/plans/2026-08-26-agora-p6-quality-project-status.md`
+
 Scope:
 
 - Add structured QualityEvidence for local tests, CI, review and risk findings.
@@ -268,6 +274,13 @@ Exit criteria:
 - A quality user can ask for task/project quality and trace every result to evidence.
 - Web and AI-tool views agree because both use the same WorkItem and evidence model.
 - An AI summary cannot turn a failed or absent test into a passed state.
+
+Current implementation:
+
+- `QualityEvidence` persists local tests, CI, review and risk findings with project, WorkItem, WorkSession and user provenance.
+- AI tools can call `agora_record_evidence`, `agora_get_quality_status` and `agora_get_project_status`.
+- Web users can open the project status page from project detail and see WorkItem counts, quality states and pending approvals.
+- Missing evidence is reported as `unverified`; failed evidence is reported as `failing`.
 
 ---
 
@@ -356,6 +369,45 @@ When a historical title conflicts with this Roadmap, this Roadmap and the canoni
 ---
 
 ## Execution Log
+
+### 2026-08-26: P6 Quality and Project Status Foundation
+
+Scope:
+
+- Added the P6 `QualityEvidence` persistence model and migration.
+- Added Harness/API/MCP capabilities for recording quality evidence and retrieving WorkItem/project quality status.
+- Added project-manager status aggregation across WorkItems, quality states and pending context/skill approvals.
+- Added the Web project status page and project-detail navigation entry.
+- Kept AI inference separate from evidence: missing quality evidence is `unverified`, and failed evidence remains `failing`.
+
+Files changed:
+
+- Created: `alembic/versions/20260826_0008_p6_quality_evidence.py`
+- Created: `packages/core/repositories/quality.py`
+- Created: `apps/web/app/projects/[projectId]/status/page.tsx`
+- Modified: `packages/core/models.py`
+- Modified: `packages/core/services/runtime.py`
+- Modified: `packages/harness/service.py`
+- Modified: `apps/api/routers/harness.py`
+- Modified: `apps/mcp/tools.py`
+- Modified: `apps/mcp/server.py`
+- Modified: `apps/web/app/projects/[projectId]/page.tsx`
+- Modified: P6 migration, Harness API, MCP and Web configuration tests.
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/test_migrations.py tests/integration/api/test_harness_api.py tests/unit/mcp/test_tools.py tests/unit/mcp/test_stdio_server.py tests/integration/test_web_config.py
+# 60 passed
+```
+
+Black-box validation path:
+
+- Pending. Prepare after the remaining P6 quality dashboard and project-management views are implemented into one larger validation batch.
+
+Commit:
+
+- `2de03f6 feat: add p6 quality project status foundation`
 
 ### 2026-08-13: P4 Skill Lifecycle Started
 

@@ -10,6 +10,9 @@ class FakeHarness:
         self.completed_step_with = None
         self.submitted_skill_candidate_with = None
         self.suggested_skills_with = None
+        self.recorded_evidence_with = None
+        self.quality_status_with = None
+        self.project_status_with = None
 
     def start_work(self, **kwargs):
         self.started = True
@@ -72,6 +75,27 @@ class FakeHarness:
         return {
             "operation": "suggest_skills",
             "suggestions": [{"slug": "release-risk-review"}],
+        }
+
+    def record_evidence(self, **kwargs):
+        self.recorded_evidence_with = kwargs
+        return {
+            "operation": "record_evidence",
+            "evidence": {"status": kwargs["status"], "command": kwargs.get("command")},
+        }
+
+    def get_quality_status(self, **kwargs):
+        self.quality_status_with = kwargs
+        return {
+            "operation": "get_quality_status",
+            "quality_state": "failing",
+        }
+
+    def get_project_status(self, **kwargs):
+        self.project_status_with = kwargs
+        return {
+            "operation": "get_project_status",
+            "project": {"id": kwargs["project_id"]},
         }
 
 
@@ -269,5 +293,57 @@ def test_mcp_suggest_skills_delegates_to_harness():
     assert fake_harness.suggested_skills_with == {
         "session_id": "sess_1",
         "query": "发布风险检查",
+        "principal": "principal",
+    }
+
+
+def test_mcp_record_evidence_delegates_to_harness():
+    fake_harness = FakeHarness()
+    tools = AgoraMcpTools(harness=fake_harness)
+
+    result = tools.agora_record_evidence(
+        session_id="sess_1",
+        evidence_type="local_test",
+        source="ai_tool",
+        status="failed",
+        conclusion="pytest failed",
+        command="pytest tests/payment",
+        output_summary="1 failed",
+        raw_ref="local://pytest/payment",
+        metadata={"commit_sha": "abc123"},
+        principal="principal",
+    )
+
+    assert result["operation"] == "record_evidence"
+    assert fake_harness.recorded_evidence_with == {
+        "session_id": "sess_1",
+        "evidence_type": "local_test",
+        "source": "ai_tool",
+        "status": "failed",
+        "conclusion": "pytest failed",
+        "command": "pytest tests/payment",
+        "output_summary": "1 failed",
+        "raw_ref": "local://pytest/payment",
+        "metadata": {"commit_sha": "abc123"},
+        "principal": "principal",
+    }
+
+
+def test_mcp_quality_and_project_status_delegate_to_harness():
+    fake_harness = FakeHarness()
+    tools = AgoraMcpTools(harness=fake_harness)
+
+    quality = tools.agora_get_quality_status(session_id="sess_1", scope="work_item", principal="principal")
+    project = tools.agora_get_project_status(project_id="project_1", principal="principal")
+
+    assert quality["quality_state"] == "failing"
+    assert project["project"]["id"] == "project_1"
+    assert fake_harness.quality_status_with == {
+        "session_id": "sess_1",
+        "scope": "work_item",
+        "principal": "principal",
+    }
+    assert fake_harness.project_status_with == {
+        "project_id": "project_1",
         "principal": "principal",
     }

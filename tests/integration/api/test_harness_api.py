@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 
 from apps.api.dependencies import get_engine, get_keyword_index, get_vector_index
 from apps.api.main import app
-from packages.core.models import HumanConfirmationModel, WorkArtifactModel, WorkItemModel
+from packages.core.models import HumanConfirmationModel, QualityEvidenceModel, WorkArtifactModel, WorkItemModel
 
 
 def _run_git(repo_path, *args):
@@ -42,6 +42,7 @@ def test_start_work_endpoint_returns_session():
     assert body["session_id"]
     assert body["project"]["id"] == project["id"]
     assert body["workflow_version_id"]
+    assert body["capabilities"]["quality_evidence"] is True
 
 
 def test_complete_workflow_step_advances_current_step_and_work_item_stage():
@@ -149,6 +150,192 @@ def test_complete_workflow_step_captures_artifacts_and_human_confirmation():
         assert confirmation.confirmed_by_user_id == "auth-bypass-user"
     finally:
         db.close()
+
+
+def test_record_evidence_and_quality_status_preserve_failed_test_fact():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_quality_status",
+            "name": "Quality Status",
+            "slug": "quality-status",
+            "git_remotes": [],
+        },
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "帮我做 AG-801：修复支付回调重试",
+            "agent_type": "codex",
+        },
+    ).json()
+
+    response = client.post(
+        "/harness/record-evidence",
+        json={
+            "session_id": started["session_id"],
+            "evidence_type": "local_test",
+            "source": "ai_tool",
+            "status": "failed",
+            "conclusion": "pytest failed: 回调幂等测试失败，不能发布。",
+            "command": ".venv/bin/pytest tests/payment/test_callback_retry.py",
+            "output_summary": "1 failed: duplicate callback created two settlement records.",
+            "raw_ref": "local://pytest/payment-callback-retry",
+            "metadata": {"commit_sha": "abc123", "coverage": "not_collected"},
+        },
+    )
+
+    assert response.status_code == 201
+    evidence = response.json()["evidence"]
+    assert evidence["work_item_id"] == started["work_item_id"]
+    assert evidence["status"] == "failed"
+    assert evidence["classification"] == "evidence"
+
+    quality = client.post(
+        "/harness/get-quality-status",
+        json={
+            "session_id": started["session_id"],
+            "scope": "work_item",
+        },
+    ).json()
+
+    assert quality["operation"] == "get_quality_status"
+    assert quality["quality_state"] == "failing"
+    assert quality["counts"]["failed"] == 1
+    assert quality["counts"]["passed"] == 0
+    assert quality["unverified_claims"] == []
+    assert quality["evidence"][0]["id"] == evidence["id"]
+    assert quality["evidence"][0]["command"] == ".venv/bin/pytest tests/payment/test_callback_retry.py"
+
+    db = sessionmaker(bind=get_engine())()
+    try:
+        stored = db.get(QualityEvidenceModel, evidence["id"])
+        assert stored.work_item_id == started["work_item_id"]
+        assert stored.session_id == started["session_id"]
+        assert stored.status == "failed"
+    finally:
+        db.close()
+
+
+def test_quality_status_reports_missing_evidence_as_unverified_not_passed():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_quality_missing",
+            "name": "Quality Missing",
+            "slug": "quality-missing",
+            "git_remotes": [],
+        },
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "帮我做 AG-802：调整订单状态流转",
+            "agent_type": "codex",
+        },
+    ).json()
+
+    quality = client.post(
+        "/harness/get-quality-status",
+        json={
+            "session_id": started["session_id"],
+            "scope": "work_item",
+        },
+    ).json()
+
+    assert quality["quality_state"] == "unverified"
+    assert quality["counts"] == {"passed": 0, "failed": 0, "warning": 0, "unknown": 0}
+    assert quality["gaps"][0]["code"] == "NO_QUALITY_EVIDENCE"
+    assert quality["unverified_claims"] == [
+        {
+            "claim": "No passing tests or CI evidence has been recorded for this scope.",
+            "reason": "Agora does not infer passed quality from AI summaries or workflow progress.",
+        }
+    ]
+
+
+def test_project_status_aggregates_work_items_quality_and_pending_approvals():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_project_status",
+            "name": "Project Status",
+            "slug": "project-status",
+            "git_remotes": [],
+        },
+    ).json()
+    passing = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "帮我做 AG-803：发布账单导出",
+            "agent_type": "codex",
+        },
+    ).json()
+    failing = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "帮我做 AG-804：修复退款回调",
+            "agent_type": "codex",
+        },
+    ).json()
+    client.post(
+        "/harness/record-evidence",
+        json={
+            "session_id": passing["session_id"],
+            "evidence_type": "local_test",
+            "source": "ai_tool",
+            "status": "passed",
+            "conclusion": "账单导出相关测试通过。",
+            "command": "pytest tests/billing",
+            "output_summary": "12 passed",
+        },
+    )
+    client.post(
+        "/harness/record-evidence",
+        json={
+            "session_id": failing["session_id"],
+            "evidence_type": "local_test",
+            "source": "ai_tool",
+            "status": "failed",
+            "conclusion": "退款回调幂等测试失败。",
+            "command": "pytest tests/refund",
+            "output_summary": "1 failed",
+        },
+    )
+    client.post(
+        "/harness/submit-skill-candidate",
+        json={
+            "session_id": passing["session_id"],
+            "slug": "billing-release-review",
+            "name": "Billing Release Review",
+            "summary": "沉淀账单发布检查经验。",
+            "triggers": ["billing", "release"],
+            "instructions": "检查账单发布风险。",
+            "artifact_ids": [],
+        },
+    )
+
+    status = client.post(
+        "/harness/get-project-status",
+        json={
+            "project_id": project["id"],
+        },
+    ).json()
+
+    assert status["operation"] == "get_project_status"
+    assert status["project"]["id"] == project["id"]
+    assert status["work_item_counts"]["total"] == 2
+    assert status["quality_counts"]["passing"] == 1
+    assert status["quality_counts"]["failing"] == 1
+    assert status["pending_approvals"]["skill_candidates"] == 1
+    assert {item["quality_state"] for item in status["work_items"]} == {"passing", "failing"}
 
 
 def test_submit_skill_candidate_from_work_session_creates_reviewable_project_skill():

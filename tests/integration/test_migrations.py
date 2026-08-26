@@ -43,6 +43,10 @@ P5_TABLES = {
     "skill_versions",
 }
 
+P6_TABLES = {
+    "quality_evidence",
+}
+
 
 def _alembic_config(database_url: str) -> Config:
     config = Config("alembic.ini")
@@ -56,7 +60,7 @@ def test_alembic_upgrade_head_creates_current_schema(tmp_path):
     command.upgrade(_alembic_config(database_url), "head")
 
     inspector = inspect(create_engine(database_url))
-    assert P1_TABLES | P2_TABLES | P4_TABLES | P5_TABLES <= set(inspector.get_table_names())
+    assert P1_TABLES | P2_TABLES | P4_TABLES | P5_TABLES | P6_TABLES <= set(inspector.get_table_names())
 
 
 @pytest.mark.parametrize("database_url", ["sqlite:///:memory:", "sqlite+pysqlite:///:memory:"])
@@ -65,7 +69,35 @@ def test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine(data
 
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT count(*) FROM assets")) == 0
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260826_0007"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260826_0008"
+
+
+def test_p6_quality_evidence_schema_links_to_work_item_session_and_user(tmp_path):
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'agora.db'}"
+    engine = create_engine(database_url)
+    command.upgrade(_alembic_config(database_url), "head")
+    inspector = inspect(engine)
+
+    columns = {column["name"] for column in inspector.get_columns("quality_evidence")}
+    assert {
+        "id",
+        "org_id",
+        "project_id",
+        "work_item_id",
+        "session_id",
+        "evidence_type",
+        "source",
+        "status",
+        "conclusion",
+        "command",
+        "output_summary",
+        "raw_ref",
+        "metadata",
+        "created_by_user_id",
+        "created_at",
+    } <= columns
+    referred_tables = {foreign_key["referred_table"] for foreign_key in inspector.get_foreign_keys("quality_evidence")}
+    assert {"projects", "work_items", "work_sessions", "users"} <= referred_tables
 
 
 def test_p2_schema_has_required_foreign_keys_and_uniqueness(tmp_path):
