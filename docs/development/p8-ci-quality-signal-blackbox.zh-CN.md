@@ -2,6 +2,8 @@
 
 目标：验证 Agora 能接收真实 CI 流水线的质量信号和仓库 RevisionSignal，自动写入项目 WorkItem 的质量证据，并在代码分支更新时创建待审 ContextProposal，让 AI 工具和 Web 同步看到最新质量与上下文状态。
 
+本轮同时验证 WorkItem mapping：AI 工具、CI、仓库集成可以随信号传入 `task_provider`、`task_key`、`task_url`，Agora 会把 Jira、飞书项目、禅道、GitLab issue、GitHub issue 等外部任务链接稳定映射到同一个 WorkItem。用户不需要单独维护“Agora 任务”和“外部任务系统”的对应关系。
+
 ## 验证边界
 
 - 用户不需要手动调用 HTTP API。
@@ -59,10 +61,14 @@ export AGORA_BOOTSTRAP_ORG_ID=local-org
   - `run_id`
   - `commit_sha`
   - `branch`
+  - `task_provider = jira`
+  - `task_url = https://jira.example.com/browse/AG-1201`
 
 期望：
 
 - 返回 `operation = ingest_ci_quality_signal`。
+- 返回 `task_link.provider = jira`。
+- 返回 `task_link.external_key = AG-1201`。
 - 返回 `evidence.source = ci`。
 - 返回 `evidence.evidence_type = ci`。
 - 返回的 `project_status.quality_dimensions.ci` 包含本次 passed/failed 数量。
@@ -85,10 +91,13 @@ export AGORA_BOOTSTRAP_ORG_ID=local-org
   - `signal_type = push`
   - `work_item_key`
   - `raw_ref`
+  - `task_provider`
+  - `task_url`
 
 期望：
 
 - 返回 `operation = ingest_repository_revision_signal`。
+- 如果 CI 已经上报过同一个 `task_provider + work_item_key/task_key`，返回同一个 `task_link.id` 和同一个 `work_item.id`。
 - 如果 accepted ContextRevision 的 commit 与 `observed_head_sha` 不一致，返回 `context_freshness.state = stale`。
 - 返回 `signal.status = stale_context`。
 - 自动创建 `ContextProposal`，`type = refresh`、`status = submitted`。
@@ -107,6 +116,7 @@ export AGORA_BOOTSTRAP_ORG_ID=local-org
 - AI 工具调用 `agora_get_project_status`。
 - 如果 CI 上报 failed，项目 `delivery_readiness.state = blocked`。
 - 如果 CI 上报 failed，`blockers` 中有 `FAILING_QUALITY_EVIDENCE`。
+- `work_items[].task_links` 里能看到外部任务链接。
 - `Latest evidence` 对应数据能追溯到 CI command/run id/commit。
 
 ## 步骤 5：Web 查看 Project status 和 Context
@@ -129,6 +139,7 @@ http://127.0.0.1:3000/projects
 - `Quality dimensions` 里出现 `ci`。
 - `Latest evidence` 能看到 CI 测试命令、状态和结论。
 - Web 状态与 AI 工具查询一致。
+- `Work item quality` 表格里能看到 `Task links`，点击后能打开对应任务系统页面。
 - `ContextProposal` 列表里能看到仓库 RevisionSignal 创建的 refresh proposal。
 
 ## 步骤 6：验证错误凭证不能上报 CI
@@ -145,6 +156,7 @@ http://127.0.0.1:3000/projects
 - CI service credential 可以上报质量信号。
 - human/agent credential 不能上报 CI 质量信号。
 - CI 信号能自动创建或定位 WorkItem。
+- 外部任务系统链接能通过 WorkItem mapping 自动归档，并被后续 CI/repo 信号复用。
 - CI 信号被保存为 `QualityEvidence`，并进入项目状态聚合。
 - 仓库 RevisionSignal 能在上下文落后时自动创建待审 `ContextProposal`。
 - Web `Project status` 和 AI 工具查询看到一致的 CI 证据。

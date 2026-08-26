@@ -39,6 +39,14 @@ type ProjectStatus = {
     quality_state: string;
     quality_counts: Record<string, number>;
     quality_gaps: { code: string; message: string }[];
+    task_links: {
+      id: string;
+      provider: string;
+      external_key: string;
+      external_url: string | null;
+      title: string | null;
+      status: string;
+    }[];
     quality_evidence: {
       id: string;
       evidence_type: string;
@@ -172,6 +180,7 @@ export default async function ProjectStatusPage({ params }: { params: Promise<{ 
             <span>Stage</span>
             <span>Status</span>
             <span>Quality</span>
+            <span>Task links</span>
             <span>Gaps</span>
           </div>
           {status.work_items.map((item) => (
@@ -180,6 +189,21 @@ export default async function ProjectStatusPage({ params }: { params: Promise<{ 
               <span>{item.stage}</span>
               <span>{item.status}</span>
               <span>{item.quality_state}</span>
+              <span>
+                {item.task_links.length
+                  ? item.task_links.map((link) =>
+                      link.external_url ? (
+                        <a key={link.id} href={link.external_url}>
+                          {link.provider}:{link.external_key}
+                        </a>
+                      ) : (
+                        <span key={link.id}>
+                          {link.provider}:{link.external_key}
+                        </span>
+                      ),
+                    )
+                  : "None"}
+              </span>
               <span>{item.quality_gaps.map((gap) => gap.code).join(", ") || "None"}</span>
             </div>
           ))}

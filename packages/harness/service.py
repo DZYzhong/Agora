@@ -682,6 +682,10 @@ class HarnessService:
         if project is None:
             raise ValueError(f"Project not found: {project_id}")
         work_items = [work_item for work_item, _ in self.core.list_work_items_by_project(project_id)]
+        links_by_work_item: dict[str, list] = {}
+        if hasattr(self.core, "list_work_item_links_by_work_item_ids"):
+            for link in self.core.list_work_item_links_by_work_item_ids([item.id for item in work_items]):
+                links_by_work_item.setdefault(link.work_item_id, []).append(link)
         evidence_by_work_item: dict[str, list] = {}
         for evidence in self.core.list_quality_evidence_by_project(project_id):
             evidence_by_work_item.setdefault(evidence.work_item_id, []).append(evidence)
@@ -731,6 +735,7 @@ class HarnessService:
                     "quality_state": quality_state,
                     "quality_counts": counts,
                     "quality_gaps": gaps,
+                    "task_links": [_serialize_work_item_link(link) for link in links_by_work_item.get(work_item.id, [])],
                     "quality_evidence": [_serialize_quality_evidence(evidence) for evidence in item_evidence[:5]],
                 }
             )
@@ -951,6 +956,24 @@ def _serialize_quality_evidence(evidence) -> dict:
         "created_by_user_id": evidence.created_by_user_id,
         "created_at": evidence.created_at,
         "classification": "evidence",
+    }
+
+
+def _serialize_work_item_link(link) -> dict:
+    return {
+        "id": link.id,
+        "org_id": link.org_id,
+        "project_id": link.project_id,
+        "work_item_id": link.work_item_id,
+        "provider": link.provider,
+        "external_key": link.external_key,
+        "external_url": link.external_url,
+        "title": link.title,
+        "status": link.status,
+        "metadata": link.link_metadata,
+        "created_by_user_id": link.created_by_user_id,
+        "created_at": link.created_at,
+        "updated_at": link.updated_at,
     }
 
 

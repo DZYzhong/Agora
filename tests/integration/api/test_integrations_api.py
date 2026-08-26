@@ -51,6 +51,8 @@ def test_ci_quality_signal_records_evidence_and_updates_project_status(monkeypat
                 "commit_sha": "abc1234",
                 "branch": "feature/AG-1101-payment-callback",
                 "raw_ref": "https://gitlab.example.com/team/payment-service/-/pipelines/8848",
+                "task_provider": "jira",
+                "task_url": "https://jira.example.com/browse/AG-1101",
             },
         )
 
@@ -68,9 +70,13 @@ def test_ci_quality_signal_records_evidence_and_updates_project_status(monkeypat
     assert body["evidence"]["status"] == "failed"
     assert body["evidence"]["metadata"]["provider"] == "gitlab-ci"
     assert body["evidence"]["metadata"]["run_id"] == "pipeline-8848"
+    assert body["task_link"]["provider"] == "jira"
+    assert body["task_link"]["external_key"] == "AG-1101"
+    assert body["task_link"]["external_url"] == "https://jira.example.com/browse/AG-1101"
     assert body["project_status"]["delivery_readiness"]["state"] == "blocked"
     assert project_status["quality_counts"]["failing"] == 1
     assert project_status["quality_dimensions"]["ci"]["failed"] == 1
+    assert project_status["work_items"][0]["task_links"][0]["external_url"] == "https://jira.example.com/browse/AG-1101"
 
 
 def test_ci_quality_signal_rejects_non_ci_credentials(monkeypatch):
@@ -186,3 +192,62 @@ def test_repository_revision_signal_marks_context_stale_and_creates_refresh_prop
     assert body["context_proposal"]["status"] == "submitted"
     assert body["context_proposal"]["from_commit_sha"] == "old123"
     assert body["context_proposal"]["to_commit_sha"] == "new999"
+
+
+def test_repository_revision_signal_reuses_existing_task_link_work_item(monkeypatch):
+    _production_auth(monkeypatch)
+
+    with TestClient(app) as client:
+        project = client.post(
+            "/projects",
+            headers=_headers(HUMAN_TOKEN),
+            json={
+                "org_id": "ignored-org",
+                "name": "Task Link Reuse",
+                "slug": "task-link-reuse",
+                "git_remotes": ["git@example.com:team/profile-service.git"],
+                "default_branch": "main",
+            },
+        ).json()
+
+        ci_response = client.post(
+            "/integrations/ci/quality-signal",
+            headers=_headers(CI_TOKEN),
+            json={
+                "project_id": project["id"],
+                "work_item_key": "AG-1301",
+                "work_item_title": "用户资料脱敏展示",
+                "status": "passed",
+                "conclusion": "资料脱敏单测与接口契约测试通过。",
+                "provider": "github-actions",
+                "run_id": "run-1301",
+                "task_provider": "jira",
+                "task_url": "https://jira.example.com/browse/AG-1301",
+            },
+        )
+        repo_response = client.post(
+            "/integrations/repository/revision-signal",
+            headers=_headers(CI_TOKEN),
+            json={
+                "project_id": project["id"],
+                "provider": "github",
+                "repository_identity": "git@example.com:team/profile-service.git",
+                "branch": "main",
+                "observed_head_sha": "profile1301",
+                "signal_type": "push",
+                "work_item_key": "AG-1301",
+                "work_item_title": "用户资料脱敏展示",
+                "raw_ref": "https://github.example.com/team/profile-service/commit/profile1301",
+                "task_provider": "jira",
+                "task_url": "https://jira.example.com/browse/AG-1301",
+            },
+        )
+
+    ci_body = ci_response.json()
+    repo_body = repo_response.json()
+    assert ci_response.status_code == 201
+    assert repo_response.status_code == 201
+    assert repo_body["work_item"]["id"] == ci_body["work_item"]["id"]
+    assert repo_body["task_link"]["id"] == ci_body["task_link"]["id"]
+    assert repo_body["task_link"]["provider"] == "jira"
+    assert repo_body["task_link"]["external_url"] == "https://jira.example.com/browse/AG-1301"

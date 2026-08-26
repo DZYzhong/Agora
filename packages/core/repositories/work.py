@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from packages.core.models import IdempotencyRecordModel, WorkItemModel, WorkSessionModel, utc_now
+from packages.core.models import IdempotencyRecordModel, WorkItemLinkModel, WorkItemModel, WorkSessionModel, utc_now
 
 
 @dataclass
@@ -133,6 +133,62 @@ class WorkRepository:
             if normalized == item_title or normalized in item_title or item_title in normalized:
                 matches.append(item)
         return matches
+
+    def upsert_work_item_link(
+        self,
+        *,
+        org_id: str,
+        project_id: str,
+        work_item_id: str,
+        provider: str,
+        external_key: str,
+        external_url: str | None = None,
+        title: str | None = None,
+        status: str = "active",
+        metadata: dict | None = None,
+        created_by_user_id: str | None = None,
+    ) -> WorkItemLinkModel:
+        normalized_provider = provider.strip().lower()
+        normalized_key = external_key.strip()
+        statement = select(WorkItemLinkModel).where(
+            WorkItemLinkModel.project_id == project_id,
+            WorkItemLinkModel.provider == normalized_provider,
+            WorkItemLinkModel.external_key == normalized_key,
+        )
+        link = self.session.scalars(statement).first()
+        if link is None:
+            link = WorkItemLinkModel(
+                org_id=org_id,
+                project_id=project_id,
+                work_item_id=work_item_id,
+                provider=normalized_provider,
+                external_key=normalized_key,
+                external_url=external_url,
+                title=title,
+                status=status,
+                link_metadata=metadata or {},
+                created_by_user_id=created_by_user_id,
+            )
+            self.session.add(link)
+        else:
+            link.work_item_id = work_item_id
+            link.external_url = external_url or link.external_url
+            link.title = title or link.title
+            link.status = status or link.status
+            link.link_metadata = {**(link.link_metadata or {}), **(metadata or {})}
+        self.session.flush()
+        self.session.refresh(link)
+        return link
+
+    def list_work_item_links_by_work_item_ids(self, work_item_ids: list[str]) -> list[WorkItemLinkModel]:
+        if not work_item_ids:
+            return []
+        statement = (
+            select(WorkItemLinkModel)
+            .where(WorkItemLinkModel.work_item_id.in_(work_item_ids))
+            .order_by(WorkItemLinkModel.provider.asc(), WorkItemLinkModel.external_key.asc())
+        )
+        return list(self.session.scalars(statement).all())
 
     def list_work_items_by_project(self, project_id: str) -> list[tuple[WorkItemModel, int]]:
         statement = (

@@ -90,6 +90,8 @@ def test_project_status_page_is_available_and_linked_from_project_home():
     assert "Delivery readiness" in content
     assert "Blockers" in content
     assert "Latest evidence" in content
+    assert "Task links" in content
+    assert "task_links" in content
     assert "delivery_readiness" in content
     assert "quality_state" in content
 
@@ -182,6 +184,9 @@ def test_p8_ci_quality_signal_blackbox_guide_exists():
     assert "AGORA_BOOTSTRAP_CI_TOKEN" in content
     assert "/integrations/ci/quality-signal" in content
     assert "/integrations/repository/revision-signal" in content
+    assert "task_provider" in content
+    assert "task_url" in content
+    assert "WorkItem mapping" in content
     assert "ContextProposal" in content
     assert "CI_CREDENTIAL_REQUIRED" in content
     assert "Project status" in content

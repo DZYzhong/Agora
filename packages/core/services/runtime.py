@@ -45,6 +45,12 @@ class CoreRuntime:
     def find_work_items_by_title(self, *, project_id: str, title: str):
         return WorkRepository(self.session).find_work_items_by_title(project_id=project_id, title=title)
 
+    def upsert_work_item_link(self, **kwargs):
+        return WorkRepository(self.session).upsert_work_item_link(**kwargs)
+
+    def list_work_item_links_by_work_item_ids(self, work_item_ids: list[str]):
+        return WorkRepository(self.session).list_work_item_links_by_work_item_ids(work_item_ids)
+
     def list_work_items_by_project(self, project_id: str):
         return WorkRepository(self.session).list_work_items_by_project(project_id)
 

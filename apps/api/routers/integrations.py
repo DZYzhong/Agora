@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -27,6 +28,9 @@ class CiQualitySignalRequest(BaseModel):
     commit_sha: str | None = None
     branch: str | None = None
     raw_ref: str | None = None
+    task_provider: str | None = None
+    task_key: str | None = None
+    task_url: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -41,6 +45,9 @@ class RepositoryRevisionSignalRequest(BaseModel):
     work_item_key: str | None = None
     work_item_title: str | None = None
     raw_ref: str | None = None
+    task_provider: str | None = None
+    task_key: str | None = None
+    task_url: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -66,6 +73,17 @@ def ingest_ci_quality_signal(
                 title=payload.work_item_title or payload.work_item_key,
                 source="ci",
             )
+        task_link = _upsert_task_link(
+            runtime=runtime,
+            project=project,
+            work_item=work_item,
+            principal=principal,
+            task_provider=payload.task_provider,
+            task_key=payload.task_key or payload.work_item_key,
+            task_url=payload.task_url,
+            title=payload.work_item_title or payload.work_item_key,
+            metadata={"source": "ci_quality_signal", "ci_provider": payload.provider, "run_id": payload.run_id},
+        )
         evidence = runtime.create_quality_evidence(
             org_id=project.org_id,
             project_id=project.id,
@@ -106,6 +124,7 @@ def ingest_ci_quality_signal(
                 "status": work_item.status,
                 "stage": work_item.stage,
             },
+            "task_link": _serialize_work_item_link(task_link) if task_link is not None else None,
             "evidence": _serialize_quality_evidence(evidence),
             "project_status": project_status.__dict__,
         }
@@ -137,6 +156,23 @@ def ingest_repository_revision_signal(
                     title=payload.work_item_title or payload.work_item_key,
                     source="repository_signal",
                 )
+        task_link = None
+        if work_item is not None:
+            task_link = _upsert_task_link(
+                runtime=runtime,
+                project=project,
+                work_item=work_item,
+                principal=principal,
+                task_provider=payload.task_provider,
+                task_key=payload.task_key or payload.work_item_key,
+                task_url=payload.task_url,
+                title=payload.work_item_title or payload.work_item_key,
+                metadata={
+                    "source": "repository_revision_signal",
+                    "repository_provider": payload.provider,
+                    "observed_head_sha": payload.observed_head_sha,
+                },
+            )
         branch = payload.branch or project.default_branch or "main"
         head_revision = runtime.get_head_context_revision_for_project(project_id=project.id, branch=branch)
         if head_revision is None:
@@ -214,6 +250,7 @@ def ingest_repository_revision_signal(
                 "observed_head_sha": payload.observed_head_sha,
             },
             "work_item": _serialize_work_item(work_item) if work_item is not None else None,
+            "task_link": _serialize_work_item_link(task_link) if task_link is not None else None,
             "context_proposal": _serialize_context_proposal(proposal) if proposal is not None else None,
             "next_actions": _revision_signal_next_actions(signal_status),
         }
@@ -268,6 +305,62 @@ def _serialize_work_item(work_item) -> dict:
         "status": work_item.status,
         "stage": work_item.stage,
     }
+
+
+def _serialize_work_item_link(link) -> dict:
+    return {
+        "id": link.id,
+        "project_id": link.project_id,
+        "work_item_id": link.work_item_id,
+        "provider": link.provider,
+        "external_key": link.external_key,
+        "external_url": link.external_url,
+        "title": link.title,
+        "status": link.status,
+        "metadata": link.link_metadata,
+        "created_at": link.created_at,
+        "updated_at": link.updated_at,
+    }
+
+
+def _upsert_task_link(
+    *,
+    runtime: CoreRuntime,
+    project,
+    work_item,
+    principal: Principal,
+    task_provider: str | None,
+    task_key: str | None,
+    task_url: str | None,
+    title: str | None,
+    metadata: dict[str, Any],
+):
+    provider = (task_provider or "").strip()
+    external_url = (task_url or "").strip()
+    external_key = (task_key or "").strip() or _extract_task_key_from_url(external_url)
+    if not provider or not external_key:
+        return None
+    return runtime.upsert_work_item_link(
+        org_id=project.org_id,
+        project_id=project.id,
+        work_item_id=work_item.id,
+        provider=provider,
+        external_key=external_key,
+        external_url=external_url or None,
+        title=title,
+        status="active",
+        metadata=metadata,
+        created_by_user_id=principal.user_id,
+    )
+
+
+def _extract_task_key_from_url(task_url: str) -> str | None:
+    if not task_url:
+        return None
+    match = re.search(r"([A-Z][A-Z0-9]+-\d+)(?:\b|$)", task_url)
+    if match:
+        return match.group(1)
+    return task_url.rstrip("/").split("/")[-1] or None
 
 
 def _serialize_context_proposal(proposal) -> dict:

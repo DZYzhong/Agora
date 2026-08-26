@@ -330,7 +330,7 @@ Current implementation:
 
 **Goal:** Connect Agora to repository, CI, task and PR signals so context and project status stay current with minimal user interruption.
 
-**Status:** In progress; provider-neutral CI QualitySignal ingestion and repository RevisionSignal freshness automation are implemented.
+**Status:** In progress; provider-neutral CI QualitySignal ingestion, repository RevisionSignal freshness automation and external task WorkItem mapping are implemented.
 
 Current plan:
 
@@ -363,6 +363,8 @@ Current implementation:
 - CI signals write P6 `QualityEvidence` with source/evidence type `ci`.
 - The response returns project status so CI evidence immediately affects delivery readiness, blockers and quality dimensions.
 - `POST /integrations/repository/revision-signal` stores repository signals and creates a submitted refresh ContextProposal when accepted context is stale.
+- CI and repository signals accept `task_provider`, `task_key` and `task_url`, then upsert a stable external task link for the WorkItem.
+- `agora_get_project_status` and Web `Project status` expose WorkItem `task_links` so PM/QA/developers can trace Jira/飞书项目/禅道/GitLab/GitHub task references without manually managing Agora IDs.
 - Black-box guide: `docs/development/p8-ci-quality-signal-blackbox.zh-CN.md`
 
 ---
@@ -493,6 +495,49 @@ Black-box validation path:
 Commit:
 
 - `397f224 feat: ingest repository revision signals`
+
+### 2026-08-26: P8 External Task WorkItem Mapping
+
+Scope:
+
+- Added `work_item_links` persistence for external task-system identities.
+- Enforced stable project + provider + external key identity for WorkItem mapping.
+- Extended CI QualitySignal and repository RevisionSignal with `task_provider`, `task_key` and `task_url`.
+- Returned `task_link` from both integration endpoints and reused the same link across signals.
+- Added `task_links` to `agora_get_project_status` WorkItems.
+- Rendered external task links in Web `Project status`.
+- Updated the P8 black-box guide to validate AI/CI-driven WorkItem mapping without manual HTTP calls.
+
+Files changed:
+
+- Created: `alembic/versions/20260826_0011_p8_work_item_links.py`
+- Modified: `packages/core/models.py`
+- Modified: `packages/core/repositories/work.py`
+- Modified: `packages/core/services/runtime.py`
+- Modified: `packages/harness/service.py`
+- Modified: `apps/api/routers/integrations.py`
+- Modified: `apps/web/app/projects/[projectId]/status/page.tsx`
+- Modified: `tests/integration/test_migrations.py`
+- Modified: `tests/integration/api/test_integrations_api.py`
+- Modified: `tests/integration/test_web_config.py`
+- Modified: `docs/development/p8-ci-quality-signal-blackbox.zh-CN.md`
+- Modified: `docs/superpowers/plans/2026-08-26-agora-p8-integrations-automation.md`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/test_migrations.py::test_p8_work_item_links_schema_enforces_project_provider_key_identity tests/integration/api/test_integrations_api.py::test_ci_quality_signal_records_evidence_and_updates_project_status tests/integration/api/test_integrations_api.py::test_repository_revision_signal_reuses_existing_task_link_work_item tests/integration/test_web_config.py::test_project_status_page_is_available_and_linked_from_project_home tests/integration/test_web_config.py::test_p8_ci_quality_signal_blackbox_guide_exists
+# failed first, then 5 passed
+```
+
+Black-box validation path:
+
+- Use `docs/development/p8-ci-quality-signal-blackbox.zh-CN.md`.
+
+Commit:
+
+- Pending after full verification.
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 

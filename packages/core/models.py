@@ -242,6 +242,27 @@ class WorkItemModel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
 
+class WorkItemLinkModel(Base):
+    __tablename__ = "work_item_links"
+    __table_args__ = (
+        UniqueConstraint("project_id", "provider", "external_key", name="uq_work_item_links_project_provider_key"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    org_id: Mapped[str] = mapped_column(String, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    work_item_id: Mapped[str] = mapped_column(ForeignKey("work_items.id"), index=True)
+    provider: Mapped[str] = mapped_column(String, index=True)
+    external_key: Mapped[str] = mapped_column(String, index=True)
+    external_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    title: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, default="active")
+    link_metadata: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+
 class WorkSessionModel(Base):
     __tablename__ = "work_sessions"
 

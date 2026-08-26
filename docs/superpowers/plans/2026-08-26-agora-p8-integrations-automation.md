@@ -116,6 +116,54 @@ Verification:
 # failed first because the guide did not mention repository RevisionSignal, then 1 passed
 ```
 
+## Chunk 3: External task WorkItem mapping
+
+### Task 1: Task link persistence
+
+**Files:**
+
+- Create: `alembic/versions/20260826_0011_p8_work_item_links.py`
+- Modify: `packages/core/models.py`
+- Modify: `packages/core/repositories/work.py`
+- Modify: `packages/core/services/runtime.py`
+- Test: `tests/integration/test_migrations.py`
+
+- [x] Add `work_item_links` linked to Project, WorkItem and reporting User.
+- [x] Enforce one canonical external task identity per project, provider and external key.
+- [x] Expose idempotent upsert and WorkItem-scoped list operations through CoreRuntime.
+
+### Task 2: CI/repository task link ingestion
+
+**Files:**
+
+- Modify: `apps/api/routers/integrations.py`
+- Test: `tests/integration/api/test_integrations_api.py`
+
+- [x] Accept `task_provider`, `task_key` and `task_url` on CI QualitySignal.
+- [x] Accept `task_provider`, `task_key` and `task_url` on repository RevisionSignal.
+- [x] Return `task_link` from both integration endpoints.
+- [x] Reuse the same WorkItem and task link when subsequent provider signals reference the same external task.
+
+### Task 3: Project status and black-box guide
+
+**Files:**
+
+- Modify: `packages/harness/service.py`
+- Modify: `apps/web/app/projects/[projectId]/status/page.tsx`
+- Modify: `docs/development/p8-ci-quality-signal-blackbox.zh-CN.md`
+- Test: `tests/integration/test_web_config.py`
+
+- [x] Include `task_links` under each WorkItem in `agora_get_project_status`.
+- [x] Render external task links in Web `Project status`.
+- [x] Document the AI/CI-driven WorkItem mapping black-box path without requiring manual HTTP calls.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_migrations.py::test_p8_work_item_links_schema_enforces_project_provider_key_identity tests/integration/api/test_integrations_api.py::test_ci_quality_signal_records_evidence_and_updates_project_status tests/integration/api/test_integrations_api.py::test_repository_revision_signal_reuses_existing_task_link_work_item tests/integration/test_web_config.py::test_project_status_page_is_available_and_linked_from_project_home tests/integration/test_web_config.py::test_p8_ci_quality_signal_blackbox_guide_exists
+# failed first because work_item_links/task_link/task_links documentation did not exist, then 5 passed
+```
+
 ### Verification
 
 Run:
