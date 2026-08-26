@@ -132,6 +132,19 @@ def test_p5_skill_governance_blackbox_guide_exists():
     assert "agora_submit_skill_candidate" in content
     assert "deduplicated = true" in content
     assert "Publish approved version" in content
+
+
+def test_p6_quality_project_status_blackbox_guide_exists():
+    guide = Path("docs/development/p6-quality-project-status-blackbox.zh-CN.md")
+    content = guide.read_text()
+
+    assert "P6 Quality and Project Status 黑盒验证步骤" in content
+    assert "agora_record_evidence" in content
+    assert "agora_get_quality_status" in content
+    assert "agora_get_project_status" in content
+    assert "Delivery readiness" in content
+    assert "FAILING_QUALITY_EVIDENCE" in content
+    assert "用户不需要手动调用任何 HTTP API" in content
     assert "agora_prepare_context" in content
     assert "capability_pins.skill_version_ids" in content
     assert "用户不需要手动调用任何 HTTP API" in content

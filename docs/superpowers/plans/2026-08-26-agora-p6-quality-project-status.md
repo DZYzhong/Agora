@@ -64,7 +64,24 @@ Verification:
 # failed first because the Web page did not render Delivery readiness, Blockers or Latest evidence, then 1 passed
 ```
 
+## Task 3: Black-box validation guide
+
+**Files:**
+
+- Create: `docs/development/p6-quality-project-status-blackbox.zh-CN.md`
+- Test: `tests/integration/test_web_config.py`
+
+- [x] Add a P6 black-box guide that uses only AI tool operations and Web UI.
+- [x] Cover passed evidence, failed evidence, missing evidence, project status aggregation, delivery readiness, blockers and pending approvals.
+- [x] State that users should not manually call HTTP APIs during acceptance.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_web_config.py::test_p6_quality_project_status_blackbox_guide_exists
+# 1 passed
+```
+
 ## Remaining P6 tasks
 
-- Add black-box guide after the project-manager and quality-user journey is broad enough to validate in one batch.
 - Consider richer WorkItem owner/user display after role and membership UI is expanded.

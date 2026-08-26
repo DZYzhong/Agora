@@ -252,7 +252,7 @@ Exit criteria:
 
 **Goal:** Give quality personnel and project managers trustworthy project status through AI tools and Web UI.
 
-**Status:** In progress; QualityEvidence, AI-tool status queries, MCP registration and Web project status foundation implemented.
+**Status:** Implemented enough for black-box validation; QualityEvidence, AI-tool status queries, MCP registration and Web project status are available.
 
 Current plan:
 
@@ -282,6 +282,7 @@ Current implementation:
 - Web users can open the project status page from project detail and see WorkItem counts, quality states and pending approvals.
 - Project status now includes delivery readiness, blockers, quality dimensions and latest per-WorkItem evidence rows.
 - Missing evidence is reported as `unverified`; failed evidence is reported as `failing`.
+- Black-box guide: `docs/development/p6-quality-project-status-blackbox.zh-CN.md`
 
 ---
 
@@ -444,6 +445,36 @@ Black-box validation path:
 Commit:
 
 - `40ae08c feat: add p6 delivery readiness status`
+
+### 2026-08-26: P6 Black-box Validation Guide
+
+Scope:
+
+- Added the P6 black-box guide for AI-tool and Web validation.
+- Covered passed evidence, failed evidence, missing evidence, project status aggregation, delivery readiness, blockers and pending approvals.
+- Repeated the acceptance boundary that users do not manually call raw HTTP APIs.
+
+Files changed:
+
+- Created: `docs/development/p6-quality-project-status-blackbox.zh-CN.md`
+- Modified: `tests/integration/test_web_config.py`
+- Modified: `docs/superpowers/plans/2026-08-26-agora-p6-quality-project-status.md`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/test_web_config.py::test_p6_quality_project_status_blackbox_guide_exists
+# 1 passed
+```
+
+Black-box validation path:
+
+- Use `docs/development/p6-quality-project-status-blackbox.zh-CN.md`.
+
+Commit:
+
+- Pending.
 
 ### 2026-08-13: P4 Skill Lifecycle Started
 
