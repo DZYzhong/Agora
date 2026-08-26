@@ -741,7 +741,7 @@ Black-box validation path:
 
 Commit:
 
-- Pending after full verification.
+- `c6124e1 feat: add deployment smoke command`
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 
