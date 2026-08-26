@@ -1,9 +1,16 @@
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import sessionmaker
 
+from apps.api.dependencies import get_engine
 from apps.api.main import app
+from packages.core.auth import hash_token, token_diagnostic_prefix
+from packages.core.models import CredentialModel, SecurityAuditEventModel, UserModel
+from packages.core.repositories.identities import IdentityRepository
+from packages.core.uow import SqlAlchemyUnitOfWork
 
 HUMAN_TOKEN = "context-human-token"
 AGENT_TOKEN = "context-agent-token"
+MEMBER_TOKEN = "context-member-token"
 
 
 def _headers(token: str) -> dict[str, str]:
@@ -31,6 +38,28 @@ def _create_project(client: TestClient) -> dict:
     )
     assert response.status_code == 201
     return response.json()
+
+
+def _grant_member(project_id: str, *, token: str = MEMBER_TOKEN, role: str = "member") -> None:
+    db = sessionmaker(bind=get_engine())()
+    try:
+        with SqlAlchemyUnitOfWork(db) as uow:
+            user = UserModel(org_id="local-org", display_name=f"{role.title()} User", status="active", is_placeholder=False)
+            db.add(user)
+            db.flush()
+            credential = CredentialModel(
+                user_id=user.id,
+                kind="human",
+                token_hash=hash_token(token),
+                token_prefix=token_diagnostic_prefix(token),
+                status="active",
+            )
+            db.add(credential)
+            db.flush()
+            IdentityRepository(db).grant_membership(project_id=project_id, user_id=user.id, role=role)
+            uow.commit()
+    finally:
+        db.close()
 
 
 def _proposal_payload(expected_head_revision_id: str | None = None) -> dict:
@@ -104,6 +133,49 @@ def test_agent_submits_context_proposal_and_human_accepts_revision(monkeypatch):
 
         streams = client.get(f"/projects/{project['id']}/context/streams", headers=_headers(HUMAN_TOKEN)).json()
         assert streams[0]["head_revision_id"] == accepted["revision"]["id"]
+
+
+def test_context_approval_rejects_agent_and_non_reviewer_member_with_audit(monkeypatch):
+    _production_auth(monkeypatch)
+    with TestClient(app) as client:
+        project = _create_project(client)
+        proposal = client.post(
+            f"/projects/{project['id']}/context/proposals",
+            headers=_headers(AGENT_TOKEN),
+            json=_proposal_payload(),
+        ).json()
+        _grant_member(project["id"], role="member")
+
+        payload = {
+            "expected_head_revision_id": None,
+            "comment": "尝试审批。",
+            "revision_signal": {
+                "target_branch": "main",
+                "observed_head_sha": "abc123",
+                "contains_to_commit": True,
+            },
+        }
+        agent_denied = client.post(
+            f"/projects/{project['id']}/context/proposals/{proposal['id']}/approve",
+            headers=_headers(AGENT_TOKEN),
+            json=payload,
+        )
+        member_denied = client.post(
+            f"/projects/{project['id']}/context/proposals/{proposal['id']}/approve",
+            headers=_headers(MEMBER_TOKEN),
+            json=payload,
+        )
+
+    assert agent_denied.status_code == 403
+    assert agent_denied.json()["detail"]["code"] == "HUMAN_CREDENTIAL_REQUIRED"
+    assert member_denied.status_code == 403
+    assert member_denied.json()["detail"]["code"] == "PROJECT_ROLE_REQUIRED"
+
+    with sessionmaker(bind=get_engine())() as db:
+        events = db.query(SecurityAuditEventModel).filter_by(project_id=project["id"]).order_by(SecurityAuditEventModel.created_at).all()
+        assert [event.action for event in events] == ["context_proposal.approve", "context_proposal.approve"]
+        assert [event.decision for event in events] == ["deny", "deny"]
+        assert {event.reason for event in events} == {"HUMAN_CREDENTIAL_REQUIRED", "PROJECT_ROLE_REQUIRED"}
 
 
 def test_accepting_stale_context_proposal_marks_needs_rebase(monkeypatch):

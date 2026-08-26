@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from apps.api.auth import get_current_principal, require_human, require_project_member
+from apps.api.auth import get_current_principal, require_human, require_project_approver, require_project_member
 from apps.api.dependencies import get_db_session
 from packages.core.auth import Principal
 from packages.core.services.runtime import CoreRuntime
@@ -269,7 +269,6 @@ def approve_skill(
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
 ):
-    require_human(principal)
     try:
         with SqlAlchemyUnitOfWork(session) as uow:
             runtime = CoreRuntime(session)
@@ -279,6 +278,35 @@ def approve_skill(
             if skill is None:
                 raise HTTPException(status_code=404, detail="Skill not found")
             _ensure_project_skill(skill, project_id)
+            if not principal.is_human:
+                _record_security_audit(
+                    runtime,
+                    project=project,
+                    principal=principal,
+                    action="skill.approve",
+                    target_type="skill",
+                    target_id=skill.id,
+                    decision="deny",
+                    reason="HUMAN_CREDENTIAL_REQUIRED",
+                )
+                uow.commit()
+                require_human(principal)
+            try:
+                require_project_approver(session, principal, project_id=project.id)
+            except HTTPException as exc:
+                _record_security_audit(
+                    runtime,
+                    project=project,
+                    principal=principal,
+                    action="skill.approve",
+                    target_type="skill",
+                    target_id=skill.id,
+                    decision="deny",
+                    reason="PROJECT_ROLE_REQUIRED",
+                    metadata={"detail": exc.detail},
+                )
+                uow.commit()
+                raise
             definition = skill.definition
             if payload is not None and payload.definition is not None:
                 definition = {
@@ -299,10 +327,48 @@ def approve_skill(
             )
             runtime.ensure_approved_skill_version(skill.id, approved_by_user_id=principal.user_id)
             response = _serialize_skill(skill, runtime=runtime, builtin=bool((skill.definition or {}).get("builtin")))
+            _record_security_audit(
+                runtime,
+                project=project,
+                principal=principal,
+                action="skill.approve",
+                target_type="skill",
+                target_id=skill.id,
+                decision="allow",
+                reason="PROJECT_APPROVER",
+                metadata={"skill_version_id": response["current_version"]["id"] if response.get("current_version") else None},
+            )
             uow.commit()
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return response
+
+
+def _record_security_audit(
+    runtime: CoreRuntime,
+    *,
+    project,
+    principal: Principal,
+    action: str,
+    target_type: str,
+    target_id: str,
+    decision: str,
+    reason: str,
+    metadata: dict | None = None,
+) -> None:
+    runtime.create_security_audit_event(
+        org_id=project.org_id,
+        project_id=project.id,
+        actor_user_id=principal.user_id,
+        actor_credential_id=None if principal.is_bypass else principal.credential_id,
+        actor_credential_kind=principal.credential_kind,
+        action=action,
+        target_type=target_type,
+        target_id=target_id,
+        decision=decision,
+        reason=reason,
+        metadata=metadata or {},
+    )
 
 
 @router.post("/skills/{skill_id}/deprecate")

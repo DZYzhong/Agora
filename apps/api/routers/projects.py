@@ -47,6 +47,24 @@ def _serialize_initialization_job(job) -> dict:
     }
 
 
+def _serialize_security_audit_event(event) -> dict:
+    return {
+        "id": event.id,
+        "org_id": event.org_id,
+        "project_id": event.project_id,
+        "actor_user_id": event.actor_user_id,
+        "actor_credential_id": event.actor_credential_id,
+        "actor_credential_kind": event.actor_credential_kind,
+        "action": event.action,
+        "target_type": event.target_type,
+        "target_id": event.target_id,
+        "decision": event.decision,
+        "reason": event.reason,
+        "metadata": event.event_metadata,
+        "created_at": event.created_at,
+    }
+
+
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 def create_project(
     payload: ProjectCreate,
@@ -122,6 +140,20 @@ def get_project(
         default_branch=project.default_branch,
         status=project.status,
     )
+
+
+@router.get("/{project_id}/security-audit")
+def list_security_audit(
+    project_id: str,
+    limit: int = Query(default=100, ge=1, le=500),
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
+    project = ProjectRepository(session).get(project_id)
+    if project is None or (not principal.is_bypass and project.org_id != principal.org_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    require_project_member(session, principal, project_id=project.id)
+    return [_serialize_security_audit_event(event) for event in CoreRuntime(session).list_security_audit_events_by_project(project.id, limit=limit)]
 
 
 @router.post("/{project_id}/archive", response_model=ProjectRead)

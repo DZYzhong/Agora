@@ -4,10 +4,49 @@ from sqlalchemy.orm import sessionmaker
 
 from apps.api.dependencies import get_engine
 from apps.api.main import app
-from packages.core.models import SkillModel, SkillRunModel, SkillVersionModel, WorkSessionModel
+from packages.core.auth import hash_token, token_diagnostic_prefix
+from packages.core.models import CredentialModel, SecurityAuditEventModel, SkillModel, SkillRunModel, SkillVersionModel, UserModel, WorkSessionModel
+from packages.core.repositories.identities import IdentityRepository
 from packages.core.repositories.projects import ProjectRepository
 from packages.core.repositories.skills import SkillRepository
 from packages.core.uow import SqlAlchemyUnitOfWork
+
+HUMAN_TOKEN = "skills-human-token"
+AGENT_TOKEN = "skills-agent-token"
+MEMBER_TOKEN = "skills-member-token"
+
+
+def _headers(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _production_auth(monkeypatch) -> None:
+    monkeypatch.delenv("AGORA_TEST_AUTH_BYPASS", raising=False)
+    monkeypatch.setenv("AGORA_BOOTSTRAP_HUMAN_TOKEN", HUMAN_TOKEN)
+    monkeypatch.setenv("AGORA_BOOTSTRAP_AGENT_TOKEN", AGENT_TOKEN)
+    monkeypatch.setenv("AGORA_BOOTSTRAP_ORG_ID", "local-org")
+
+
+def _grant_member(project_id: str, *, token: str = MEMBER_TOKEN, role: str = "member") -> None:
+    db = sessionmaker(bind=get_engine())()
+    try:
+        with SqlAlchemyUnitOfWork(db) as uow:
+            user = UserModel(org_id="local-org", display_name=f"{role.title()} User", status="active", is_placeholder=False)
+            db.add(user)
+            db.flush()
+            credential = CredentialModel(
+                user_id=user.id,
+                kind="human",
+                token_hash=hash_token(token),
+                token_prefix=token_diagnostic_prefix(token),
+                status="active",
+            )
+            db.add(credential)
+            db.flush()
+            IdentityRepository(db).grant_membership(project_id=project_id, user_id=user.id, role=role)
+            uow.commit()
+    finally:
+        db.close()
 
 
 def test_project_skill_lifecycle_and_run_history():
@@ -103,6 +142,63 @@ def test_project_skill_lifecycle_and_run_history():
     skills = client.get(f"/projects/{project['id']}/skills").json()
     assert any(item["slug"] == "task-context-summary" and item["builtin"] for item in skills)
     assert any(item["slug"] == "release-risk-review" and not item["builtin"] for item in skills)
+
+
+def test_skill_approval_rejects_agent_and_non_reviewer_member_with_audit(monkeypatch):
+    _production_auth(monkeypatch)
+    with TestClient(app) as client:
+        project = client.post(
+            "/projects",
+            headers=_headers(HUMAN_TOKEN),
+            json={
+                "org_id": "ignored-org",
+                "name": "Skill Approval RBAC",
+                "slug": "skill-approval-rbac",
+                "git_remotes": [],
+            },
+        ).json()
+        skill = client.post(
+            f"/projects/{project['id']}/skills",
+            headers=_headers(HUMAN_TOKEN),
+            json={
+                "slug": "security-review",
+                "name": "Security Review",
+                "status": "candidate",
+                "definition": {
+                    "version": "1.0.0",
+                    "triggers": ["security"],
+                    "instructions": "检查权限风险。",
+                },
+            },
+        ).json()
+        _grant_member(project["id"], role="member")
+
+        agent_denied = client.post(
+            f"/projects/{project['id']}/skills/{skill['id']}/approve",
+            headers=_headers(AGENT_TOKEN),
+        )
+        member_denied = client.post(
+            f"/projects/{project['id']}/skills/{skill['id']}/approve",
+            headers=_headers(MEMBER_TOKEN),
+        )
+        audit_response = client.get(
+            f"/projects/{project['id']}/security-audit",
+            headers=_headers(HUMAN_TOKEN),
+        )
+
+    assert agent_denied.status_code == 403
+    assert agent_denied.json()["detail"]["code"] == "HUMAN_CREDENTIAL_REQUIRED"
+    assert member_denied.status_code == 403
+    assert member_denied.json()["detail"]["code"] == "PROJECT_ROLE_REQUIRED"
+    assert audit_response.status_code == 200
+    assert [event["decision"] for event in audit_response.json()[-2:]] == ["deny", "deny"]
+    assert {event["reason"] for event in audit_response.json()[-2:]} == {"HUMAN_CREDENTIAL_REQUIRED", "PROJECT_ROLE_REQUIRED"}
+
+    with sessionmaker(bind=get_engine())() as db:
+        events = db.query(SecurityAuditEventModel).filter_by(project_id=project["id"]).order_by(SecurityAuditEventModel.created_at).all()
+        assert [event.action for event in events[-2:]] == ["skill.approve", "skill.approve"]
+        assert [event.decision for event in events[-2:]] == ["deny", "deny"]
+        assert {event.reason for event in events[-2:]} == {"HUMAN_CREDENTIAL_REQUIRED", "PROJECT_ROLE_REQUIRED"}
 
 
 def test_approving_and_running_skill_creates_and_pins_immutable_skill_version():

@@ -5,6 +5,7 @@ from packages.core.repositories.context_governance import ContextGovernanceRepos
 from packages.core.repositories.context_packs import ContextPackRepository
 from packages.core.repositories.projects import ProjectRepository
 from packages.core.repositories.quality import QualityRepository
+from packages.core.repositories.security import SecurityRepository
 from packages.core.repositories.sessions import TaskSessionRepository
 from packages.core.repositories.skills import SkillRepository
 from packages.core.repositories.work import WorkRepository
@@ -99,6 +100,12 @@ class CoreRuntime:
 
     def list_quality_evidence_by_project(self, project_id: str):
         return QualityRepository(self.session).list_by_project(project_id)
+
+    def create_security_audit_event(self, **kwargs):
+        return SecurityRepository(self.session).create_audit_event(**kwargs)
+
+    def list_security_audit_events_by_project(self, project_id: str, *, limit: int = 100):
+        return SecurityRepository(self.session).list_by_project(project_id, limit=limit)
 
     def get_session(self, session_id: str):
         work_session = WorkRepository(self.session).get_work_session(session_id)

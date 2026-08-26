@@ -8,6 +8,7 @@ from packages.core.repositories.identities import IdentityRepository
 from packages.core.uow import SqlAlchemyUnitOfWork
 
 LOCAL_BOOTSTRAP_ORG_ID = "local-org"
+PROJECT_APPROVAL_ROLES = {"owner", "admin", "reviewer"}
 
 
 class BootstrapAuthError(RuntimeError):
@@ -106,6 +107,17 @@ def has_project_membership(session: Session, *, principal: Principal, project_id
     if principal.is_bypass:
         return True
     return IdentityRepository(session).has_project_membership(project_id=project_id, user_id=principal.user_id)
+
+
+def project_role(session: Session, *, principal: Principal, project_id: str) -> str | None:
+    if principal.is_bypass:
+        return "owner"
+    membership = IdentityRepository(session).get_membership(project_id=project_id, user_id=principal.user_id)
+    return membership.role if membership is not None else None
+
+
+def can_approve_project_knowledge(session: Session, *, principal: Principal, project_id: str) -> bool:
+    return project_role(session, principal=principal, project_id=project_id) in PROJECT_APPROVAL_ROLES
 
 
 def _resolve_bootstrap_org_id(existing_org_ids: list[str]) -> str:

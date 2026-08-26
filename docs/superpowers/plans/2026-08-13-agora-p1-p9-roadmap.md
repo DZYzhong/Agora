@@ -290,6 +290,12 @@ Current implementation:
 
 **Goal:** Harden the minimal identity boundary from P2 into enterprise-grade tenant, project, approval and audit governance.
 
+**Status:** In progress; approval RBAC and security audit foundation implemented.
+
+Current plan:
+
+- `docs/superpowers/plans/2026-08-26-agora-p7-governance-security.md`
+
 Scope:
 
 - Add SSO and enterprise identity lifecycle on top of the existing User, Membership and ProjectMembership boundary.
@@ -308,6 +314,15 @@ Exit criteria:
 - AI credentials cannot approve team knowledge.
 - Technical and process approvals follow project policy.
 - Sensitive actions include actor, tool, request, target and decision audit data.
+
+Current implementation:
+
+- Project knowledge approvals require human credentials plus owner/admin/reviewer project role.
+- Agent approval attempts return `HUMAN_CREDENTIAL_REQUIRED`.
+- Human project members without approval role return `PROJECT_ROLE_REQUIRED`.
+- ContextProposal and Skill approval allow/deny decisions create `security_audit_events`.
+- Web users can inspect project `Security audit` from the project detail page.
+- Black-box guide: `docs/development/p7-governance-security-blackbox.zh-CN.md`
 
 ---
 
@@ -371,6 +386,57 @@ When a historical title conflicts with this Roadmap, this Roadmap and the canoni
 ---
 
 ## Execution Log
+
+### 2026-08-26: P7 Approval RBAC and Security Audit
+
+Scope:
+
+- Added `security_audit_events` schema and runtime support.
+- Added approval role helpers on ProjectMembership roles.
+- Restricted ContextProposal and Skill approvals to human owner/admin/reviewer credentials.
+- Recorded security audit events for approval allow and deny decisions.
+- Added project-scoped security audit API and Web `Security audit` page.
+- Added P7 black-box validation guide.
+
+Files changed:
+
+- Created: `alembic/versions/20260826_0009_p7_security_audit.py`
+- Created: `packages/core/repositories/security.py`
+- Created: `apps/web/app/projects/[projectId]/security/page.tsx`
+- Created: `docs/development/p7-governance-security-blackbox.zh-CN.md`
+- Modified: `packages/core/models.py`
+- Modified: `packages/core/services/runtime.py`
+- Modified: `packages/core/auth.py`
+- Modified: `apps/api/auth.py`
+- Modified: `apps/api/routers/context_governance.py`
+- Modified: `apps/api/routers/skills.py`
+- Modified: `apps/api/routers/projects.py`
+- Modified: `apps/web/app/projects/[projectId]/page.tsx`
+- Modified: P7 migration, API and Web configuration tests.
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/test_migrations.py::test_p7_security_audit_schema_links_actor_and_project tests/integration/test_migrations.py::test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine
+# failed first, then 3 passed
+
+.venv/bin/pytest tests/integration/api/test_context_governance_api.py::test_context_approval_rejects_agent_and_non_reviewer_member_with_audit
+# failed first, then 1 passed
+
+.venv/bin/pytest tests/integration/api/test_skills_api.py::test_skill_approval_rejects_agent_and_non_reviewer_member_with_audit
+# failed first, then 1 passed
+
+.venv/bin/pytest tests/integration/test_web_config.py::test_p7_security_audit_page_is_available_and_linked_from_project_home tests/integration/test_web_config.py::test_p7_governance_security_blackbox_guide_exists
+# failed first, then 2 passed
+```
+
+Black-box validation path:
+
+- Use `docs/development/p7-governance-security-blackbox.zh-CN.md`.
+
+Commit:
+
+- Pending.
 
 ### 2026-08-26: P6 Quality and Project Status Foundation
 

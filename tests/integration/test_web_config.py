@@ -148,3 +148,27 @@ def test_p6_quality_project_status_blackbox_guide_exists():
     assert "agora_prepare_context" in content
     assert "capability_pins.skill_version_ids" in content
     assert "用户不需要手动调用任何 HTTP API" in content
+
+
+def test_p7_security_audit_page_is_available_and_linked_from_project_home():
+    security_page = Path("apps/web/app/projects/[projectId]/security/page.tsx")
+    project_page = Path("apps/web/app/projects/[projectId]/page.tsx").read_text()
+
+    assert security_page.exists()
+    content = security_page.read_text()
+    assert "/security" in project_page
+    assert "Security audit" in content
+    assert "actor_credential_kind" in content
+    assert "decision" in content
+    assert "reason" in content
+
+
+def test_p7_governance_security_blackbox_guide_exists():
+    guide = Path("docs/development/p7-governance-security-blackbox.zh-CN.md")
+    content = guide.read_text()
+
+    assert "P7 Governance and Security 黑盒验证步骤" in content
+    assert "HUMAN_CREDENTIAL_REQUIRED" in content
+    assert "PROJECT_ROLE_REQUIRED" in content
+    assert "Security audit" in content
+    assert "AI 凭证不能审批" in content

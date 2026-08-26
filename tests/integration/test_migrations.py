@@ -47,6 +47,10 @@ P6_TABLES = {
     "quality_evidence",
 }
 
+P7_TABLES = {
+    "security_audit_events",
+}
+
 
 def _alembic_config(database_url: str) -> Config:
     config = Config("alembic.ini")
@@ -60,7 +64,7 @@ def test_alembic_upgrade_head_creates_current_schema(tmp_path):
     command.upgrade(_alembic_config(database_url), "head")
 
     inspector = inspect(create_engine(database_url))
-    assert P1_TABLES | P2_TABLES | P4_TABLES | P5_TABLES | P6_TABLES <= set(inspector.get_table_names())
+    assert P1_TABLES | P2_TABLES | P4_TABLES | P5_TABLES | P6_TABLES | P7_TABLES <= set(inspector.get_table_names())
 
 
 @pytest.mark.parametrize("database_url", ["sqlite:///:memory:", "sqlite+pysqlite:///:memory:"])
@@ -69,7 +73,33 @@ def test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine(data
 
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT count(*) FROM assets")) == 0
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260826_0008"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260826_0009"
+
+
+def test_p7_security_audit_schema_links_actor_and_project(tmp_path):
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'agora.db'}"
+    engine = create_engine(database_url)
+    command.upgrade(_alembic_config(database_url), "head")
+    inspector = inspect(engine)
+
+    columns = {column["name"] for column in inspector.get_columns("security_audit_events")}
+    assert {
+        "id",
+        "org_id",
+        "project_id",
+        "actor_user_id",
+        "actor_credential_id",
+        "actor_credential_kind",
+        "action",
+        "target_type",
+        "target_id",
+        "decision",
+        "reason",
+        "metadata",
+        "created_at",
+    } <= columns
+    referred_tables = {foreign_key["referred_table"] for foreign_key in inspector.get_foreign_keys("security_audit_events")}
+    assert {"projects", "users", "credentials"} <= referred_tables
 
 
 def test_p6_quality_evidence_schema_links_to_work_item_session_and_user(tmp_path):

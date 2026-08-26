@@ -8,8 +8,10 @@ from packages.core.auth import (
     BootstrapAuthError,
     Principal,
     bootstrap_local_identity,
+    can_approve_project_knowledge,
     bypass_principal,
     has_project_membership,
+    project_role,
     resolve_principal,
 )
 
@@ -59,6 +61,20 @@ def require_human(principal: Principal) -> None:
 def require_project_member(session, principal: Principal, *, project_id: str) -> None:
     if not has_project_membership(session, principal=principal, project_id=project_id):
         raise HTTPException(status_code=404, detail="Project not found")
+
+
+def require_project_approver(session, principal: Principal, *, project_id: str) -> None:
+    if not can_approve_project_knowledge(session, principal=principal, project_id=project_id):
+        role = project_role(session, principal=principal, project_id=project_id)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "PROJECT_ROLE_REQUIRED",
+                "message": "This action requires project owner, admin, or reviewer role",
+                "required_roles": ["owner", "admin", "reviewer"],
+                "actual_role": role,
+            },
+        )
 
 
 def _bearer_token(authorization: str | None) -> str:

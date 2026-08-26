@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from apps.api.auth import get_current_principal, require_human, require_project_member
+from apps.api.auth import get_current_principal, require_human, require_project_approver, require_project_member
 from apps.api.dependencies import get_db_session
 from packages.core.auth import Principal
 from packages.core.repositories.projects import ProjectRepository
@@ -120,7 +120,6 @@ def approve_context_proposal(
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
 ):
-    require_human(principal)
     with SqlAlchemyUnitOfWork(session) as uow:
         require_project_member(session, principal, project_id=project_id)
         runtime = CoreRuntime(session)
@@ -133,6 +132,35 @@ def approve_context_proposal(
         project = ProjectRepository(session).get(project_id)
         if project is None:
             raise HTTPException(status_code=404, detail="Project not found")
+        if not principal.is_human:
+            _record_security_audit(
+                runtime,
+                project=project,
+                principal=principal,
+                action="context_proposal.approve",
+                target_type="context_proposal",
+                target_id=proposal.id,
+                decision="deny",
+                reason="HUMAN_CREDENTIAL_REQUIRED",
+            )
+            uow.commit()
+            require_human(principal)
+        try:
+            require_project_approver(session, principal, project_id=project_id)
+        except HTTPException as exc:
+            _record_security_audit(
+                runtime,
+                project=project,
+                principal=principal,
+                action="context_proposal.approve",
+                target_type="context_proposal",
+                target_id=proposal.id,
+                decision="deny",
+                reason="PROJECT_ROLE_REQUIRED",
+                metadata={"detail": exc.detail},
+            )
+            uow.commit()
+            raise
         if proposal.target_branch != stream.branch or payload.revision_signal.target_branch != stream.branch:
             raise HTTPException(status_code=400, detail="Revision signal branch does not match target stream")
         if proposal.to_commit_sha and not payload.revision_signal.contains_to_commit:
@@ -193,6 +221,17 @@ def approve_context_proposal(
             comment=payload.comment,
             decided_by_user_id=principal.user_id,
         )
+        _record_security_audit(
+            runtime,
+            project=project,
+            principal=principal,
+            action="context_proposal.approve",
+            target_type="context_proposal",
+            target_id=proposal.id,
+            decision="allow",
+            reason="PROJECT_APPROVER",
+            metadata={"approval_decision_id": decision.id, "revision_id": revision.id},
+        )
         outbox_event = runtime.create_outbox_event(
             org_id=proposal.org_id,
             aggregate_type="context_stream",
@@ -225,6 +264,33 @@ def approve_context_proposal(
         }
         uow.commit()
     return response
+
+
+def _record_security_audit(
+    runtime: CoreRuntime,
+    *,
+    project,
+    principal: Principal,
+    action: str,
+    target_type: str,
+    target_id: str,
+    decision: str,
+    reason: str,
+    metadata: dict | None = None,
+) -> None:
+    runtime.create_security_audit_event(
+        org_id=project.org_id,
+        project_id=project.id,
+        actor_user_id=principal.user_id,
+        actor_credential_id=None if principal.is_bypass else principal.credential_id,
+        actor_credential_kind=principal.credential_kind,
+        action=action,
+        target_type=target_type,
+        target_id=target_id,
+        decision=decision,
+        reason=reason,
+        metadata=metadata or {},
+    )
 
 
 def _serialize_stream(stream) -> dict:

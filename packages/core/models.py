@@ -381,6 +381,24 @@ class ApprovalDecisionModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
+class SecurityAuditEventModel(Base):
+    __tablename__ = "security_audit_events"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    org_id: Mapped[str] = mapped_column(String, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    actor_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    actor_credential_id: Mapped[str | None] = mapped_column(ForeignKey("credentials.id"), nullable=True, index=True)
+    actor_credential_kind: Mapped[str] = mapped_column(String, index=True)
+    action: Mapped[str] = mapped_column(String, index=True)
+    target_type: Mapped[str] = mapped_column(String, index=True)
+    target_id: Mapped[str] = mapped_column(String, index=True)
+    decision: Mapped[str] = mapped_column(String, index=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    event_metadata: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
 class OutboxEventModel(Base):
     __tablename__ = "outbox_events"
     __table_args__ = (UniqueConstraint("idempotency_key", name="uq_outbox_events_idempotency_key"),)

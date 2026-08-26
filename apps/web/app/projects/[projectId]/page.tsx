@@ -163,6 +163,10 @@ export default async function ProjectDetailPage({
           <h2>Sessions</h2>
           <p className="muted">Trace AI agent work sessions.</p>
         </Link>
+        <Link className="panel" href={`/projects/${project.id}/security`}>
+          <h2>Security audit</h2>
+          <p className="muted">Inspect sensitive governance approvals, denials, actors, and reasons.</p>
+        </Link>
         <Link className="panel" href={`/projects/${project.id}/writebacks`}>
           <h2>Writebacks</h2>
           <p className="muted">Review generated knowledge drafts.</p>
