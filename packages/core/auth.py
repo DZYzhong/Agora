@@ -32,6 +32,10 @@ class Principal:
     def is_agent(self) -> bool:
         return self.credential_kind == "agent"
 
+    @property
+    def is_ci(self) -> bool:
+        return self.credential_kind == "ci"
+
 
 def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
@@ -57,12 +61,14 @@ def bootstrap_local_identity(
     *,
     human_token: str | None,
     agent_token: str | None,
+    ci_token: str | None = None,
     org_id: str | None,
 ) -> Principal:
     if not human_token or not agent_token:
         raise BootstrapAuthError("AGORA_BOOTSTRAP_HUMAN_TOKEN and AGORA_BOOTSTRAP_AGENT_TOKEN are required")
-    if human_token == agent_token:
-        raise BootstrapAuthError("bootstrap human and agent tokens must be different")
+    tokens = [token for token in (human_token, agent_token, ci_token) if token]
+    if len(tokens) != len(set(tokens)):
+        raise BootstrapAuthError("bootstrap human, agent and CI tokens must be different")
 
     with SqlAlchemyUnitOfWork(session) as uow:
         repo = IdentityRepository(session)
@@ -80,6 +86,13 @@ def bootstrap_local_identity(
             token_hash=hash_token(agent_token),
             token_prefix=token_diagnostic_prefix(agent_token),
         )
+        if ci_token:
+            repo.upsert_credential(
+                user_id=user.id,
+                kind="ci",
+                token_hash=hash_token(ci_token),
+                token_prefix=token_diagnostic_prefix(ci_token),
+            )
         repo.grant_user_to_org_projects(org_id=resolved_org_id, user_id=user.id)
         principal = _principal_from_credential(repo, human)
         uow.commit()

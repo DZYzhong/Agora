@@ -330,6 +330,12 @@ Current implementation:
 
 **Goal:** Connect Agora to repository, CI, task and PR signals so context and project status stay current with minimal user interruption.
 
+**Status:** In progress; provider-neutral CI QualitySignal ingestion is implemented.
+
+Current plan:
+
+- `docs/superpowers/plans/2026-08-26-agora-p8-integrations-automation.md`
+
 Scope:
 
 - GitHub/GitLab/Gitee/self-hosted Git push and PR/MR signals.
@@ -348,6 +354,15 @@ Exit criteria:
 - An AI tool starting from a task or PR resolves the correct Project and WorkItem.
 - CI evidence appears on the correct WorkItem without manual upload.
 - Normal developer work remains silent unless a decision or conflict is required.
+
+Current implementation:
+
+- Optional `AGORA_BOOTSTRAP_CI_TOKEN` creates a CI service credential.
+- `POST /integrations/ci/quality-signal` requires CI credentials.
+- CI signals resolve or create WorkItems by `work_item_key`.
+- CI signals write P6 `QualityEvidence` with source/evidence type `ci`.
+- The response returns project status so CI evidence immediately affects delivery readiness, blockers and quality dimensions.
+- Black-box guide: `docs/development/p8-ci-quality-signal-blackbox.zh-CN.md`
 
 ---
 
@@ -386,6 +401,52 @@ When a historical title conflicts with this Roadmap, this Roadmap and the canoni
 ---
 
 ## Execution Log
+
+### 2026-08-26: P8 CI QualitySignal Ingestion
+
+Scope:
+
+- Added optional CI service credential bootstrap via `AGORA_BOOTSTRAP_CI_TOKEN`.
+- Added `POST /integrations/ci/quality-signal`.
+- Restricted CI quality-signal ingestion to CI credentials with stable error code `CI_CREDENTIAL_REQUIRED`.
+- Resolved or created WorkItems by CI `work_item_key`.
+- Stored CI results as P6 `QualityEvidence` and returned P6 project status.
+- Fixed `get-project-status` transaction ordering so production-auth callers can query it repeatedly.
+- Added P8 CI black-box validation guide.
+
+Files changed:
+
+- Created: `apps/api/routers/integrations.py`
+- Created: `tests/integration/api/test_integrations_api.py`
+- Created: `docs/development/p8-ci-quality-signal-blackbox.zh-CN.md`
+- Created: `docs/superpowers/plans/2026-08-26-agora-p8-integrations-automation.md`
+- Modified: `packages/core/auth.py`
+- Modified: `apps/api/auth.py`
+- Modified: `apps/api/main.py`
+- Modified: `apps/api/routers/harness.py`
+- Modified: `tests/integration/api/test_auth.py`
+- Modified: `tests/integration/test_web_config.py`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_auth.py::test_ci_bootstrap_token_is_service_scoped_and_cannot_create_projects
+# failed first, then 1 passed
+
+.venv/bin/pytest tests/integration/api/test_integrations_api.py
+# failed first, then 2 passed
+
+.venv/bin/pytest tests/integration/test_web_config.py::test_p8_ci_quality_signal_blackbox_guide_exists
+# failed first, then 1 passed
+```
+
+Black-box validation path:
+
+- Use `docs/development/p8-ci-quality-signal-blackbox.zh-CN.md`.
+
+Commit:
+
+- Pending.
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 

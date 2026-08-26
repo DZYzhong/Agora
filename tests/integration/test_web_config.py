@@ -172,3 +172,15 @@ def test_p7_governance_security_blackbox_guide_exists():
     assert "PROJECT_ROLE_REQUIRED" in content
     assert "Security audit" in content
     assert "AI 凭证不能审批" in content
+
+
+def test_p8_ci_quality_signal_blackbox_guide_exists():
+    guide = Path("docs/development/p8-ci-quality-signal-blackbox.zh-CN.md")
+    content = guide.read_text()
+
+    assert "P8 CI QualitySignal 黑盒验证步骤" in content
+    assert "AGORA_BOOTSTRAP_CI_TOKEN" in content
+    assert "/integrations/ci/quality-signal" in content
+    assert "CI_CREDENTIAL_REQUIRED" in content
+    assert "Project status" in content
+    assert "用户不需要手动调用 HTTP API" in content

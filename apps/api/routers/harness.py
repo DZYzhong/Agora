@@ -398,8 +398,8 @@ def get_project_status(
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
-    require_project_member(session, principal, project_id=payload.project_id)
     with SqlAlchemyUnitOfWork(session) as uow:
+        require_project_member(session, principal, project_id=payload.project_id)
         response = _harness(session, keyword_index, vector_index).get_project_status(
             **payload.model_dump(),
             principal=principal,

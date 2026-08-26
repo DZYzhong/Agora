@@ -25,6 +25,7 @@ def bootstrap_auth_from_env() -> None:
             session,
             human_token=os.environ.get("AGORA_BOOTSTRAP_HUMAN_TOKEN"),
             agent_token=os.environ.get("AGORA_BOOTSTRAP_AGENT_TOKEN"),
+            ci_token=os.environ.get("AGORA_BOOTSTRAP_CI_TOKEN"),
             org_id=os.environ.get("AGORA_BOOTSTRAP_ORG_ID"),
         )
     except BootstrapAuthError as exc:
@@ -54,6 +55,17 @@ def require_human(principal: Principal) -> None:
             detail={
                 "code": "HUMAN_CREDENTIAL_REQUIRED",
                 "message": "This action requires a human credential",
+            },
+        )
+
+
+def require_ci(principal: Principal) -> None:
+    if not principal.is_ci:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "CI_CREDENTIAL_REQUIRED",
+                "message": "This action requires a CI service credential",
             },
         )
 
