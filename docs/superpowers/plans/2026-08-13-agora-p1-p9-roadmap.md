@@ -579,7 +579,7 @@ Black-box validation path:
 
 Commit:
 
-- Pending after full verification.
+- `bf502d3 feat: ingest pull request signals`
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 
