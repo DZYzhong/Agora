@@ -639,7 +639,7 @@ Black-box validation path:
 
 Commit:
 
-- Pending after full verification.
+- `5efcda9 feat: add p9 operations readiness foundation`
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 
