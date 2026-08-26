@@ -446,7 +446,7 @@ Black-box validation path:
 
 Commit:
 
-- Pending.
+- `e337cf4 feat: ingest ci quality signals`
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 
