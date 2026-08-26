@@ -1,5 +1,6 @@
 import argparse
 from pathlib import Path
+import sqlite3
 import sys
 
 from sqlalchemy.engine import make_url
@@ -51,6 +52,36 @@ def migrate(database_url: str, *, dry_run: bool, postgres_backup_confirmed: bool
     )
 
 
+def backup_sqlite(database_url: str, *, output: Path) -> Path:
+    database_path = _sqlite_file_from_url(database_url)
+    if database_path is None:
+        raise SystemExit("backup-sqlite only supports file-backed SQLite URLs")
+    output = output.expanduser().resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    source_uri = f"file:{database_path}?mode=ro"
+    with sqlite3.connect(source_uri, uri=True) as source, sqlite3.connect(output) as destination:
+        source.backup(destination)
+    return output
+
+
+def restore_sqlite(*, backup: Path, database_url: str, yes: bool) -> Path:
+    if not yes:
+        raise SystemExit("Refusing to restore SQLite database without --yes")
+    database_path = _sqlite_file_from_url(database_url)
+    if database_path is None:
+        raise SystemExit("restore-sqlite only supports file-backed SQLite URLs")
+    backup = backup.expanduser().resolve()
+    if not backup.exists():
+        raise SystemExit(f"Backup not found: {backup}")
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+    for path in (database_path, Path(f"{database_path}-wal"), Path(f"{database_path}-shm")):
+        path.unlink(missing_ok=True)
+    with sqlite3.connect(backup) as source, sqlite3.connect(database_path) as destination:
+        source.backup(destination)
+    ensure_schema(database_url)
+    return database_path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Agora local administration commands")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -70,6 +101,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Confirm an operator backup exists before stamping an unversioned PostgreSQL P1 schema",
     )
+
+    backup = subparsers.add_parser("backup-sqlite", help="Write an online backup of a file-backed SQLite database")
+    backup.add_argument("--database-url", required=True)
+    backup.add_argument("--output", required=True, type=Path)
+
+    restore = subparsers.add_parser("restore-sqlite", help="Restore a file-backed SQLite database from a backup file")
+    restore.add_argument("--backup", required=True, type=Path)
+    restore.add_argument("--database-url", required=True)
+    restore.add_argument("--yes", action="store_true", help="Confirm replacing the target SQLite database")
     return parser
 
 
@@ -97,6 +137,14 @@ def main() -> int:
         print(f"Schema fingerprint: {result.fingerprint}")
         print(f"Revision: {result.revision_before or 'unversioned'} -> {result.revision_after}")
         print(f"Backup: {result.backup_path or 'not-created'}")
+        return 0
+    if args.command == "backup-sqlite":
+        path = backup_sqlite(args.database_url, output=args.output)
+        print(f"SQLite backup written: {path}")
+        return 0
+    if args.command == "restore-sqlite":
+        path = restore_sqlite(backup=args.backup, database_url=args.database_url, yes=args.yes)
+        print(f"SQLite backup restored: {path}")
         return 0
     raise SystemExit(f"Unknown command: {args.command}")
 

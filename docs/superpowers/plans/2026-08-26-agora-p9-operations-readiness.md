@@ -80,6 +80,28 @@ Verification:
 # failed first because the guide did not exist, then 1 passed
 ```
 
+## Chunk 4: SQLite backup and recovery commands
+
+### Task 1: Admin CLI backup/restore
+
+**Files:**
+
+- Modify: `scripts/agora_admin.py`
+- Modify: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Test: `tests/integration/test_admin_cli.py`
+
+- [x] Add `backup-sqlite` using SQLite online backup API.
+- [x] Add `restore-sqlite` with explicit `--yes` replacement confirmation.
+- [x] Verify restored database keeps persisted project data.
+- [x] Document SQLite and PostgreSQL recovery paths separately.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_admin_cli.py::test_admin_cli_backup_and_restore_sqlite_database
+# failed first because backup-sqlite and restore-sqlite did not exist, then 1 passed
+```
+
 ## Verification
 
 Run:

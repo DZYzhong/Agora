@@ -408,6 +408,7 @@ Current implementation:
 - Docker runtime assets exist for API, Web and Local Connector/MCP.
 - `infra/docker-compose.yml` runs API, Web, Local Connector and dependency services with API/Postgres health checks.
 - `.env.example` includes production-like database/token defaults, including CI service token.
+- `scripts.agora_admin backup-sqlite` and `restore-sqlite` support local/SQLite backup and recovery drills.
 - Black-box guide: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
 
 ---
@@ -640,6 +641,38 @@ Black-box validation path:
 Commit:
 
 - `5efcda9 feat: add p9 operations readiness foundation`
+
+### 2026-08-26: P9 SQLite Backup and Recovery CLI
+
+Scope:
+
+- Added `backup-sqlite` admin CLI command using SQLite online backup API.
+- Added `restore-sqlite` admin CLI command with explicit `--yes` replacement confirmation.
+- Verified restored databases keep persisted project data and remain schema-managed.
+- Updated the P9 black-box guide with separate SQLite and PostgreSQL recovery paths.
+
+Files changed:
+
+- Modified: `scripts/agora_admin.py`
+- Modified: `tests/integration/test_admin_cli.py`
+- Modified: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Modified: `docs/superpowers/plans/2026-08-26-agora-p9-operations-readiness.md`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/test_admin_cli.py::test_admin_cli_backup_and_restore_sqlite_database
+# failed first, then 1 passed
+```
+
+Black-box validation path:
+
+- Use `docs/development/p9-operations-readiness-blackbox.zh-CN.md`.
+
+Commit:
+
+- Pending after full verification.
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 

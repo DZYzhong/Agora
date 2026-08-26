@@ -91,3 +91,63 @@ def test_admin_cli_reset_local_recreates_empty_schema(tmp_path):
     assert "projects" in inspector.get_table_names()
     with sessionmaker(bind=create_engine(database_url))() as restored_session:
         assert ProjectRepository(restored_session).list() == []
+
+
+def test_admin_cli_backup_and_restore_sqlite_database(tmp_path):
+    database_path = tmp_path / "agora.db"
+    backup_path = tmp_path / "agora.backup.db"
+    restored_path = tmp_path / "agora-restored.db"
+    database_url = f"sqlite+pysqlite:///{database_path}"
+    restored_database_url = f"sqlite+pysqlite:///{restored_path}"
+    engine = create_app_engine(database_url)
+    session = sessionmaker(bind=engine)()
+    with SqlAlchemyUnitOfWork(session) as uow:
+        ProjectRepository(session).create(
+            org_id="org_1",
+            name="研发效能平台",
+            slug="dev-productivity",
+            git_remotes=["git@example.com:dev-productivity.git"],
+        )
+        uow.commit()
+    session.close()
+
+    backup = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.agora_admin",
+            "backup-sqlite",
+            "--database-url",
+            database_url,
+            "--output",
+            str(backup_path),
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    restore = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.agora_admin",
+            "restore-sqlite",
+            "--backup",
+            str(backup_path),
+            "--database-url",
+            restored_database_url,
+            "--yes",
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert backup.returncode == 0
+    assert "SQLite backup written" in backup.stdout
+    assert backup_path.exists()
+    assert restore.returncode == 0
+    assert "SQLite backup restored" in restore.stdout
+    with sessionmaker(bind=create_engine(restored_database_url))() as restored_session:
+        projects = ProjectRepository(restored_session).list()
+    assert [project.slug for project in projects] == ["dev-productivity"]

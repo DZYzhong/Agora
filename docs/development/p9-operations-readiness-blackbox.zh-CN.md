@@ -8,7 +8,7 @@
 - `/ready` 必须检查数据库连通性、Alembic schema revision 和关键配置。
 - `/metrics` 输出 Prometheus 风格文本，至少包含 ready、schema revision、项目数量和待审上下文数量。
 - SQLite 可用于本地演练；生产-like 验证应优先使用 PostgreSQL。
-- 备份和恢复由运维命令或数据库工具完成，恢复后仍以 AI 工具和 Web 完成业务冒烟。
+- SQLite 试点环境可以使用 `scripts.agora_admin backup-sqlite` 和 `scripts.agora_admin restore-sqlite` 演练备份恢复；PostgreSQL 生产-like 环境使用数据库原生命令完成。
 
 ## 前置条件
 
@@ -95,7 +95,28 @@ GET http://127.0.0.1:8000/metrics
 - `delivery_readiness.state = blocked`。
 - Web `Latest evidence` 能追溯命令、结论和来源。
 
-## 步骤 6：备份与恢复演练
+## 步骤 6：SQLite 备份与恢复演练
+
+如果当前是 SQLite 试点环境，让运维人员执行：
+
+```bash
+python -m scripts.agora_admin backup-sqlite \
+  --database-url "$AGORA_DATABASE_URL" \
+  --output .agora/agora.backup.db
+
+python -m scripts.agora_admin restore-sqlite \
+  --backup .agora/agora.backup.db \
+  --database-url sqlite+pysqlite:///.agora/agora-restored.db \
+  --yes
+```
+
+期望：
+
+- 备份文件存在。
+- 恢复目标数据库可以启动 Agora API。
+- 恢复后的 API `/ready` 仍为 ready。
+
+## 步骤 7：PostgreSQL 备份与恢复演练
 
 对 PostgreSQL 执行一次备份，再恢复到一个新的数据库实例或新的 database name。
 
