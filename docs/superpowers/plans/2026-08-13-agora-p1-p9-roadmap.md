@@ -4,7 +4,7 @@
 
 **Current branch:** `codex/agora-p0`
 
-**Current baseline:** P0-P5 are implemented on the realigned Agent-first, Harness-first architecture. P6 quality/project-status foundation is in progress.
+**Current baseline:** P0-P8 are implemented on the realigned Agent-first, Harness-first architecture. P9 operations readiness foundation is in progress.
 
 **Canonical product design:** `docs/superpowers/specs/2026-08-14-agora-product-functional-design.zh-CN.md`
 
@@ -330,7 +330,7 @@ Current implementation:
 
 **Goal:** Connect Agora to repository, CI, task and PR signals so context and project status stay current with minimal user interruption.
 
-**Status:** In progress; provider-neutral CI QualitySignal ingestion, repository RevisionSignal freshness automation, PR/MR signal ingestion and external task WorkItem mapping are implemented.
+**Status:** Implemented enough for black-box validation; CI QualitySignal, repository RevisionSignal, PR/MR signal ingestion and external task WorkItem mapping are available.
 
 Current plan:
 
@@ -374,6 +374,12 @@ Current implementation:
 
 **Goal:** Make Agora reliable to deploy, operate, upgrade and recover for a real software team.
 
+**Status:** In progress; readiness/metrics, production-like container runtime assets and black-box operations guide are implemented.
+
+Current plan:
+
+- `docs/superpowers/plans/2026-08-26-agora-p9-operations-readiness.md`
+
 Scope:
 
 - Postgres and S3-compatible production configuration.
@@ -393,6 +399,16 @@ Exit criteria:
 - Context and workflow concurrency invariants hold under load.
 - Search projections can be rebuilt without loss of governance state.
 - A production-like environment passes the complete Developer, Reviewer, Project Manager and Quality black-box journey.
+
+Current implementation:
+
+- `GET /health` returns process liveness.
+- `GET /ready` verifies database connectivity, Alembic schema revision and required runtime configuration.
+- `GET /metrics` exposes Prometheus-style ready/schema/project/pending-context counters.
+- Docker runtime assets exist for API, Web and Local Connector/MCP.
+- `infra/docker-compose.yml` runs API, Web, Local Connector and dependency services with API/Postgres health checks.
+- `.env.example` includes production-like database/token defaults, including CI service token.
+- Black-box guide: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
 
 ---
 
@@ -580,6 +596,50 @@ Black-box validation path:
 Commit:
 
 - `bf502d3 feat: ingest pull request signals`
+
+### 2026-08-26: P9 Operations Readiness Foundation
+
+Scope:
+
+- Added `/ready` readiness checks for database, schema revision and runtime configuration.
+- Added `/metrics` Prometheus-style operational counters.
+- Added API, Web and Local Connector Dockerfiles.
+- Expanded Docker Compose from dependency-only services to a production-like API/Web/connector stack.
+- Added API and Postgres health checks.
+- Updated `.env.example` for production-like runtime and CI service token.
+- Added P9 operations black-box guide covering health/readiness/metrics, PostgreSQL, backup/restore and Developer/Reviewer/Project Manager/Quality smoke paths.
+
+Files changed:
+
+- Created: `infra/Dockerfile.api`
+- Created: `infra/Dockerfile.web`
+- Created: `infra/Dockerfile.local-connector`
+- Created: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Created: `docs/superpowers/plans/2026-08-26-agora-p9-operations-readiness.md`
+- Modified: `.env.example`
+- Modified: `infra/docker-compose.yml`
+- Modified: `apps/api/routers/health.py`
+- Modified: `tests/unit/test_health.py`
+- Modified: `tests/integration/test_web_config.py`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/unit/test_health.py::test_readiness_endpoint_reports_database_schema_and_configuration tests/unit/test_health.py::test_metrics_endpoint_exposes_prometheus_style_operational_counters tests/integration/test_web_config.py::test_p9_operations_blackbox_guide_exists
+# failed first, then 3 passed
+
+.venv/bin/pytest tests/integration/test_web_config.py::test_p9_container_runtime_assets_exist
+# failed first, then 1 passed
+```
+
+Black-box validation path:
+
+- Use `docs/development/p9-operations-readiness-blackbox.zh-CN.md`.
+
+Commit:
+
+- Pending after full verification.
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 

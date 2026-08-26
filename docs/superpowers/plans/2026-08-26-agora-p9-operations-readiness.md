@@ -1,0 +1,92 @@
+# Agora P9 Operations Readiness Implementation Plan
+
+> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Make Agora deployable and observable enough for a small software team to run production-like black-box validation.
+
+**Architecture:** Add lightweight operational endpoints and container runtime assets around the existing FastAPI, Next.js and MCP boundaries. Keep readiness tied to real database/schema/config checks, and keep role acceptance anchored in the existing AI-tool/Web black-box journey.
+
+**Tech Stack:** FastAPI, SQLAlchemy, Alembic, Docker Compose, Next.js, pytest.
+
+---
+
+## Chunk 1: Health, readiness and metrics
+
+### Task 1: API operational probes
+
+**Files:**
+
+- Modify: `apps/api/routers/health.py`
+- Test: `tests/unit/test_health.py`
+
+- [x] Add `GET /ready`.
+- [x] Verify database connectivity.
+- [x] Report Alembic schema revision.
+- [x] Report missing required runtime configuration.
+- [x] Add `GET /metrics` with Prometheus-style text counters.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/unit/test_health.py::test_readiness_endpoint_reports_database_schema_and_configuration tests/unit/test_health.py::test_metrics_endpoint_exposes_prometheus_style_operational_counters
+# failed first because /ready and /metrics did not exist, then 2 passed
+```
+
+## Chunk 2: Container runtime assets
+
+### Task 1: Docker Compose production-like runtime
+
+**Files:**
+
+- Create: `infra/Dockerfile.api`
+- Create: `infra/Dockerfile.web`
+- Create: `infra/Dockerfile.local-connector`
+- Modify: `infra/docker-compose.yml`
+- Modify: `.env.example`
+- Test: `tests/integration/test_web_config.py`
+
+- [x] Add API container entrypoint.
+- [x] Add Web build/runtime container entrypoint.
+- [x] Add Local Connector/MCP stdio container entrypoint.
+- [x] Add Compose services for API, Web and Local Connector.
+- [x] Add API and Postgres health checks.
+- [x] Add CI token and production-like env defaults to `.env.example`.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_web_config.py::test_p9_container_runtime_assets_exist
+# failed first because container runtime assets did not exist, then 1 passed
+```
+
+## Chunk 3: Operations black-box guide
+
+### Task 1: P9 black-box runbook
+
+**Files:**
+
+- Create: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Test: `tests/integration/test_web_config.py`
+
+- [x] Document `/health`, `/ready` and `/metrics`.
+- [x] Document production-like `AGORA_DATABASE_URL` and token configuration.
+- [x] Document backup and recovery validation.
+- [x] Document Developer, Reviewer, Project Manager and Quality role smoke tests.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_web_config.py::test_p9_operations_blackbox_guide_exists
+# failed first because the guide did not exist, then 1 passed
+```
+
+## Verification
+
+Run:
+
+```bash
+.venv/bin/pytest tests/unit/test_health.py tests/integration/test_web_config.py tests/integration/test_migrations.py tests/integration/api/test_integrations_api.py
+.venv/bin/pytest
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+git diff --check
+```

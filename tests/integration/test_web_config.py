@@ -193,3 +193,42 @@ def test_p8_ci_quality_signal_blackbox_guide_exists():
     assert "CI_CREDENTIAL_REQUIRED" in content
     assert "Project status" in content
     assert "用户不需要手动调用 HTTP API" in content
+
+
+def test_p9_operations_blackbox_guide_exists():
+    guide = Path("docs/development/p9-operations-readiness-blackbox.zh-CN.md")
+    content = guide.read_text()
+
+    assert "P9 Production and Operations Readiness 黑盒验证步骤" in content
+    assert "/ready" in content
+    assert "/metrics" in content
+    assert "AGORA_DATABASE_URL" in content
+    assert "PostgreSQL" in content
+    assert "备份" in content
+    assert "恢复" in content
+    assert "Developer" in content
+    assert "Reviewer" in content
+    assert "Project Manager" in content
+    assert "Quality" in content
+
+
+def test_p9_container_runtime_assets_exist():
+    api_dockerfile = Path("infra/Dockerfile.api")
+    web_dockerfile = Path("infra/Dockerfile.web")
+    connector_dockerfile = Path("infra/Dockerfile.local-connector")
+    compose = Path("infra/docker-compose.yml").read_text()
+    env_example = Path(".env.example").read_text()
+
+    assert api_dockerfile.exists()
+    assert web_dockerfile.exists()
+    assert connector_dockerfile.exists()
+    assert "uvicorn" in api_dockerfile.read_text()
+    assert "npm run build" in web_dockerfile.read_text()
+    assert "python -m apps.mcp.server" in connector_dockerfile.read_text()
+    assert "api:" in compose
+    assert "web:" in compose
+    assert "local-connector:" in compose
+    assert "healthcheck:" in compose
+    assert "http://127.0.0.1:8000/ready" in compose
+    assert "AGORA_BOOTSTRAP_CI_TOKEN" in env_example
+    assert "AGORA_ENV=production-like" in env_example
