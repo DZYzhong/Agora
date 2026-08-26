@@ -672,7 +672,7 @@ Black-box validation path:
 
 Commit:
 
-- Pending after full verification.
+- `df1c20c feat: add sqlite backup recovery commands`
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 
