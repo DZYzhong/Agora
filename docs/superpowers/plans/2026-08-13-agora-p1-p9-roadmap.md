@@ -537,7 +537,7 @@ Black-box validation path:
 
 Commit:
 
-- Pending after full verification.
+- `49f3491 feat: map external task links`
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 
