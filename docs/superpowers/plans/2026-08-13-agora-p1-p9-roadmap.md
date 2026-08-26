@@ -492,7 +492,7 @@ Black-box validation path:
 
 Commit:
 
-- Pending.
+- `397f224 feat: ingest repository revision signals`
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 
