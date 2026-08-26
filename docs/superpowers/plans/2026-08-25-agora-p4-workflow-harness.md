@@ -52,7 +52,7 @@ git diff --check
 
 ## Next P4 tasks
 
-- Add black-box validation guide for P4 workflow audit.
+- Wait for user black-box validation feedback before moving to P5.
 
 ## Task 2: Canonical workflow step completion
 
@@ -88,6 +88,40 @@ Verification:
 
 .venv/bin/pytest
 # 192 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+git diff --check
+# passed
+```
+
+## Task 5: P4 black-box validation guide
+
+**Files:**
+
+- Create: `docs/development/p4-workflow-audit-blackbox.zh-CN.md`
+- Modify: `tests/integration/test_web_config.py`
+- Modify: `docs/superpowers/plans/2026-08-25-agora-p4-workflow-harness.md`
+- Modify: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+
+- [x] Add black-box steps for production-style local API/Web startup.
+- [x] Require AI tool operation through `agora_start_work` and `agora_complete_workflow_step`.
+- [x] Document Web-only verification for WorkItem list and WorkItem `Workflow audit`.
+- [x] Include jump-protection validation for `WORKFLOW_STEP_NOT_CURRENT`.
+- [x] Add a regression check that the P4 black-box guide keeps the key workflow audit acceptance points.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_web_config.py::test_p4_workflow_audit_blackbox_guide_exists
+# 1 passed
+
+.venv/bin/pytest tests/integration/test_web_config.py
+# 9 passed
+
+.venv/bin/pytest
+# 197 passed, 2 skipped
 
 cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
 # Compiled successfully

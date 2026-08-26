@@ -2215,3 +2215,35 @@ git diff --check
 Next:
 
 - Add the P4 black-box validation guide and then hand the whole P4 workflow audit flow to the user for browser validation.
+
+### 2026-08-26: P4 Task 5 Black-box Validation Guide
+
+Scope:
+
+- Added `docs/development/p4-workflow-audit-blackbox.zh-CN.md`.
+- The guide covers production-style local service startup, real AI-tool `agora_start_work`, workflow step completion through `agora_complete_workflow_step`, Web WorkItem workflow audit review and jump-protection validation.
+- The guide explicitly keeps user validation at the AI tool/Web level and does not require manual HTTP API calls.
+- Added a regression check to keep the P4 black-box guide and key acceptance points in the repo.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_web_config.py::test_p4_workflow_audit_blackbox_guide_exists
+# 1 passed
+
+.venv/bin/pytest tests/integration/test_web_config.py
+# 9 passed
+
+.venv/bin/pytest
+# 197 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+git diff --check
+# passed
+```
+
+Next:
+
+- Wait for user black-box validation feedback before moving to P5.

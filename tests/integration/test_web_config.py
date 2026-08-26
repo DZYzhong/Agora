@@ -85,3 +85,15 @@ def test_work_item_detail_page_renders_workflow_audit_evidence():
     assert "Human confirmations" in detail_page
     assert "workflow_execution" in detail_page
     assert "human_confirmations" in detail_page
+
+
+def test_p4_workflow_audit_blackbox_guide_exists():
+    guide = Path("docs/development/p4-workflow-audit-blackbox.zh-CN.md")
+    content = guide.read_text()
+
+    assert "P4 Workflow Audit 黑盒验证步骤" in content
+    assert "agora_start_work" in content
+    assert "agora_complete_workflow_step" in content
+    assert "Workflow audit" in content
+    assert "WORKFLOW_STEP_NOT_CURRENT" in content
+    assert "用户只通过 AI 工具和 Web 页面完成验证" in content
