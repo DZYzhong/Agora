@@ -436,7 +436,7 @@ Black-box validation path:
 
 Commit:
 
-- Pending.
+- `14036a5 feat: add p7 approval governance audit`
 
 ### 2026-08-26: P6 Quality and Project Status Foundation
 
