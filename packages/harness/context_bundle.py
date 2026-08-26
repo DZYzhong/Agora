@@ -14,9 +14,12 @@ def build_context_bundle(
     token_budget: int,
     context_pack,
     accepted_revision=None,
+    skill_versions: list | None = None,
 ) -> dict[str, Any]:
     has_sources = bool(context_pack.source_refs)
     accepted_revision_id = accepted_revision.id if accepted_revision is not None else None
+    applicable_skill_versions = skill_versions or []
+    skill_version_ids = [version.id for version in applicable_skill_versions]
     payload = {
         "protocol_version": PROTOCOL_VERSION,
         "operation": "prepare_context",
@@ -43,8 +46,10 @@ def build_context_bundle(
         "capability_pins": {
             "context_revision_id": accepted_revision_id,
             "workflow_version_id": None,
-            "skill_version_id": None,
+            "skill_version_id": skill_version_ids[0] if skill_version_ids else None,
+            "skill_version_ids": skill_version_ids,
         },
+        "skills": [_serialize_skill_version(version) for version in applicable_skill_versions],
         "summary": context_pack.summary,
         "key_facts": list(context_pack.key_facts),
         "source_refs": list(context_pack.source_refs),
@@ -61,6 +66,23 @@ def build_context_bundle(
         ],
     }
     return trim_payload_to_budget(payload, budget_limit=token_budget)
+
+
+def _serialize_skill_version(version) -> dict[str, Any]:
+    definition = version.definition or {}
+    return {
+        "skill_version_id": version.id,
+        "skill_id": version.skill_id,
+        "slug": definition.get("slug"),
+        "name": definition.get("name"),
+        "version": version.version,
+        "summary": definition.get("summary"),
+        "triggers": list(definition.get("triggers") or []),
+        "input_schema": definition.get("input_schema") or {"type": "object"},
+        "output_schema": definition.get("output_schema") or {"type": "object"},
+        "instructions": definition.get("instructions"),
+        "risk_constraints": list(definition.get("risk_constraints") or []),
+    }
 
 
 __all__ = ["TokenBudgetTooSmall", "build_context_bundle"]

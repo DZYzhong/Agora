@@ -69,7 +69,12 @@ class SkillRepository:
         skill = self.get(skill_id)
         if skill is None:
             raise ValueError(f"Skill not found: {skill_id}")
-        version = str((skill.definition or {}).get("version") or "1")
+        definition = {
+            **(skill.definition or {}),
+            "slug": skill.slug,
+            "name": skill.name,
+        }
+        version = str(definition.get("version") or "1")
         existing = self.session.scalars(
             select(SkillVersionModel).where(
                 SkillVersionModel.skill_id == skill.id,
@@ -83,7 +88,7 @@ class SkillRepository:
                 skill_id=skill.id,
                 version=version,
                 status="approved",
-                definition=skill.definition or {},
+                definition=definition,
                 approved_by_user_id=approved_by_user_id,
             )
             self.session.add(existing)
@@ -93,6 +98,31 @@ class SkillRepository:
         self.session.flush()
         self.session.refresh(skill)
         return existing
+
+    def list_applicable_approved_versions(self, *, project_id: str, query: str, limit: int = 5) -> list[SkillVersionModel]:
+        terms = {term.lower() for term in query.replace("，", " ").replace(",", " ").split() if term.strip()}
+        statement = (
+            select(SkillVersionModel, SkillModel)
+            .join(SkillModel, SkillModel.id == SkillVersionModel.skill_id)
+            .where(
+                SkillVersionModel.status == "approved",
+                SkillModel.status == "approved",
+                SkillVersionModel.project_id == project_id,
+            )
+            .order_by(SkillModel.project_id.desc().nullslast(), SkillModel.slug.asc(), SkillVersionModel.created_at.desc())
+        )
+        scored: list[tuple[int, SkillVersionModel]] = []
+        for version, skill in self.session.execute(statement).all():
+            definition = version.definition or {}
+            triggers = [str(trigger).lower() for trigger in definition.get("triggers") or []]
+            slug_parts = skill.slug.lower().replace("-", " ").split()
+            score = sum(1 for trigger in triggers if trigger and trigger in query.lower())
+            if not triggers:
+                score += sum(1 for part in slug_parts if part in terms)
+            if score > 0:
+                scored.append((score, version))
+        scored.sort(key=lambda item: (-item[0], item[1].version))
+        return [version for _, version in scored[:limit]]
 
     def get_version(self, skill_version_id: str) -> SkillVersionModel | None:
         return self.session.get(SkillVersionModel, skill_version_id)

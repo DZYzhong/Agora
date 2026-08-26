@@ -2312,3 +2312,50 @@ Next:
 
 - Add reviewer edit-and-approve flow that publishes a new immutable SkillVersion from a SkillCandidate.
 - Make ContextPlanner/Harness select only approved applicable SkillVersions and include them in the task ContextBundle.
+
+### 2026-08-26: P5 Task 3 SkillCandidate Review Publish and SkillVersion Reuse
+
+Scope:
+
+- Human reviewers can now edit Skill name, version, summary, triggers, schemas, instructions and risk constraints while approving a SkillCandidate.
+- Approval preserves AI-submitted provenance and WorkArtifact evidence, then publishes an immutable approved SkillVersion.
+- SkillVersion definitions now include logical Skill slug/name so AI tools can consume the version directly from a ContextBundle.
+- `agora_prepare_context` now selects project-scoped approved SkillVersions by trigger match and returns them in `skills`.
+- ContextBundle `capability_pins` now includes `skill_version_ids` and the first `skill_version_id` for compatibility with existing single-pin views.
+- Web Skills page now includes a `Publish approved version` form so reviewer edits and approval can happen through the browser.
+- Added `docs/development/p5-skill-governance-blackbox.zh-CN.md` for the full AI-tool submit, Web review publish and later AI-tool reuse flow.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_skills_api.py::test_reviewer_can_publish_candidate_skill_version_with_review_edits
+# failed first because approve ignored reviewer edits, then 1 passed
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_prepare_context_returns_applicable_approved_skill_versions_for_ai_tool
+# failed first because ContextBundle had no skill_version_ids, then failed once more due overly broad slug matching, then 1 passed after trigger-only matching for triggered Skills
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py tests/integration/api/test_skills_api.py tests/unit/harness/test_harness_service.py tests/unit/harness/test_context_bundle.py tests/unit/mcp/test_tools.py tests/integration/test_web_config.py
+# 55 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+.venv/bin/pytest
+# 204 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+git diff --check
+# passed
+```
+
+Black-box path:
+
+- `docs/development/p5-skill-governance-blackbox.zh-CN.md`
+- This can now be handed to the user after final full verification for browser/AI-tool validation.
+
+Next:
+
+- Run full verification and commit.
+- Continue P5 with duplicate detection and repeated-experience suggestions if the user wants more development before black-box validation.

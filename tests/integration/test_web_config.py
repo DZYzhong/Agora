@@ -104,3 +104,15 @@ def test_skills_page_renders_current_skill_version():
 
     assert "Current version" in skills_page
     assert "current_version" in skills_page
+
+
+def test_p5_skill_governance_blackbox_guide_exists():
+    guide = Path("docs/development/p5-skill-governance-blackbox.zh-CN.md")
+    content = guide.read_text()
+
+    assert "P5 Skill Governance 黑盒验证步骤" in content
+    assert "agora_submit_skill_candidate" in content
+    assert "Publish approved version" in content
+    assert "agora_prepare_context" in content
+    assert "capability_pins.skill_version_ids" in content
+    assert "用户不需要手动调用任何 HTTP API" in content

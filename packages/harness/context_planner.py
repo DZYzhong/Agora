@@ -18,6 +18,11 @@ class ContextPlanner:
             if hasattr(self.core, "get_head_context_revision_for_project")
             else None
         )
+        skill_versions = (
+            self.core.list_applicable_skill_versions(project_id=session.project_id, query=f"{session.intent} {query}", limit=5)
+            if hasattr(self.core, "list_applicable_skill_versions")
+            else []
+        )
         context = self._plan_context_pack(session_id=session_id, query=query, token_budget=token_budget, record_event=False)
         bundle = build_context_bundle(
             session_id=session_id,
@@ -25,6 +30,7 @@ class ContextPlanner:
             token_budget=token_budget,
             context_pack=context,
             accepted_revision=accepted_revision,
+            skill_versions=skill_versions,
         )
         if hasattr(self.core, "record_event"):
             self.core.record_event(
@@ -37,6 +43,7 @@ class ContextPlanner:
                     "budget": bundle["budget"],
                     "freshness": bundle["freshness"],
                     "capability_pins": bundle.get("capability_pins", {}),
+                    "skill_version_ids": bundle.get("capability_pins", {}).get("skill_version_ids", []),
                 },
             )
         return bundle

@@ -176,6 +176,13 @@ class CoreRuntime:
     def get_current_skill_version(self, skill_id: str):
         return SkillRepository(self.session).get_current_version(skill_id)
 
+    def list_applicable_skill_versions(self, *, project_id: str, query: str, limit: int = 5):
+        return SkillRepository(self.session).list_applicable_approved_versions(
+            project_id=project_id,
+            query=query,
+            limit=limit,
+        )
+
     def create_skill_run(self, **kwargs):
         return SkillRepository(self.session).create_run(**kwargs)
 

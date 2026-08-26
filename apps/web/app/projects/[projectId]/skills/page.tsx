@@ -7,9 +7,11 @@ type Skill = {
   status: string;
   definition: {
     version?: string;
+    summary?: string;
     triggers?: string[];
     input_schema?: Record<string, unknown>;
     instructions?: string;
+    risk_constraints?: string[];
     builtin?: boolean;
   };
   current_version_id: string | null;
@@ -154,8 +156,18 @@ export default async function SkillsPage({ params }: { params: Promise<{ project
             ) : null}
             <div className="actions">
               {!skill.builtin && skill.status !== "approved" ? (
-                <form action={`/projects/${projectId}/skills/${skill.id}/approve`} method="post">
-                  <button type="submit">Approve</button>
+                <form className="inline-form" action={`/projects/${projectId}/skills/${skill.id}/approve`} method="post">
+                  <input name="name" defaultValue={skill.name} aria-label="Publish name" />
+                  <input name="version" defaultValue={skill.definition.version ?? "1.0.0"} aria-label="Publish version" />
+                  <input name="summary" defaultValue={skill.definition.summary ?? ""} aria-label="Publish summary" />
+                  <input name="triggers" defaultValue={skill.definition.triggers?.join(", ") ?? ""} aria-label="Publish triggers" />
+                  <input name="instructions" defaultValue={skill.definition.instructions ?? ""} aria-label="Publish instructions" />
+                  <textarea
+                    name="risk_constraints"
+                    defaultValue={skill.definition.risk_constraints?.join("\n") ?? ""}
+                    aria-label="Publish risk constraints"
+                  />
+                  <button type="submit">Publish approved version</button>
                 </form>
               ) : null}
               {!skill.builtin && skill.status !== "deprecated" ? (

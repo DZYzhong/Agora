@@ -215,6 +215,78 @@ def test_submit_skill_candidate_from_work_session_creates_reviewable_project_ski
     assert candidate["evidence_refs"][0]["title"] == "AG-601 风险检查经验"
 
 
+def test_prepare_context_returns_applicable_approved_skill_versions_for_ai_tool():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_prepare_context_skills",
+            "name": "Prepare Context Skills",
+            "slug": "prepare-context-skills",
+            "git_remotes": [],
+        },
+    ).json()
+    skill = client.post(
+        f"/projects/{project['id']}/skills",
+        json={
+            "slug": "release-readiness-review",
+            "name": "Release Readiness Review",
+            "status": "candidate",
+            "definition": {
+                "version": "1.0.0",
+                "summary": "发布前检查团队标准流程。",
+                "triggers": ["release", "rollback"],
+                "input_schema": {"type": "object"},
+                "output_schema": {"type": "object"},
+                "instructions": "检查风险说明、测试证据、回滚方案、监控和负责人。",
+                "risk_constraints": ["缺少测试证据时必须标记为风险"],
+            },
+        },
+    ).json()
+    approved = client.post(f"/projects/{project['id']}/skills/{skill['id']}/approve").json()
+    other = client.post(
+        f"/projects/{project['id']}/skills",
+        json={
+            "slug": "database-migration-review",
+            "name": "Database Migration Review",
+            "status": "candidate",
+            "definition": {
+                "version": "1.0.0",
+                "triggers": ["migration"],
+                "instructions": "检查数据库迁移。",
+            },
+        },
+    ).json()
+    client.post(f"/projects/{project['id']}/skills/{other['id']}/approve")
+    started = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "帮我做 AG-702：准备 release 回滚风险检查",
+            "agent_type": "codex",
+        },
+    ).json()
+
+    response = client.post(
+        "/harness/prepare-context",
+        json={
+            "session_id": started["session_id"],
+            "query": "release 回滚风险检查",
+            "token_budget": 2200,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["operation"] == "prepare_context"
+    assert body["capability_pins"]["skill_version_ids"] == [approved["current_version"]["id"]]
+    assert body["capability_pins"]["skill_version_id"] == approved["current_version"]["id"]
+    assert [skill["slug"] for skill in body["skills"]] == ["release-readiness-review"]
+    assert body["skills"][0]["version"] == "1.0.0"
+    assert body["skills"][0]["instructions"] == "检查风险说明、测试证据、回滚方案、监控和负责人。"
+    assert body["skills"][0]["risk_constraints"] == ["缺少测试证据时必须标记为风险"]
+
+
 def test_complete_workflow_step_rejects_non_current_step():
     client = TestClient(app)
     project = client.post(

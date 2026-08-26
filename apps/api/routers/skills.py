@@ -30,6 +30,11 @@ class SkillUpdateRequest(BaseModel):
     definition: dict | None = None
 
 
+class SkillApproveRequest(BaseModel):
+    name: str | None = None
+    definition: dict | None = None
+
+
 class SkillRunRequest(BaseModel):
     session_id: str | None = None
     input: dict = Field(default_factory=dict)
@@ -260,6 +265,7 @@ def update_skill(
 def approve_skill(
     project_id: str,
     skill_id: str,
+    payload: SkillApproveRequest | None = None,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
 ):
@@ -273,7 +279,24 @@ def approve_skill(
             if skill is None:
                 raise HTTPException(status_code=404, detail="Skill not found")
             _ensure_project_skill(skill, project_id)
-            skill = runtime.update_skill(skill_id, status=SkillStatus.APPROVED.value)
+            definition = skill.definition
+            if payload is not None and payload.definition is not None:
+                definition = {
+                    **(skill.definition or {}),
+                    **payload.definition,
+                    "evidence_writeback_ids": (skill.definition or {}).get("evidence_writeback_ids") or [],
+                    "evidence_artifact_ids": (skill.definition or {}).get("evidence_artifact_ids") or [],
+                    "source": (skill.definition or {}).get("source"),
+                    "session_id": (skill.definition or {}).get("session_id"),
+                    "work_item_id": (skill.definition or {}).get("work_item_id"),
+                    "submitted_by_user_id": (skill.definition or {}).get("submitted_by_user_id"),
+                }
+            skill = runtime.update_skill(
+                skill_id,
+                name=payload.name if payload is not None else None,
+                status=SkillStatus.APPROVED.value,
+                definition=definition,
+            )
             runtime.ensure_approved_skill_version(skill.id, approved_by_user_id=principal.user_id)
             response = _serialize_skill(skill, runtime=runtime, builtin=bool((skill.definition or {}).get("builtin")))
             uow.commit()

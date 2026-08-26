@@ -171,6 +171,81 @@ def test_approving_and_running_skill_creates_and_pins_immutable_skill_version():
         assert work_session.skill_version_id == version_id
 
 
+def test_reviewer_can_publish_candidate_skill_version_with_review_edits():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_skill_review_publish",
+            "name": "Skill Review Publish",
+            "slug": "skill-review-publish",
+            "git_remotes": [],
+        },
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "帮我做 AG-701：沉淀发布检查经验",
+            "agent_type": "codex",
+        },
+    ).json()
+    completed = client.post(
+        "/harness/complete-workflow-step",
+        json={
+            "session_id": started["session_id"],
+            "step_key": "analysis",
+            "summary": "完成候选 skill 证据整理。",
+            "artifacts": [
+                {
+                    "type": "analysis_note",
+                    "title": "AG-701 发布检查经验",
+                    "content": "发布检查要覆盖风险说明、测试证据、回滚方案和监控。",
+                }
+            ],
+        },
+    ).json()
+    submitted = client.post(
+        "/harness/submit-skill-candidate",
+        json={
+            "session_id": started["session_id"],
+            "slug": "release-readiness-review",
+            "name": "Release Readiness Review",
+            "summary": "AI 工具提交的初稿。",
+            "triggers": ["release"],
+            "instructions": "初稿：检查发布风险。",
+            "artifact_ids": [completed["artifacts"][0]["id"]],
+        },
+    ).json()
+
+    approve_response = client.post(
+        f"/projects/{project['id']}/skills/{submitted['skill']['id']}/approve",
+        json={
+            "name": "Release Readiness Review",
+            "definition": {
+                "version": "1.0.0",
+                "summary": "发布前检查团队标准流程。",
+                "triggers": ["release", "rollback", "monitoring"],
+                "input_schema": {"type": "object", "required": ["change_summary"]},
+                "output_schema": {"type": "object"},
+                "instructions": "检查风险说明、测试证据、回滚方案、监控和负责人。",
+                "risk_constraints": ["缺少测试证据时必须标记为风险"],
+            },
+        },
+    )
+
+    assert approve_response.status_code == 200
+    approved = approve_response.json()
+    assert approved["status"] == "approved"
+    assert approved["name"] == "Release Readiness Review"
+    assert approved["definition"]["instructions"] == "检查风险说明、测试证据、回滚方案、监控和负责人。"
+    assert approved["definition"]["evidence_artifact_ids"] == [completed["artifacts"][0]["id"]]
+    assert approved["current_version"]["version"] == "1.0.0"
+    assert approved["current_version"]["definition"]["triggers"] == ["release", "rollback", "monitoring"]
+    assert approved["current_version"]["definition"]["risk_constraints"] == ["缺少测试证据时必须标记为风险"]
+    assert approved["evidence_refs"][0]["title"] == "AG-701 发布检查经验"
+
+
 def test_repeated_accepted_writebacks_create_candidate_skill():
     client = TestClient(app)
     project = client.post(

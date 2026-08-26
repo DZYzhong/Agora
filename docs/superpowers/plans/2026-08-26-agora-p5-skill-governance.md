@@ -101,7 +101,61 @@ git diff --check
 
 ## Next P5 tasks
 
-- Add reviewer edit-and-approve flow that publishes a new immutable SkillVersion from a SkillCandidate.
-- Make ContextPlanner/Harness select only approved applicable SkillVersions and include them in the task ContextBundle.
+- [x] Add reviewer edit-and-approve flow that publishes a new immutable SkillVersion from a SkillCandidate.
+- [x] Make ContextPlanner/Harness select only approved applicable SkillVersions and include them in the task ContextBundle.
 - Add duplicate detection and repeated-experience suggestions from accepted artifacts and completed WorkSessions.
-- Prepare the P5 black-box guide after the full submit-review-publish-reuse loop is available.
+- [x] Prepare the P5 black-box guide after the full submit-review-publish-reuse loop is available.
+
+## Task 3: Human review publish and AI-tool SkillVersion reuse
+
+**Files:**
+
+- Modify: `packages/core/repositories/skills.py`
+- Modify: `packages/core/services/runtime.py`
+- Modify: `packages/harness/context_bundle.py`
+- Modify: `packages/harness/context_planner.py`
+- Modify: `apps/api/routers/skills.py`
+- Modify: `apps/web/app/projects/[projectId]/skills/page.tsx`
+- Modify: `apps/web/app/projects/[projectId]/skills/[skillId]/approve/route.ts`
+- Create: `docs/development/p5-skill-governance-blackbox.zh-CN.md`
+- Test: `tests/integration/api/test_skills_api.py`
+- Test: `tests/integration/api/test_harness_api.py`
+- Test: `tests/integration/test_web_config.py`
+
+- [x] Allow human reviewers to edit Skill name, version, triggers, summary, schemas, instructions and risk constraints while approving a SkillCandidate.
+- [x] Preserve AI-submitted provenance and WorkArtifact evidence when the reviewer publishes the approved SkillVersion.
+- [x] Store immutable SkillVersion definitions with logical Skill slug/name for AI-tool consumption.
+- [x] Add project-scoped applicable SkillVersion selection by triggers for `prepare_context`.
+- [x] Include applicable SkillVersions in ContextBundle `skills` and pin them in `capability_pins.skill_version_ids`.
+- [x] Add Web `Publish approved version` form so black-box validation can happen in the browser.
+- [x] Add P5 black-box guide for the full submit-review-publish-reuse loop.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_skills_api.py::test_reviewer_can_publish_candidate_skill_version_with_review_edits
+# failed first because approve ignored reviewer edits, then 1 passed
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_prepare_context_returns_applicable_approved_skill_versions_for_ai_tool
+# failed first because ContextBundle had no skill_version_ids, then failed once more due overly broad slug matching, then 1 passed after trigger-only matching for triggered Skills
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py tests/integration/api/test_skills_api.py tests/unit/harness/test_harness_service.py tests/unit/harness/test_context_bundle.py tests/unit/mcp/test_tools.py tests/integration/test_web_config.py
+# 55 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+.venv/bin/pytest
+# 204 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+git diff --check
+# passed
+```
+
+## Remaining P5 tasks
+
+- Add duplicate detection and repeated-experience suggestions from accepted artifacts and completed WorkSessions.
+- Add richer Skill review/diff UI if reviewer ergonomics become the next bottleneck.
