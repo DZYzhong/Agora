@@ -1,12 +1,12 @@
 # P5 Skill Governance 黑盒验证步骤
 
-目标：验证 Agora 能把一次真实任务中的团队经验沉淀成 SkillCandidate，由人在 Web 中审查发布成不可变 SkillVersion，并让后续 AI 工具自动拿到并使用这个 approved SkillVersion。
+目标：验证 Agora 能从重复 WorkArtifact 中自动建议可沉淀经验，把真实任务中的团队经验沉淀成 SkillCandidate，合并重复候选，由人在 Web 中审查发布成不可变 SkillVersion，并让后续 AI 工具自动拿到并使用这个 approved SkillVersion。
 
 ## 验证边界
 
 - 用户只通过 AI 工具和 Web 页面完成验证。
 - 不要求用户手动调用 HTTP API。
-- AI 工具使用 Agora MCP/Harness 能力：`agora_start_work`、`agora_complete_workflow_step`、`agora_submit_skill_candidate`、`agora_prepare_context`。
+- AI 工具使用 Agora MCP/Harness 能力：`agora_start_work`、`agora_complete_workflow_step`、`agora_suggest_skills`、`agora_submit_skill_candidate`、`agora_prepare_context`。
 - Web UI 只负责审查、编辑、发布、查看证据和审计。
 
 ## 前置条件
@@ -46,7 +46,27 @@
 - 返回 artifact id。
 - Web WorkItem 详情页的 `Workflow audit` 能看到该 analysis artifact。
 
-## 步骤 3：AI 工具提交 SkillCandidate
+## 步骤 3：AI 工具自动建议可沉淀 Skill
+
+再通过 AI 工具创建第二个相似任务，例如：
+
+```text
+请通过 Agora 开始一个任务：AG-752 发布风险检查复盘。
+请完成 analysis 步骤并上传 analysis_note，内容也覆盖测试证据、回滚方案、配置开关和监控负责人。
+然后请让 Agora 根据项目历史产物建议可以沉淀的 Skill，查询：发布风险检查。
+```
+
+期望：
+
+- AI 工具调用 `agora_start_work`。
+- AI 工具调用 `agora_complete_workflow_step`。
+- AI 工具调用 `agora_suggest_skills`。
+- 返回 `operation = suggest_skills`。
+- 返回建议 `release-risk-review`。
+- 建议里包含两个 analysis artifact id。
+- `next_actions[0].type = submit_skill_candidate`。
+
+## 步骤 4：AI 工具提交 SkillCandidate
 
 在 AI 工具中继续输入：
 
@@ -65,7 +85,25 @@ Slug：release-readiness-review
 - 返回 `next_actions[0].type = human_review_skill_candidate`。
 - Skill 状态为 `candidate`。
 
-## 步骤 4：人在 Web 中审查并发布 SkillVersion
+## 步骤 5：AI 工具重复提交时合并候选
+
+在 AI 工具中继续输入：
+
+```text
+请再次提交同一个 slug 的 SkillCandidate：release-risk-review。
+这次补充 trigger：rollback, monitoring。
+请仍然关联刚才两个 analysis artifact。
+```
+
+期望：
+
+- AI 工具调用 `agora_submit_skill_candidate`。
+- 返回的 `skill.id` 与第一次提交相同。
+- 返回 `deduplicated = true`。
+- 候选 Skill 的 triggers 合并去重。
+- Web Skills 页面只看到一个 `release-risk-review` 候选。
+
+## 步骤 6：人在 Web 中审查并发布 SkillVersion
 
 打开 Web：
 
@@ -93,7 +131,7 @@ http://127.0.0.1:3000/projects
 - 页面显示 `SkillVersion <id>`。
 - Evidence 仍然保留。
 
-## 步骤 5：后续 AI 任务自动获得 approved SkillVersion
+## 步骤 7：后续 AI 任务自动获得 approved SkillVersion
 
 在 AI 工具中新开一个相关任务：
 
@@ -113,7 +151,7 @@ http://127.0.0.1:3000/projects
   - `capability_pins.skill_version_ids` 包含该 SkillVersion id。
 - AI 工具应基于该 SkillVersion 的 instructions 和 risk_constraints 开展发布检查。
 
-## 步骤 6：Web 审计验证
+## 步骤 8：Web 审计验证
 
 回到 Web：
 
@@ -130,6 +168,8 @@ http://127.0.0.1:3000/projects
 ## 通过标准
 
 - AI 工具能从真实 WorkSession 提交 SkillCandidate。
+- AI 工具能从重复 WorkArtifact 中获得 Skill 建议。
+- 重复提交同 slug SkillCandidate 时不会制造多个待审候选。
 - Web 能展示证据并由人发布 approved SkillVersion。
 - 后续 AI 工具调用 `agora_prepare_context` 时自动收到相关 SkillVersion。
 - SkillRun 和 WorkSession 保留使用的 SkillVersion pin。

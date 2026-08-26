@@ -72,6 +72,9 @@ class CoreRuntime:
     def list_work_artifacts_by_ids(self, artifact_ids: list[str]):
         return WorkflowRepository(self.session).list_work_artifacts_by_ids(artifact_ids)
 
+    def list_work_artifacts_by_project(self, project_id: str):
+        return WorkflowRepository(self.session).list_work_artifacts_by_project(project_id)
+
     def list_human_confirmations_by_execution(self, workflow_execution_id: str):
         return WorkflowRepository(self.session).list_human_confirmations_by_execution(workflow_execution_id)
 

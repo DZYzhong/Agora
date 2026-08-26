@@ -96,6 +96,33 @@ TOOLS = [
         ["session_id", "title", "summary", "content"],
     ),
     _tool(
+        "agora_suggest_skills",
+        "Suggest reusable team SkillCandidates from repeated project work artifacts in the current Agora work session.",
+        {
+            "session_id": {"type": "string"},
+            "query": {"type": "string", "description": "Optional experience area, such as release rollback risk or migration review."},
+        },
+        ["session_id"],
+    ),
+    _tool(
+        "agora_submit_skill_candidate",
+        "Submit a reusable team SkillCandidate from the current work session for human review and approval.",
+        {
+            "session_id": {"type": "string"},
+            "slug": {"type": "string"},
+            "name": {"type": "string"},
+            "summary": {"type": "string"},
+            "triggers": {"type": "array", "items": {"type": "string"}},
+            "instructions": {"type": "string"},
+            "artifact_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "WorkArtifact ids that support this candidate.",
+            },
+        },
+        ["session_id", "slug", "name", "summary", "instructions"],
+    ),
+    _tool(
         "agora_close_work",
         "Close an Agora work session. When repo_path or agent_summary is provided, Agora captures a development_update draft for human review.",
         {
@@ -192,6 +219,27 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                 "content": arguments["content"],
                 "source_anchors": arguments.get("source_anchors", []),
                 "provenance": arguments.get("provenance", {}),
+            },
+        )
+    if name == "agora_suggest_skills":
+        return await _post(
+            "/harness/suggest-skills",
+            {
+                "session_id": arguments["session_id"],
+                "query": arguments.get("query"),
+            },
+        )
+    if name == "agora_submit_skill_candidate":
+        return await _post(
+            "/harness/submit-skill-candidate",
+            {
+                "session_id": arguments["session_id"],
+                "slug": arguments["slug"],
+                "name": arguments["name"],
+                "summary": arguments["summary"],
+                "triggers": arguments.get("triggers", []),
+                "instructions": arguments["instructions"],
+                "artifact_ids": arguments.get("artifact_ids", []),
             },
         )
     if name == "agora_record_event":

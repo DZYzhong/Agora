@@ -70,6 +70,16 @@ class SkillCandidateSubmission:
     work_item_id: str
     skill: dict
     next_actions: list[dict]
+    deduplicated: bool = False
+
+
+@dataclass(frozen=True)
+class SkillSuggestionResult:
+    protocol_version: str
+    operation: str
+    session_id: str
+    suggestions: list[dict]
+    next_actions: list[dict]
 
 
 class HarnessService:
@@ -400,26 +410,49 @@ class HarnessService:
         if session is None:
             raise ValueError(f"Session not found: {session_id}")
         work_item = getattr(session, "work_item", None)
-        skill = self.core.create_skill(
-            org_id=session.org_id,
-            project_id=session.project_id,
-            slug=slug,
-            name=name,
-            status="candidate",
-            definition={
-                "version": "0.1.0",
-                "source": "ai_tool_submission",
-                "summary": summary,
-                "session_id": session_id,
-                "work_item_id": getattr(work_item, "id", None) or getattr(session, "work_item_id", None),
-                "triggers": triggers or [],
-                "input_schema": {"type": "object"},
-                "output_schema": {"type": "object"},
-                "instructions": instructions,
-                "evidence_artifact_ids": artifact_ids or [],
-                "submitted_by_user_id": principal.user_id,
-            },
-        )
+        work_item_id = getattr(work_item, "id", None) or getattr(session, "work_item_id", None)
+        existing_skill = self.core.get_skill_by_slug(slug, project_id=session.project_id)
+        deduplicated = existing_skill is not None and existing_skill.project_id == session.project_id and existing_skill.status in {
+            "candidate",
+            "draft",
+        }
+        definition = {
+            "version": "0.1.0",
+            "source": "ai_tool_submission",
+            "summary": summary,
+            "session_id": session_id,
+            "work_item_id": work_item_id,
+            "triggers": triggers or [],
+            "input_schema": {"type": "object"},
+            "output_schema": {"type": "object"},
+            "instructions": instructions,
+            "evidence_artifact_ids": artifact_ids or [],
+            "submitted_by_user_id": principal.user_id,
+        }
+        if deduplicated:
+            existing_definition = existing_skill.definition or {}
+            definition = {
+                **existing_definition,
+                "summary": summary or existing_definition.get("summary"),
+                "triggers": _merge_unique(existing_definition.get("triggers") or [], triggers or []),
+                "instructions": instructions or existing_definition.get("instructions"),
+                "evidence_artifact_ids": _merge_unique(
+                    existing_definition.get("evidence_artifact_ids") or [],
+                    artifact_ids or [],
+                ),
+                "duplicate_submission_count": int(existing_definition.get("duplicate_submission_count") or 0) + 1,
+                "last_submitted_by_user_id": principal.user_id,
+            }
+            skill = self.core.update_skill(existing_skill.id, name=name, definition=definition)
+        else:
+            skill = self.core.create_skill(
+                org_id=session.org_id,
+                project_id=session.project_id,
+                slug=slug,
+                name=name,
+                status="candidate",
+                definition=definition,
+            )
         self.session_recorder.record_event(
             session_id=session_id,
             event_type="skill_candidate_submitted",
@@ -428,13 +461,14 @@ class HarnessService:
                 "slug": skill.slug,
                 "artifact_ids": artifact_ids or [],
                 "submitted_by_user_id": principal.user_id,
+                "deduplicated": deduplicated,
             },
         )
         return SkillCandidateSubmission(
             protocol_version="1.0",
             operation="submit_skill_candidate",
             session_id=session_id,
-            work_item_id=getattr(work_item, "id", None) or getattr(session, "work_item_id", None),
+            work_item_id=work_item_id,
             skill={
                 "id": skill.id,
                 "slug": skill.slug,
@@ -445,7 +479,61 @@ class HarnessService:
             next_actions=[
                 {
                     "type": "human_review_skill_candidate",
-                    "reason": "Skill candidate was submitted and requires human review before becoming an approved team capability.",
+                    "reason": "Skill candidate was merged into an existing review item and still requires human review."
+                    if deduplicated
+                    else "Skill candidate was submitted and requires human review before becoming an approved team capability.",
+                }
+            ],
+            deduplicated=deduplicated,
+        )
+
+    def suggest_skills(
+        self,
+        *,
+        session_id: str,
+        query: str | None = None,
+        principal: Principal | None = None,
+    ) -> SkillSuggestionResult:
+        if principal is None:
+            raise ValueError("HarnessService.suggest_skills requires an authenticated Principal")
+        session = self.core.get_session(session_id)
+        if session is None:
+            raise ValueError(f"Session not found: {session_id}")
+        query_text = query or session.intent
+        artifacts = self.core.list_work_artifacts_by_project(session.project_id) if hasattr(self.core, "list_work_artifacts_by_project") else []
+        matching_artifacts = [
+            artifact
+            for artifact in artifacts
+            if _artifact_matches_query(artifact, query_text)
+        ]
+        suggestions = []
+        if len(matching_artifacts) >= 2:
+            slug, name = _suggest_skill_identity(query_text, matching_artifacts)
+            existing = self.core.get_skill_by_slug(slug, project_id=session.project_id)
+            if existing is None or existing.project_id != session.project_id:
+                suggestions.append(
+                    {
+                        "slug": slug,
+                        "name": name,
+                        "summary": f"Repeated project experience for {query_text}.",
+                        "triggers": _suggest_triggers(query_text),
+                        "instructions": _suggest_instructions(query_text, matching_artifacts),
+                        "evidence_artifact_ids": [artifact.id for artifact in matching_artifacts],
+                        "reason": f"Repeated project experience appeared in {len(matching_artifacts)} work artifacts.",
+                    }
+                )
+        return SkillSuggestionResult(
+            protocol_version="1.0",
+            operation="suggest_skills",
+            session_id=session_id,
+            suggestions=suggestions,
+            next_actions=[
+                {
+                    "type": "submit_skill_candidate" if suggestions else "continue_work",
+                    "tool": "agora_submit_skill_candidate" if suggestions else None,
+                    "reason": "Review suggested repeated experience and submit a SkillCandidate if it should become a team capability."
+                    if suggestions
+                    else "No repeated project experience reached the suggestion threshold.",
                 }
             ],
         )
@@ -602,3 +690,53 @@ def _serialize_human_confirmation(confirmation) -> dict:
         "confirmed_by_user_id": confirmation.confirmed_by_user_id,
         "created_at": confirmation.created_at,
     }
+
+
+def _merge_unique(existing: list, incoming: list) -> list:
+    merged = []
+    for item in [*existing, *incoming]:
+        if item not in merged:
+            merged.append(item)
+    return merged
+
+
+def _artifact_matches_query(artifact, query: str) -> bool:
+    compact_query = query.strip().lower()
+    haystack = f"{artifact.title} {artifact.content} {artifact.type}".lower()
+    if compact_query and compact_query in haystack:
+        return True
+    terms = [term for term in compact_query.replace(",", " ").replace("，", " ").split() if term]
+    return bool(terms) and all(term in haystack for term in terms)
+
+
+def _suggest_skill_identity(query: str, artifacts: list) -> tuple[str, str]:
+    combined = f"{query} {' '.join(artifact.title for artifact in artifacts)}"
+    if "发布" in combined and ("风险" in combined or "回滚" in combined):
+        return "release-risk-review", "Release Risk Review"
+    slug_terms = [term.lower() for term in query.replace(",", " ").replace("，", " ").split() if term.isascii()]
+    slug = "-".join(slug_terms[:4]) if slug_terms else "project-experience-review"
+    return slug, " ".join(part.capitalize() for part in slug.split("-"))
+
+
+def _suggest_triggers(query: str) -> list[str]:
+    triggers: list[str] = []
+    lowered = query.lower()
+    for trigger in ["release", "rollback", "risk", "migration", "test", "review"]:
+        if trigger in lowered:
+            triggers.append(trigger)
+    if "发布" in query:
+        triggers.append("release")
+    if "风险" in query:
+        triggers.append("risk")
+    if "回滚" in query:
+        triggers.append("rollback")
+    return _merge_unique([], triggers)
+
+
+def _suggest_instructions(query: str, artifacts: list) -> str:
+    snippets = []
+    for artifact in artifacts[:3]:
+        content = " ".join(artifact.content.split())
+        snippets.append(content[:120])
+    evidence_summary = "；".join(snippets)
+    return f"复用项目中关于“{query}”的重复经验，检查关键风险、执行步骤、验证证据和需要人工确认的边界。证据摘要：{evidence_summary}"

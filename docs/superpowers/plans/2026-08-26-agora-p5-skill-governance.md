@@ -157,5 +157,67 @@ git diff --check
 
 ## Remaining P5 tasks
 
-- Add duplicate detection and repeated-experience suggestions from accepted artifacts and completed WorkSessions.
-- Add richer Skill review/diff UI if reviewer ergonomics become the next bottleneck.
+- [x] Add duplicate detection and repeated-experience suggestions from accepted artifacts and completed WorkSessions.
+- [x] Keep reviewer ergonomics sufficient for P5 black-box through the Web `Publish approved version` form; defer richer visual diff until the review UI becomes the next bottleneck.
+
+## Task 4: Duplicate detection and repeated-experience suggestions
+
+**Files:**
+
+- Modify: `packages/core/repositories/workflows.py`
+- Modify: `packages/core/services/runtime.py`
+- Modify: `packages/harness/service.py`
+- Modify: `apps/api/routers/harness.py`
+- Modify: `apps/mcp/tools.py`
+- Modify: `apps/mcp/server.py`
+- Modify: `docs/development/p5-skill-governance-blackbox.zh-CN.md`
+- Test: `tests/integration/api/test_harness_api.py`
+- Test: `tests/unit/mcp/test_tools.py`
+- Test: `tests/unit/mcp/test_stdio_server.py`
+- Test: `tests/integration/test_web_config.py`
+
+- [x] Merge duplicate `agora_submit_skill_candidate` submissions by same project and slug when the existing Skill is still candidate/draft.
+- [x] Preserve and merge evidence artifact ids and triggers without duplicating values.
+- [x] Return `deduplicated=true` so AI tools can explain that the candidate was merged into an existing review item.
+- [x] Add `agora_suggest_skills` Harness/API/MCP capability that derives repeated-experience suggestions from project WorkArtifacts.
+- [x] Register both `agora_submit_skill_candidate` and `agora_suggest_skills` in the stdio MCP server for real AI-tool black-box testing.
+- [x] Update the P5 black-box guide to cover automatic suggestion and duplicate candidate merging.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_submit_skill_candidate_merges_duplicate_slug_into_existing_candidate
+# failed first because duplicate submissions created a second Skill, then 1 passed
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_ai_tool_gets_repeated_experience_skill_suggestions_from_work_artifacts
+# failed first because /harness/suggest-skills did not exist, then 1 passed
+
+.venv/bin/pytest tests/unit/mcp/test_tools.py::test_mcp_suggest_skills_delegates_to_harness tests/unit/mcp/test_stdio_server.py::test_stdio_mcp_server_lists_agora_tools tests/unit/mcp/test_stdio_server.py::test_stdio_submit_skill_candidate_dispatches_to_harness tests/unit/mcp/test_stdio_server.py::test_stdio_suggest_skills_dispatches_to_harness
+# stdio submit registration failed first, then 4 passed
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py tests/integration/api/test_skills_api.py tests/unit/mcp/test_tools.py tests/unit/mcp/test_stdio_server.py tests/unit/harness/test_context_bundle.py tests/unit/harness/test_harness_service.py tests/integration/test_web_config.py
+# 65 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+.venv/bin/pytest
+# 209 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+git diff --check
+# passed
+```
+
+## P5 status
+
+P5 implementation scope is complete enough for black-box validation:
+
+- AI tools can submit SkillCandidates from real work.
+- Duplicate candidates merge into one review item.
+- Agora can suggest reusable Skills from repeated WorkArtifacts.
+- Humans can publish immutable SkillVersions in Web.
+- Later AI tasks receive approved SkillVersions through `agora_prepare_context`.
+- Historical runs and sessions retain SkillVersion pins.

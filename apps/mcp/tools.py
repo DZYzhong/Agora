@@ -120,6 +120,23 @@ class AgoraMcpTools:
             payload["principal"] = principal
         return _object_to_dict(self.harness.submit_skill_candidate(**payload))
 
+    def agora_suggest_skills(
+        self,
+        *,
+        session_id: str,
+        query: str | None = None,
+        principal=None,
+    ) -> dict:
+        if not hasattr(self.harness, "suggest_skills"):
+            raise NotImplementedError("Harness does not implement suggest_skills")
+        payload = {
+            "session_id": session_id,
+            "query": query,
+        }
+        if principal is not None:
+            payload["principal"] = principal
+        return _object_to_dict(self.harness.suggest_skills(**payload))
+
     def agora_run_skill(self, *, session_id: str, skill_slug: str, input: dict) -> dict:
         if not hasattr(self.harness, "run_skill"):
             return {"session_id": session_id, "skill_slug": skill_slug, "input": input, "status": "not_implemented"}

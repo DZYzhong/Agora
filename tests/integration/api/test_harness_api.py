@@ -287,6 +287,137 @@ def test_prepare_context_returns_applicable_approved_skill_versions_for_ai_tool(
     assert body["skills"][0]["risk_constraints"] == ["缺少测试证据时必须标记为风险"]
 
 
+def test_submit_skill_candidate_merges_duplicate_slug_into_existing_candidate():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_skill_candidate_dedupe",
+            "name": "Skill Candidate Dedupe",
+            "slug": "skill-candidate-dedupe",
+            "git_remotes": [],
+        },
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "帮我做 AG-703：沉淀发布风险检查",
+            "agent_type": "codex",
+        },
+    ).json()
+    first_artifact = client.post(
+        "/harness/complete-workflow-step",
+        json={
+            "session_id": started["session_id"],
+            "step_key": "analysis",
+            "summary": "第一次发布风险检查经验。",
+            "artifacts": [
+                {
+                    "type": "analysis_note",
+                    "title": "AG-703 发布风险检查",
+                    "content": "发布风险检查要覆盖测试证据和回滚方案。",
+                }
+            ],
+        },
+    ).json()["artifacts"][0]
+    first = client.post(
+        "/harness/submit-skill-candidate",
+        json={
+            "session_id": started["session_id"],
+            "slug": "release-risk-review",
+            "name": "Release Risk Review",
+            "summary": "第一次提交。",
+            "triggers": ["release", "risk"],
+            "instructions": "检查发布风险。",
+            "artifact_ids": [first_artifact["id"]],
+        },
+    ).json()
+    second = client.post(
+        "/harness/submit-skill-candidate",
+        json={
+            "session_id": started["session_id"],
+            "slug": "release-risk-review",
+            "name": "Release Risk Review",
+            "summary": "第二次提交补充回滚要求。",
+            "triggers": ["release", "rollback"],
+            "instructions": "检查发布风险和回滚方案。",
+            "artifact_ids": [first_artifact["id"], "extra-artifact-id"],
+        },
+    )
+
+    assert second.status_code == 201
+    body = second.json()
+    assert body["skill"]["id"] == first["skill"]["id"]
+    assert body["deduplicated"] is True
+    assert body["next_actions"][0]["type"] == "human_review_skill_candidate"
+    assert body["skill"]["definition"]["triggers"] == ["release", "risk", "rollback"]
+    assert body["skill"]["definition"]["evidence_artifact_ids"] == [first_artifact["id"], "extra-artifact-id"]
+
+    skills = [skill for skill in client.get(f"/projects/{project['id']}/skills").json() if skill["slug"] == "release-risk-review"]
+    assert len(skills) == 1
+
+
+def test_ai_tool_gets_repeated_experience_skill_suggestions_from_work_artifacts():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_skill_suggestions",
+            "name": "Skill Suggestions",
+            "slug": "skill-suggestions",
+            "git_remotes": [],
+        },
+    ).json()
+    artifact_ids = []
+    for task_id, title in [
+        ("AG-704", "发布风险检查分析"),
+        ("AG-705", "发布风险检查复盘"),
+    ]:
+        started = client.post(
+            "/harness/start-work",
+            json={
+                "project_id": project["id"],
+                "user_message": f"帮我做 {task_id}：发布风险检查",
+                "agent_type": "codex",
+            },
+        ).json()
+        completed = client.post(
+            "/harness/complete-workflow-step",
+            json={
+                "session_id": started["session_id"],
+                "step_key": "analysis",
+                "summary": f"{task_id} 完成发布风险检查经验记录。",
+                "artifacts": [
+                    {
+                        "type": "analysis_note",
+                        "title": title,
+                        "content": "发布前需要检查测试证据、回滚方案、配置开关和监控负责人。",
+                    }
+                ],
+            },
+        ).json()
+        artifact_ids.append(completed["artifacts"][0]["id"])
+        last_session_id = started["session_id"]
+
+    response = client.post(
+        "/harness/suggest-skills",
+        json={
+            "session_id": last_session_id,
+            "query": "发布风险检查",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["operation"] == "suggest_skills"
+    assert body["suggestions"][0]["slug"] == "release-risk-review"
+    assert body["suggestions"][0]["name"] == "Release Risk Review"
+    assert body["suggestions"][0]["evidence_artifact_ids"] == artifact_ids
+    assert body["suggestions"][0]["reason"] == "Repeated project experience appeared in 2 work artifacts."
+    assert body["next_actions"][0]["type"] == "submit_skill_candidate"
+
+
 def test_complete_workflow_step_rejects_non_current_step():
     client = TestClient(app)
     project = client.post(

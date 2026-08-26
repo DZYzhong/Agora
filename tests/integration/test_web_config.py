@@ -111,7 +111,9 @@ def test_p5_skill_governance_blackbox_guide_exists():
     content = guide.read_text()
 
     assert "P5 Skill Governance 黑盒验证步骤" in content
+    assert "agora_suggest_skills" in content
     assert "agora_submit_skill_candidate" in content
+    assert "deduplicated = true" in content
     assert "Publish approved version" in content
     assert "agora_prepare_context" in content
     assert "capability_pins.skill_version_ids" in content

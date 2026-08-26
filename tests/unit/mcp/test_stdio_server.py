@@ -12,6 +12,8 @@ def test_stdio_mcp_server_lists_agora_tools():
         "agora_prepare_context",
         "agora_fetch_context_ref",
         "agora_submit_context_proposal",
+        "agora_submit_skill_candidate",
+        "agora_suggest_skills",
         "agora_close_work",
     }
 
@@ -29,6 +31,13 @@ def test_stdio_mcp_server_lists_agora_tools():
     proposal_tool = next(tool for tool in result.tools if tool.name == "agora_submit_context_proposal")
     assert "session_id" in proposal_tool.input_schema["required"]
     assert "content" in proposal_tool.input_schema["required"]
+
+    skill_tool = next(tool for tool in result.tools if tool.name == "agora_submit_skill_candidate")
+    assert "session_id" in skill_tool.input_schema["required"]
+    assert "instructions" in skill_tool.input_schema["required"]
+
+    suggest_tool = next(tool for tool in result.tools if tool.name == "agora_suggest_skills")
+    assert "session_id" in suggest_tool.input_schema["required"]
 
 
 def test_stdio_submit_context_proposal_dispatches_to_harness(monkeypatch):
@@ -61,6 +70,62 @@ def test_stdio_submit_context_proposal_dispatches_to_harness(monkeypatch):
     assert captured["path"] == "/harness/submit-context-proposal"
     assert captured["payload"]["session_id"] == "sess_1"
     assert captured["payload"]["content"]["modules"][0]["path"] == "src/refund/service.py"
+
+
+def test_stdio_submit_skill_candidate_dispatches_to_harness(monkeypatch):
+    captured = {}
+
+    async def fake_post(path, payload):
+        captured["path"] = path
+        captured["payload"] = payload
+        return {"protocol_version": "1.0", "operation": "submit_skill_candidate", "skill": {"id": "skill_1"}}
+
+    monkeypatch.setattr("apps.mcp.server._post", fake_post)
+
+    result = asyncio.run(
+        _dispatch(
+            "agora_submit_skill_candidate",
+            {
+                "session_id": "sess_1",
+                "slug": "release-risk-review",
+                "name": "Release Risk Review",
+                "summary": "沉淀发布风险检查经验。",
+                "triggers": ["release", "risk"],
+                "instructions": "检查测试证据和回滚方案。",
+                "artifact_ids": ["artifact_1"],
+            },
+        )
+    )
+
+    assert result["skill"]["id"] == "skill_1"
+    assert captured["path"] == "/harness/submit-skill-candidate"
+    assert captured["payload"]["slug"] == "release-risk-review"
+    assert captured["payload"]["artifact_ids"] == ["artifact_1"]
+
+
+def test_stdio_suggest_skills_dispatches_to_harness(monkeypatch):
+    captured = {}
+
+    async def fake_post(path, payload):
+        captured["path"] = path
+        captured["payload"] = payload
+        return {"protocol_version": "1.0", "operation": "suggest_skills", "suggestions": [{"slug": "release-risk-review"}]}
+
+    monkeypatch.setattr("apps.mcp.server._post", fake_post)
+
+    result = asyncio.run(
+        _dispatch(
+            "agora_suggest_skills",
+            {
+                "session_id": "sess_1",
+                "query": "发布风险检查",
+            },
+        )
+    )
+
+    assert result["suggestions"][0]["slug"] == "release-risk-review"
+    assert captured["path"] == "/harness/suggest-skills"
+    assert captured["payload"] == {"session_id": "sess_1", "query": "发布风险检查"}
 
 
 def test_stdio_start_work_observes_local_workspace_when_not_supplied(monkeypatch):

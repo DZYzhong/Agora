@@ -9,6 +9,7 @@ class FakeHarness:
         self.submitted_with = None
         self.completed_step_with = None
         self.submitted_skill_candidate_with = None
+        self.suggested_skills_with = None
 
     def start_work(self, **kwargs):
         self.started = True
@@ -64,6 +65,13 @@ class FakeHarness:
         return {
             "operation": "submit_skill_candidate",
             "skill": {"slug": kwargs["slug"], "status": "candidate"},
+        }
+
+    def suggest_skills(self, **kwargs):
+        self.suggested_skills_with = kwargs
+        return {
+            "operation": "suggest_skills",
+            "suggestions": [{"slug": "release-risk-review"}],
         }
 
 
@@ -246,5 +254,20 @@ def test_mcp_submit_skill_candidate_delegates_to_harness():
         "triggers": ["release", "risk"],
         "instructions": "检查回滚方案和测试证据。",
         "artifact_ids": ["artifact_1"],
+        "principal": "principal",
+    }
+
+
+def test_mcp_suggest_skills_delegates_to_harness():
+    fake_harness = FakeHarness()
+    tools = AgoraMcpTools(harness=fake_harness)
+
+    result = tools.agora_suggest_skills(session_id="sess_1", query="发布风险检查", principal="principal")
+
+    assert result["operation"] == "suggest_skills"
+    assert result["suggestions"][0]["slug"] == "release-risk-review"
+    assert fake_harness.suggested_skills_with == {
+        "session_id": "sess_1",
+        "query": "发布风险检查",
         "principal": "principal",
     }

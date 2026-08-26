@@ -95,6 +95,11 @@ class SubmitSkillCandidateRequest(BaseModel):
     artifact_ids: list[str] = Field(default_factory=list)
 
 
+class SuggestSkillsRequest(BaseModel):
+    session_id: str
+    query: str | None = None
+
+
 class CloseWorkRequest(BaseModel):
     session_id: str
     status: str = "closed"
@@ -304,6 +309,26 @@ def submit_skill_candidate(
     return response_dict
 
 
+@router.post("/suggest-skills")
+def suggest_skills(
+    payload: SuggestSkillsRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+    keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
+    vector_index: FakeVectorIndex = Depends(get_vector_index),
+):
+    with SqlAlchemyUnitOfWork(session) as uow:
+        _ensure_session_member(session, principal, session_id=payload.session_id)
+        response = _harness(session, keyword_index, vector_index).suggest_skills(
+            **payload.model_dump(),
+            principal=principal,
+        )
+        response_dict = response.__dict__
+        response_dict["request_id"] = payload.session_id
+        uow.commit()
+    return response_dict
+
+
 @router.post("/close-work")
 def close_work(
     payload: CloseWorkRequest,
@@ -472,7 +497,7 @@ def _serialize_start_work(result) -> dict:
             "local_repository_observation": True,
             "work_items": True,
             "context_revisions": True,
-            "skills": False,
+            "skills": True,
         },
         "session_id": result.session_id,
         "work_item_id": result.work_item_id,

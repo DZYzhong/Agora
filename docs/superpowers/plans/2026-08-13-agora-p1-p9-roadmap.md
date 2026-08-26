@@ -4,7 +4,7 @@
 
 **Current branch:** `codex/agora-p0`
 
-**Current baseline:** P0-P4 are implemented on the realigned Agent-first, Harness-first architecture. P5 Skill and Team Memory Governance is in progress.
+**Current baseline:** P0-P5 are implemented on the realigned Agent-first, Harness-first architecture. P5 is ready for black-box validation.
 
 **Canonical product design:** `docs/superpowers/specs/2026-08-14-agora-product-functional-design.zh-CN.md`
 
@@ -222,7 +222,7 @@ Exit criteria:
 
 **Goal:** Turn approved team methods and repeated experience into versioned, reusable AI work capabilities.
 
-**Status:** In progress.
+**Status:** Implemented; pending user black-box validation.
 
 Current plan:
 
@@ -2359,3 +2359,52 @@ Next:
 
 - Run full verification and commit.
 - Continue P5 with duplicate detection and repeated-experience suggestions if the user wants more development before black-box validation.
+
+### 2026-08-26: P5 Task 4 Duplicate Detection and Repeated-experience Suggestions
+
+Scope:
+
+- `agora_submit_skill_candidate` now merges duplicate candidate/draft Skills by same project and slug instead of creating multiple review items.
+- Duplicate merging preserves and de-duplicates triggers and evidence artifact ids.
+- Duplicate submissions return `deduplicated=true`, so the AI tool can tell the user the candidate was merged into an existing review item.
+- Added `agora_suggest_skills` Harness/API/MCP capability to derive reusable Skill suggestions from repeated project WorkArtifacts.
+- Registered `agora_submit_skill_candidate` and `agora_suggest_skills` in the stdio MCP server for real AI-tool testing.
+- Updated P5 black-box guide to cover automatic suggestion, duplicate merging, Web review publish and later AI-tool reuse.
+- P5 is now implementation-complete for black-box validation.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_submit_skill_candidate_merges_duplicate_slug_into_existing_candidate
+# failed first because duplicate submissions created a second Skill, then 1 passed
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_ai_tool_gets_repeated_experience_skill_suggestions_from_work_artifacts
+# failed first because /harness/suggest-skills did not exist, then 1 passed
+
+.venv/bin/pytest tests/unit/mcp/test_tools.py::test_mcp_suggest_skills_delegates_to_harness tests/unit/mcp/test_stdio_server.py::test_stdio_mcp_server_lists_agora_tools tests/unit/mcp/test_stdio_server.py::test_stdio_submit_skill_candidate_dispatches_to_harness tests/unit/mcp/test_stdio_server.py::test_stdio_suggest_skills_dispatches_to_harness
+# stdio submit registration failed first, then 4 passed
+
+.venv/bin/pytest tests/integration/api/test_harness_api.py tests/integration/api/test_skills_api.py tests/unit/mcp/test_tools.py tests/unit/mcp/test_stdio_server.py tests/unit/harness/test_context_bundle.py tests/unit/harness/test_harness_service.py tests/integration/test_web_config.py
+# 65 passed
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+.venv/bin/pytest
+# 209 passed, 2 skipped
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# Compiled successfully
+
+git diff --check
+# passed
+```
+
+Black-box path:
+
+- `docs/development/p5-skill-governance-blackbox.zh-CN.md`
+
+Next:
+
+- Run final full verification and commit.
+- Hand P5 black-box validation steps to the user.

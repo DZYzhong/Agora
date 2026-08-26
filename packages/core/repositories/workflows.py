@@ -156,6 +156,14 @@ class WorkflowRepository:
         by_id = {artifact.id: artifact for artifact in artifacts}
         return [by_id[artifact_id] for artifact_id in artifact_ids if artifact_id in by_id]
 
+    def list_work_artifacts_by_project(self, project_id: str) -> list[WorkArtifactModel]:
+        statement = (
+            select(WorkArtifactModel)
+            .where(WorkArtifactModel.project_id == project_id)
+            .order_by(WorkArtifactModel.created_at, WorkArtifactModel.id)
+        )
+        return list(self.session.scalars(statement).all())
+
     def list_human_confirmations_by_execution(self, workflow_execution_id: str) -> list[HumanConfirmationModel]:
         statement = (
             select(HumanConfirmationModel)
