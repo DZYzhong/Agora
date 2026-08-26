@@ -87,6 +87,10 @@ def test_project_status_page_is_available_and_linked_from_project_home():
     assert "Project status" in content
     assert "Quality evidence" in content
     assert "Pending approvals" in content
+    assert "Delivery readiness" in content
+    assert "Blockers" in content
+    assert "Latest evidence" in content
+    assert "delivery_readiness" in content
     assert "quality_state" in content
 
 

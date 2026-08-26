@@ -112,8 +112,11 @@ class ProjectStatusResult:
     operation: str
     project: dict
     work_item_counts: dict
+    delivery_readiness: dict
     quality_counts: dict
+    quality_dimensions: dict
     pending_approvals: dict
+    blockers: list[dict]
     work_items: list[dict]
     next_actions: list[dict]
 
@@ -684,9 +687,39 @@ class HarnessService:
             evidence_by_work_item.setdefault(evidence.work_item_id, []).append(evidence)
         item_summaries = []
         quality_counts = {"passing": 0, "failing": 0, "warning": 0, "unverified": 0}
+        quality_dimensions: dict[str, dict[str, int]] = {}
+        blockers: list[dict] = []
         for work_item in work_items:
-            quality_state, counts, gaps, _claims = _quality_summary(evidence_by_work_item.get(work_item.id, []))
+            item_evidence = evidence_by_work_item.get(work_item.id, [])
+            quality_state, counts, gaps, _claims = _quality_summary(item_evidence)
             quality_counts[quality_state] = quality_counts.get(quality_state, 0) + 1
+            for evidence in item_evidence:
+                dimension = quality_dimensions.setdefault(
+                    evidence.evidence_type,
+                    {"passed": 0, "failed": 0, "warning": 0, "unknown": 0},
+                )
+                status_key = evidence.status if evidence.status in dimension else "unknown"
+                dimension[status_key] += 1
+            if work_item.status == "blocked":
+                blockers.append(
+                    {
+                        "code": "WORK_ITEM_BLOCKED",
+                        "severity": "high",
+                        "work_item_id": work_item.id,
+                        "work_item_title": work_item.title,
+                        "reason": "WorkItem status is blocked.",
+                    }
+                )
+            if quality_state == "failing":
+                blockers.append(
+                    {
+                        "code": "FAILING_QUALITY_EVIDENCE",
+                        "severity": "high",
+                        "work_item_id": work_item.id,
+                        "work_item_title": work_item.title,
+                        "reason": "At least one failed quality evidence record exists.",
+                    }
+                )
             item_summaries.append(
                 {
                     "id": work_item.id,
@@ -698,6 +731,7 @@ class HarnessService:
                     "quality_state": quality_state,
                     "quality_counts": counts,
                     "quality_gaps": gaps,
+                    "quality_evidence": [_serialize_quality_evidence(evidence) for evidence in item_evidence[:5]],
                 }
             )
         pending_context = [
@@ -725,11 +759,14 @@ class HarnessService:
                 "active": len([item for item in work_items if item.status == "active"]),
                 "completed": len([item for item in work_items if item.status == "completed"]),
             },
+            delivery_readiness=_delivery_readiness(quality_counts, blockers),
             quality_counts=quality_counts,
+            quality_dimensions=quality_dimensions,
             pending_approvals={
                 "context_proposals": len(pending_context),
                 "skill_candidates": len(pending_skills),
             },
+            blockers=blockers,
             work_items=item_summaries,
             next_actions=[
                 {
@@ -966,6 +1003,28 @@ def _quality_next_actions(quality_state: str) -> list[dict]:
             }
         ]
     return [{"type": "continue_work", "reason": "Quality status is based on recorded evidence."}]
+
+
+def _delivery_readiness(quality_counts: dict, blockers: list[dict]) -> dict:
+    if blockers or quality_counts.get("failing", 0):
+        return {
+            "state": "blocked",
+            "reason": "One or more WorkItems have blockers or failed quality evidence.",
+        }
+    if quality_counts.get("warning", 0):
+        return {
+            "state": "at_risk",
+            "reason": "Warning or unknown quality evidence needs review before delivery.",
+        }
+    if quality_counts.get("unverified", 0):
+        return {
+            "state": "needs_evidence",
+            "reason": "One or more WorkItems have no recorded quality evidence.",
+        }
+    return {
+        "state": "ready",
+        "reason": "All tracked WorkItems have evidence-backed passing quality.",
+    }
 
 
 def _merge_unique(existing: list, incoming: list) -> list:

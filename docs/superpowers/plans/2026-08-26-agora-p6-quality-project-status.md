@@ -39,9 +39,32 @@ Verification:
 # failed first before P6 schema/API/MCP/Web implementation, then 60 passed
 ```
 
+## Task 2: Delivery readiness, blockers and evidence drill-down
+
+**Files:**
+
+- Modify: `packages/harness/service.py`
+- Modify: `apps/web/app/projects/[projectId]/status/page.tsx`
+- Test: `tests/integration/api/test_harness_api.py`
+- Test: `tests/integration/test_web_config.py`
+
+- [x] Add top-level `delivery_readiness` so project managers can see whether the project is ready, at risk, needs evidence or blocked.
+- [x] Add top-level `blockers` derived from blocked WorkItems and failed quality evidence.
+- [x] Add `quality_dimensions` grouped by evidence type and status.
+- [x] Include latest per-WorkItem `quality_evidence` records in project status.
+- [x] Render delivery readiness, blockers, quality dimensions and latest evidence in the Web project status page.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_project_status_aggregates_work_items_quality_and_pending_approvals
+# failed first because delivery_readiness was missing, then 1 passed
+
+.venv/bin/pytest tests/integration/test_web_config.py::test_project_status_page_is_available_and_linked_from_project_home
+# failed first because the Web page did not render Delivery readiness, Blockers or Latest evidence, then 1 passed
+```
+
 ## Remaining P6 tasks
 
-- Add richer quality dimensions for local tests, CI, code review, security/risk and manual QA.
-- Add blocker and ownership views for project managers.
-- Add Web quality drill-down so evidence rows can be inspected from a WorkItem.
 - Add black-box guide after the project-manager and quality-user journey is broad enough to validate in one batch.
+- Consider richer WorkItem owner/user display after role and membership UI is expanded.

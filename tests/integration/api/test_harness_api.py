@@ -332,10 +332,25 @@ def test_project_status_aggregates_work_items_quality_and_pending_approvals():
     assert status["operation"] == "get_project_status"
     assert status["project"]["id"] == project["id"]
     assert status["work_item_counts"]["total"] == 2
+    assert status["delivery_readiness"]["state"] == "blocked"
+    assert status["quality_dimensions"]["local_test"]["passed"] == 1
+    assert status["quality_dimensions"]["local_test"]["failed"] == 1
     assert status["quality_counts"]["passing"] == 1
     assert status["quality_counts"]["failing"] == 1
     assert status["pending_approvals"]["skill_candidates"] == 1
     assert {item["quality_state"] for item in status["work_items"]} == {"passing", "failing"}
+    failing_item = next(item for item in status["work_items"] if item["quality_state"] == "failing")
+    assert failing_item["quality_evidence"][0]["status"] == "failed"
+    assert failing_item["quality_evidence"][0]["classification"] == "evidence"
+    assert status["blockers"] == [
+        {
+            "code": "FAILING_QUALITY_EVIDENCE",
+            "severity": "high",
+            "work_item_id": failing_item["id"],
+            "work_item_title": failing_item["title"],
+            "reason": "At least one failed quality evidence record exists.",
+        }
+    ]
 
 
 def test_submit_skill_candidate_from_work_session_creates_reviewable_project_skill():

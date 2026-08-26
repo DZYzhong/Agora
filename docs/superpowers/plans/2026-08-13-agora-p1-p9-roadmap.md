@@ -280,6 +280,7 @@ Current implementation:
 - `QualityEvidence` persists local tests, CI, review and risk findings with project, WorkItem, WorkSession and user provenance.
 - AI tools can call `agora_record_evidence`, `agora_get_quality_status` and `agora_get_project_status`.
 - Web users can open the project status page from project detail and see WorkItem counts, quality states and pending approvals.
+- Project status now includes delivery readiness, blockers, quality dimensions and latest per-WorkItem evidence rows.
 - Missing evidence is reported as `unverified`; failed evidence is reported as `failing`.
 
 ---
@@ -408,6 +409,41 @@ Black-box validation path:
 Commit:
 
 - `8e9f647 feat: add p6 quality project status foundation`
+
+### 2026-08-26: P6 Delivery Readiness and Evidence Drill-down
+
+Scope:
+
+- Added `delivery_readiness` to project status so project managers can distinguish ready, at-risk, needs-evidence and blocked states.
+- Added project blockers derived from blocked WorkItems and failed quality evidence.
+- Added quality dimensions grouped by evidence type and status.
+- Added latest per-WorkItem evidence rows to project status and rendered them in the Web project status page.
+
+Files changed:
+
+- Modified: `packages/harness/service.py`
+- Modified: `apps/web/app/projects/[projectId]/status/page.tsx`
+- Modified: `tests/integration/api/test_harness_api.py`
+- Modified: `tests/integration/test_web_config.py`
+- Modified: `docs/superpowers/plans/2026-08-26-agora-p6-quality-project-status.md`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/api/test_harness_api.py::test_project_status_aggregates_work_items_quality_and_pending_approvals
+# failed first, then 1 passed
+
+.venv/bin/pytest tests/integration/test_web_config.py::test_project_status_page_is_available_and_linked_from_project_home
+# failed first, then 1 passed
+```
+
+Black-box validation path:
+
+- Pending. This should be grouped with the remaining P6 black-box guide.
+
+Commit:
+
+- Pending.
 
 ### 2026-08-13: P4 Skill Lifecycle Started
 
