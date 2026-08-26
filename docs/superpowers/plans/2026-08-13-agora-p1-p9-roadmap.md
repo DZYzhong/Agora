@@ -407,7 +407,7 @@ Black-box validation path:
 
 Commit:
 
-- `2de03f6 feat: add p6 quality project status foundation`
+- `8e9f647 feat: add p6 quality project status foundation`
 
 ### 2026-08-13: P4 Skill Lifecycle Started
 
