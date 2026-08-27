@@ -203,6 +203,33 @@ Verification:
 # failed first because the CLI/API/Web/documentation did not expose the summary, then passed
 ```
 
+## Chunk 9: Outbox operations diagnostics
+
+### Task 1: Outbox backlog metrics and summary
+
+**Files:**
+
+- Create: `packages/core/services/outbox_diagnostics.py`
+- Modify: `apps/api/routers/health.py`
+- Modify: `scripts/agora_admin.py`
+- Modify: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Modify: `tests/unit/test_health.py`
+- Modify: `tests/integration/test_admin_cli.py`
+- Modify: `tests/integration/test_web_config.py`
+
+- [x] Add reusable outbox diagnostics summary over persisted `outbox_events`.
+- [x] Add `outbox-summary` admin CLI command with optional JSON output path.
+- [x] Report total, by-status, by-type, retryable count and dead-letter samples.
+- [x] Expose `agora_outbox_events_total` and `agora_outbox_retryable_total` Prometheus metrics.
+- [x] Document black-box validation steps.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_admin_cli.py::test_admin_cli_outbox_summary_reports_backlog_and_dead_events tests/unit/test_health.py::test_metrics_endpoint_exposes_outbox_backlog_counters tests/integration/test_web_config.py::test_p9_operations_blackbox_guide_exists
+# failed first because CLI, metrics and documentation did not expose outbox diagnostics, then passed
+```
+
 ## Verification
 
 Run:

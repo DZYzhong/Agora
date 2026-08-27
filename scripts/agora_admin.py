@@ -34,6 +34,7 @@ from packages.core.models import (
     WritebackModel,
 )
 from packages.core.schema_manager import MigrationRequiredError, ensure_schema
+from packages.core.services.outbox_diagnostics import build_outbox_summary
 from packages.core.services.project_summary import build_project_summary
 from packages.knowledge.index_rebuilder import rebuild_indexes_from_assets
 from packages.storage.opensearch.fake import FakeKeywordIndex
@@ -188,6 +189,13 @@ def project_summary(*, database_url: str, project_slug: str) -> dict:
         return build_project_summary(session, project)
 
 
+def outbox_summary(*, database_url: str, max_attempts: int = 3, dead_limit: int = 10) -> dict:
+    ensure_schema(database_url)
+    engine = create_app_engine(database_url)
+    with sessionmaker(bind=engine)() as session:
+        return build_outbox_summary(session, max_attempts=max_attempts, dead_limit=dead_limit)
+
+
 def _write_jsonl(path: Path, records) -> int:
     count = 0
     with path.open("w", encoding="utf-8") as handle:
@@ -280,6 +288,12 @@ def build_parser() -> argparse.ArgumentParser:
     summary.add_argument("--project-slug", required=True)
     summary.add_argument("--output", type=Path, help="Optional JSON output path")
 
+    outbox = subparsers.add_parser("outbox-summary", help="Print outbox backlog and dead-letter diagnostics")
+    outbox.add_argument("--database-url", required=True)
+    outbox.add_argument("--max-attempts", type=int, default=3)
+    outbox.add_argument("--dead-limit", type=int, default=10)
+    outbox.add_argument("--output", type=Path, help="Optional JSON output path")
+
     smoke_parser = subparsers.add_parser("smoke", help="Run deployment smoke checks against running Agora services")
     smoke_parser.add_argument("--api-base-url", required=True)
     smoke_parser.add_argument("--web-base-url")
@@ -330,6 +344,19 @@ def main() -> int:
         return 0
     if args.command == "project-summary":
         summary = project_summary(database_url=args.database_url, project_slug=args.project_slug)
+        payload = json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+        if args.output:
+            output = args.output.expanduser().resolve()
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(payload, encoding="utf-8")
+        print(payload, end="")
+        return 0
+    if args.command == "outbox-summary":
+        summary = outbox_summary(
+            database_url=args.database_url,
+            max_attempts=args.max_attempts,
+            dead_limit=args.dead_limit,
+        )
         payload = json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
         if args.output:
             output = args.output.expanduser().resolve()

@@ -224,6 +224,9 @@ def test_p9_operations_blackbox_guide_exists():
     assert "恢复" in content
     assert "export-project" in content
     assert "project-summary" in content
+    assert "outbox-summary" in content
+    assert "agora_outbox_events_total" in content
+    assert "agora_outbox_retryable_total" in content
     assert "Operations summary" in content
     assert "operations-summary" in content
     assert "scripts.agora_admin smoke" in content

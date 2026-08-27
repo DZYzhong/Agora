@@ -412,6 +412,7 @@ Current implementation:
 - `scripts.agora_admin backup-sqlite` and `restore-sqlite` support local/SQLite backup and recovery drills.
 - `scripts.agora_admin export-project` writes project governance archives as JSONL plus a manifest for audit, migration dry-runs and offline review.
 - `scripts.agora_admin project-summary`, `GET /projects/{project_id}/operations-summary` and Web `Operations summary` expose the same persisted governance summary.
+- `scripts.agora_admin outbox-summary` and `/metrics` expose outbox backlog, retryable and dead-letter diagnostics.
 - `scripts.agora_admin smoke` verifies deployed API readiness, metrics and optional Web reachability.
 - Black-box guide: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
 
@@ -823,6 +824,47 @@ Black-box validation path:
 Commit:
 
 - `daf2c0e feat: add project operations summary`
+
+### 2026-08-27: P9 Outbox Operations Diagnostics
+
+Scope:
+
+- Added reusable outbox diagnostics summary over persisted `outbox_events`.
+- Added `outbox-summary` admin CLI command with optional JSON output.
+- Reported total outbox events, by-status counts, by-type counts, retryable count and dead-letter samples.
+- Added Prometheus metrics for `agora_outbox_events_total` and `agora_outbox_retryable_total`.
+- Updated P9 black-box guide with outbox diagnostics validation.
+
+Files changed:
+
+- Created: `packages/core/services/outbox_diagnostics.py`
+- Modified: `apps/api/routers/health.py`
+- Modified: `scripts/agora_admin.py`
+- Modified: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Modified: `docs/superpowers/plans/2026-08-26-agora-p9-operations-readiness.md`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+- Modified: `tests/unit/test_health.py`
+- Modified: `tests/integration/test_admin_cli.py`
+- Modified: `tests/integration/test_web_config.py`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/test_admin_cli.py::test_admin_cli_outbox_summary_reports_backlog_and_dead_events tests/unit/test_health.py::test_metrics_endpoint_exposes_outbox_backlog_counters tests/integration/test_web_config.py::test_p9_operations_blackbox_guide_exists
+# failed first, then 3 passed
+.venv/bin/pytest
+# 249 passed, 2 skipped
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Use `docs/development/p9-operations-readiness-blackbox.zh-CN.md`, step 10.
+
+Commit:
+
+- Pending after full verification.
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 

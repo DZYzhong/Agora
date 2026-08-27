@@ -1,6 +1,10 @@
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import sessionmaker
 
+from apps.api import dependencies
 from apps.api.main import app
+from packages.core.models import OutboxEventModel
+from packages.core.uow import SqlAlchemyUnitOfWork
 
 
 def test_health_endpoint_returns_ok():
@@ -40,6 +44,49 @@ def test_metrics_endpoint_exposes_prometheus_style_operational_counters():
     assert "agora_schema_revision_info" in text
     assert "agora_projects_total" in text
     assert "agora_pending_context_proposals_total" in text
+
+
+def test_metrics_endpoint_exposes_outbox_backlog_counters():
+    session = sessionmaker(bind=dependencies.get_engine())()
+    try:
+        with SqlAlchemyUnitOfWork(session) as uow:
+            session.add_all(
+                [
+                    OutboxEventModel(
+                        org_id="org_1",
+                        aggregate_type="context_stream",
+                        aggregate_id="stream-main",
+                        type="context_head_changed",
+                        payload={"project_id": "project-1"},
+                        status="pending",
+                        attempts=0,
+                        idempotency_key="context_head_changed:stream-main:rev-1",
+                    ),
+                    OutboxEventModel(
+                        org_id="org_1",
+                        aggregate_type="context_stream",
+                        aggregate_id="stream-main",
+                        type="context_head_changed",
+                        payload={"project_id": "project-1"},
+                        status="dead",
+                        attempts=3,
+                        last_error="projection schema mismatch",
+                        idempotency_key="context_head_changed:stream-main:rev-2",
+                    ),
+                ]
+            )
+            uow.commit()
+    finally:
+        session.close()
+    client = TestClient(app)
+
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    text = response.text
+    assert "agora_outbox_events_total{status=\"pending\"} 1" in text
+    assert "agora_outbox_events_total{status=\"dead\"} 1" in text
+    assert "agora_outbox_retryable_total 1" in text
 
 
 def test_api_generates_request_id_for_every_response():

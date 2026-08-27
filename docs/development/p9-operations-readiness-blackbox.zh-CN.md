@@ -7,6 +7,7 @@
 - API 提供 `/health`、`/ready` 和 `/metrics`。
 - `/ready` 必须检查数据库连通性、Alembic schema revision 和关键配置。
 - `/metrics` 输出 Prometheus 风格文本，至少包含 ready、schema revision、项目数量和待审上下文数量。
+- `/metrics` 输出 outbox 积压与重试指标，至少包含 `agora_outbox_events_total` 和 `agora_outbox_retryable_total`。
 - API 每个响应都带 `X-Request-ID`；调用方传入时沿用，未传入时自动生成。
 - Web 项目页提供 `Operations summary`，项目经理和质量人员可以直接查看治理、上下文、质量、技能、审批、仓库和 PR/MR 信号统计。
 - 运维人员和 AI 工具可通过 `project-summary` 导出同一份项目治理摘要 JSON。
@@ -48,6 +49,7 @@ GET http://127.0.0.1:8000/metrics
 - `/ready.checks.schema.revision` 是当前 Alembic head。
 - `/ready.checks.configuration.missing_required = []`。
 - `/metrics` 包含 `agora_ready`、`agora_schema_revision_info`、`agora_projects_total`、`agora_pending_context_proposals_total`。
+- `/metrics` 包含 `agora_outbox_events_total` 和 `agora_outbox_retryable_total`。
 - 每个响应头包含 `X-Request-ID`。
 - 如果请求头传入 `X-Request-ID`，响应头应返回同一个值，便于 CI、AI 工具和服务日志关联。
 
@@ -193,13 +195,34 @@ python -m scripts.agora_admin project-summary \
 - `summary.json` 存在，并包含 `operations-summary` 页面展示的同一类统计。
 - 该摘要可作为项目经理日报、质量巡检和上线前审计输入。
 
+## 步骤 10：Outbox 积压与死信诊断
+
+让运维人员或 AI 工具读取 outbox 运维摘要：
+
+```bash
+python -m scripts.agora_admin outbox-summary \
+  --database-url "$AGORA_DATABASE_URL" \
+  --max-attempts 3 \
+  --output .agora/exports/outbox-summary.json
+```
+
+期望：
+
+- stdout 输出 `format = agora-outbox-summary/v1` 的 JSON。
+- `by_status` 能看到 `pending`、`failed`、`dead` 等状态数量。
+- `by_type` 能看到 outbox 事件类型分布。
+- `retryable` 显示仍会被 worker 重试的事件数量。
+- `dead_events` 包含死信样本、`idempotency_key`、`last_error`、聚合对象和更新时间。
+- `outbox-summary.json` 可作为故障排查和上线巡检留档。
+
 ## 通过标准
 
 - 生产-like 环境能启动 API 和 Web。
 - `/ready` 能发现数据库、schema 和配置问题。
-- `/metrics` 能被监控系统抓取。
+- `/metrics` 能被监控系统抓取，并暴露 outbox 积压、死信和可重试数量。
 - API 响应包含 `X-Request-ID`，便于排查 AI 工具、CI 和 Web 调用链。
 - `scripts.agora_admin smoke` 能完成部署后自动冒烟检查。
+- `scripts.agora_admin outbox-summary` 能输出 outbox backlog、retryable 和 dead-letter 诊断摘要。
 - Web `Operations summary` 能展示项目治理、上下文、质量、技能、审批和集成信号统计。
 - `GET /projects/{project_id}/operations-summary` 与 `scripts.agora_admin project-summary` 使用同一统计口径。
 - Developer、Reviewer、Project Manager、Quality 四类角色的核心路径都能通过 AI 工具和 Web 完成。

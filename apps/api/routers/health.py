@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 
 from apps.api.dependencies import AGORA_TEST_AUTH_BYPASS, get_engine
 from packages.core.models import ContextProposalModel, ProjectModel
+from packages.core.services.outbox_diagnostics import build_outbox_summary
 
 router = APIRouter()
 
@@ -45,6 +46,7 @@ def metrics() -> Response:
     engine = get_engine()
     project_count = 0
     pending_context_count = 0
+    outbox = {"by_status": {}, "retryable": 0}
     with sessionmaker(bind=engine)() as session:
         project_count = session.scalar(func.count(ProjectModel.id)) or 0
         pending_context_count = (
@@ -52,21 +54,30 @@ def metrics() -> Response:
             .filter(ContextProposalModel.status.in_(["submitted", "needs_rebase"]))
             .count()
         )
+        outbox = build_outbox_summary(session, max_attempts=3, dead_limit=1)
     revision = readiness["checks"]["schema"]["revision"] or "unknown"
     ready_value = 1 if readiness["status"] == "ready" else 0
-    body = "\n".join(
+    lines = [
+        "# TYPE agora_ready gauge",
+        f"agora_ready {ready_value}",
+        "# TYPE agora_schema_revision_info gauge",
+        f'agora_schema_revision_info{{revision="{revision}"}} 1',
+        "# TYPE agora_projects_total gauge",
+        f"agora_projects_total {project_count}",
+        "# TYPE agora_pending_context_proposals_total gauge",
+        f"agora_pending_context_proposals_total {pending_context_count}",
+        "# TYPE agora_outbox_events_total gauge",
+    ]
+    for status, count in outbox["by_status"].items():
+        lines.append(f'agora_outbox_events_total{{status="{status}"}} {count}')
+    lines.extend(
         [
-            "# TYPE agora_ready gauge",
-            f"agora_ready {ready_value}",
-            "# TYPE agora_schema_revision_info gauge",
-            f'agora_schema_revision_info{{revision="{revision}"}} 1',
-            "# TYPE agora_projects_total gauge",
-            f"agora_projects_total {project_count}",
-            "# TYPE agora_pending_context_proposals_total gauge",
-            f"agora_pending_context_proposals_total {pending_context_count}",
+            "# TYPE agora_outbox_retryable_total gauge",
+            f"agora_outbox_retryable_total {outbox['retryable']}",
             "",
         ]
     )
+    body = "\n".join(lines)
     return Response(content=body, media_type="text/plain; version=0.0.4")
 
 

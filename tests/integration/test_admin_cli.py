@@ -19,6 +19,7 @@ from packages.core.models import (
     PullRequestSignalModel,
     QualityEvidenceModel,
     RepositoryRevisionSignalModel,
+    OutboxEventModel,
     SecurityAuditEventModel,
     SkillModel,
     SkillVersionModel,
@@ -434,6 +435,81 @@ def test_admin_cli_project_summary_reports_governance_and_delivery_state(tmp_pat
     assert summary["repository_signals"]["by_status"] == {"context_outdated": 1}
     assert summary["pull_request_signals"]["by_status"] == {"merged": 1}
     assert json.loads(summary_path.read_text())["project"]["slug"] == "rd-collaboration-platform"
+
+
+def test_admin_cli_outbox_summary_reports_backlog_and_dead_events(tmp_path):
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'agora.db'}"
+    output_path = tmp_path / "outbox-summary.json"
+    engine = create_app_engine(database_url)
+    session = sessionmaker(bind=engine)()
+    with SqlAlchemyUnitOfWork(session) as uow:
+        session.add_all(
+            [
+                OutboxEventModel(
+                    org_id="org_1",
+                    aggregate_type="context_stream",
+                    aggregate_id="stream-main",
+                    type="context_head_changed",
+                    payload={"project_id": "project-1"},
+                    status="pending",
+                    attempts=0,
+                    idempotency_key="context_head_changed:stream-main:rev-1",
+                ),
+                OutboxEventModel(
+                    org_id="org_1",
+                    aggregate_type="context_stream",
+                    aggregate_id="stream-main",
+                    type="context_head_changed",
+                    payload={"project_id": "project-1"},
+                    status="failed",
+                    attempts=2,
+                    last_error="projection temporarily unavailable",
+                    idempotency_key="context_head_changed:stream-main:rev-2",
+                ),
+                OutboxEventModel(
+                    org_id="org_1",
+                    aggregate_type="context_stream",
+                    aggregate_id="stream-main",
+                    type="context_head_changed",
+                    payload={"project_id": "project-1"},
+                    status="dead",
+                    attempts=3,
+                    last_error="projection schema mismatch",
+                    idempotency_key="context_head_changed:stream-main:rev-3",
+                ),
+            ]
+        )
+        uow.commit()
+    session.close()
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.agora_admin",
+            "outbox-summary",
+            "--database-url",
+            database_url,
+            "--max-attempts",
+            "3",
+            "--output",
+            str(output_path),
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    summary = json.loads(result.stdout)
+    assert summary["format"] == "agora-outbox-summary/v1"
+    assert summary["total"] == 3
+    assert summary["by_status"] == {"dead": 1, "failed": 1, "pending": 1}
+    assert summary["by_type"] == {"context_head_changed": 3}
+    assert summary["retryable"] == 2
+    assert summary["dead_events"][0]["idempotency_key"] == "context_head_changed:stream-main:rev-3"
+    assert summary["dead_events"][0]["last_error"] == "projection schema mismatch"
+    assert json.loads(output_path.read_text())["by_status"]["dead"] == 1
 
 
 def test_admin_cli_smoke_checks_api_readiness_metrics_and_web(tmp_path):
