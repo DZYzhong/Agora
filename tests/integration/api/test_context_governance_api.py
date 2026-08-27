@@ -224,6 +224,49 @@ def test_accepting_stale_context_proposal_marks_needs_rebase(monkeypatch):
         assert body["stream"]["head_revision_id"] == accepted["revision"]["id"]
 
 
+def test_multiple_same_head_context_proposals_cannot_overwrite_stream_head(monkeypatch):
+    _production_auth(monkeypatch)
+    with TestClient(app) as client:
+        project = _create_project(client)
+        proposals = [
+            client.post(
+                f"/projects/{project['id']}/context/proposals",
+                headers=_headers(AGENT_TOKEN),
+                json={
+                    **_proposal_payload(expected_head_revision_id=None),
+                    "title": f"Concurrent context proposal {index}",
+                    "to_commit_sha": f"candidate-{index}",
+                },
+            ).json()
+            for index in range(3)
+        ]
+
+        results = [
+            client.post(
+                f"/projects/{project['id']}/context/proposals/{proposal['id']}/approve",
+                headers=_headers(HUMAN_TOKEN),
+                json={
+                    "expected_head_revision_id": None,
+                    "revision_signal": {
+                        "target_branch": "main",
+                        "observed_head_sha": proposal["to_commit_sha"],
+                        "contains_to_commit": True,
+                    },
+                },
+            )
+            for proposal in proposals
+        ]
+
+        approved = [response for response in results if response.status_code == 200]
+        rebased = [response for response in results if response.status_code == 409]
+        streams = client.get(f"/projects/{project['id']}/context/streams", headers=_headers(HUMAN_TOKEN)).json()
+
+    assert len(approved) == 1
+    assert len(rebased) == 2
+    assert {response.json()["proposal"]["status"] for response in rebased} == {"needs_rebase"}
+    assert streams[0]["head_revision_id"] == approved[0].json()["revision"]["id"]
+
+
 def test_prepare_context_uses_accepted_revision_after_approval(monkeypatch, tmp_path):
     _production_auth(monkeypatch)
     repo = tmp_path / "repo"

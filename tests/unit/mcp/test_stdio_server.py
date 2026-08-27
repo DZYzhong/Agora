@@ -17,6 +17,7 @@ def test_stdio_mcp_server_lists_agora_tools():
         "agora_record_evidence",
         "agora_get_quality_status",
         "agora_get_project_status",
+        "agora_get_protocol_manifest",
         "agora_close_work",
     }
 
@@ -51,6 +52,22 @@ def test_stdio_mcp_server_lists_agora_tools():
 
     project_tool = next(tool for tool in result.tools if tool.name == "agora_get_project_status")
     assert "project_id" in project_tool.input_schema["required"]
+
+    manifest_tool = next(tool for tool in result.tools if tool.name == "agora_get_protocol_manifest")
+    assert manifest_tool.input_schema["required"] == []
+
+
+def test_stdio_protocol_manifest_reports_versions_and_tool_compatibility():
+    result = asyncio.run(_dispatch("agora_get_protocol_manifest", {}))
+
+    assert result["format"] == "agora-protocol-manifest/v1"
+    assert result["mcp_server"]["name"] == "agora"
+    assert result["mcp_server"]["version"]
+    assert result["harness_protocol"]["current"] == "1.0"
+    assert "1.0" in result["harness_protocol"]["supported"]
+    assert "agora_prepare_context" in result["tools"]["canonical"]
+    assert result["tools"]["deprecated"]["agora_plan_context"]["canonical_tool"] == "agora_prepare_context"
+    assert result["compatibility"]["minimum_local_connector_version"]
 
 
 def test_stdio_submit_context_proposal_dispatches_to_harness(monkeypatch):

@@ -255,6 +255,75 @@ python -m scripts.agora_admin cleanup-retention \
 - 超过保留期的 `completed` 和 `dead` outbox 事件被清理。
 - 项目、资产、ContextRevision、SkillVersion、QualityEvidence 和 SecurityAuditEvent 不会被清理。
 
+## 步骤 12：Local Connector 与 Harness 协议兼容
+
+让 AI 工具读取 Agora MCP 协议清单：
+
+```text
+请通过 Agora 获取当前 Local Connector 与 Harness 的协议兼容清单。
+```
+
+期望：
+
+- AI 工具调用 `agora_get_protocol_manifest`。
+- 返回 `format = agora-protocol-manifest/v1`。
+- `mcp_server.name = agora`。
+- `harness_protocol.current` 存在于 `harness_protocol.supported`。
+- `tools.canonical` 包含 `agora_prepare_context`、`agora_get_project_status`、`agora_record_evidence`、`agora_get_protocol_manifest`。
+- `tools.deprecated.agora_plan_context.canonical_tool = agora_prepare_context`，旧 AI 工具可以识别迁移路径。
+- `compatibility.local_paths_never_uploaded_by_default = true`。
+
+运维人员或 AI 工具也可以导出同一份兼容性检查结果：
+
+```bash
+python -m scripts.agora_admin compatibility-check \
+  --database-url "$AGORA_DATABASE_URL" \
+  --output .agora/exports/compatibility.json
+```
+
+期望：
+
+- stdout 输出 `format = agora-compatibility-check/v1` 的 JSON。
+- `compatible = true`。
+- `schema_revision` 是当前数据库迁移版本。
+- `protocol_manifest` 与 AI 工具读取到的协议清单一致。
+- `compatibility.json` 可作为 Local Connector 升级前后的留档。
+
+## 步骤 13：上下文并发更新保护
+
+准备两个 AI 工具窗口，模拟开发人员 A 和开发人员 B 同时基于同一个项目上下文开发。
+
+操作：
+
+1. 两个 AI 工具都先通过 `agora_prepare_context` 获取同一个项目的当前上下文。
+2. 开发人员 A 让 AI 工具提交 ContextProposal，并由 Reviewer 在 Web 审批通过。
+3. 开发人员 B 不重新获取上下文，继续提交基于旧 head 的 ContextProposal。
+4. Reviewer 在 Web 审批开发人员 B 的 proposal。
+
+期望：
+
+- 开发人员 A 的 ContextProposal 可以被审批为 `approved`。
+- 开发人员 B 的 ContextProposal 不能覆盖最新 ContextStream head。
+- Web 或 AI 工具能看到开发人员 B 的 proposal 进入 `needs_rebase` 或审批失败状态。
+- 失败信息能说明 head 已变化，需要重新基于最新上下文生成 proposal。
+- 该流程对应套件检查项 `context-concurrency`。
+
+## 步骤 14：完整 P9 黑盒套件清单
+
+在开始正式黑盒验证前，让运维人员或 AI 工具生成本轮 P9 检查清单：
+
+```bash
+python -m scripts.agora_admin p9-blackbox-suite \
+  --output .agora/exports/p9-blackbox-suite.json
+```
+
+期望：
+
+- stdout 输出 `format = agora-p9-blackbox-suite/v1` 的 JSON。
+- `roles` 包含 `Developer`、`Reviewer`、`Project Manager`、`Quality`、`Operations`。
+- `checks` 至少包含 `service-probes`、`developer-ai-tool`、`reviewer-governance`、`project-manager-status`、`quality-evidence`、`sqlite-recovery`、`postgres-recovery`、`project-export`、`operations-summary`、`outbox-diagnostics`、`retention-cleanup`、`compatibility-check`、`context-concurrency`。
+- `p9-blackbox-suite.json` 可作为明天实际黑盒验证的勾选清单和留档入口。
+
 ## 通过标准
 
 - 生产-like 环境能启动 API 和 Web。
@@ -264,6 +333,10 @@ python -m scripts.agora_admin cleanup-retention \
 - `scripts.agora_admin smoke` 能完成部署后自动冒烟检查。
 - `scripts.agora_admin outbox-summary` 能输出 outbox backlog、retryable 和 dead-letter 诊断摘要。
 - `scripts.agora_admin retention-summary` 能预览清理候选，`cleanup-retention --yes` 能执行保守清理。
+- `scripts.agora_admin compatibility-check` 能输出 Local Connector 与 Harness 协议兼容报告。
+- `scripts.agora_admin p9-blackbox-suite` 能输出完整 P9 黑盒检查清单。
+- AI 工具能通过 `agora_get_protocol_manifest` 感知当前 MCP 协议、兼容版本和废弃工具迁移路径。
+- 并发 ContextProposal 不能覆盖已经前进的 ContextStream head，落后的 proposal 必须进入 `needs_rebase` 或失败。
 - Web `Operations summary` 能展示项目治理、上下文、质量、技能、审批和集成信号统计。
 - `GET /projects/{project_id}/operations-summary` 与 `scripts.agora_admin project-summary` 使用同一统计口径。
 - Developer、Reviewer、Project Manager、Quality 四类角色的核心路径都能通过 AI 工具和 Web 完成。

@@ -697,6 +697,80 @@ def test_admin_cli_cleanup_retention_requires_confirmation_and_prunes_terminal_r
     assert statuses == ["failed"]
 
 
+def test_admin_cli_compatibility_check_reports_protocol_manifest(tmp_path):
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'agora.db'}"
+    output_path = tmp_path / "compatibility.json"
+    create_app_engine(database_url)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.agora_admin",
+            "compatibility-check",
+            "--database-url",
+            database_url,
+            "--output",
+            str(output_path),
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    report = json.loads(result.stdout)
+    assert report["format"] == "agora-compatibility-check/v1"
+    assert report["compatible"] is True
+    assert report["schema_revision"] == "20260826_0012"
+    assert report["protocol_manifest"]["harness_protocol"]["current"] == "1.0"
+    assert "agora_get_protocol_manifest" in report["protocol_manifest"]["tools"]["canonical"]
+    assert report["protocol_manifest"]["tools"]["deprecated"]["agora_plan_context"]["canonical_tool"] == "agora_prepare_context"
+    assert json.loads(output_path.read_text())["compatible"] is True
+
+
+def test_admin_cli_p9_blackbox_suite_lists_complete_role_and_operations_checks(tmp_path):
+    output_path = tmp_path / "p9-suite.json"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.agora_admin",
+            "p9-blackbox-suite",
+            "--output",
+            str(output_path),
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    suite = json.loads(result.stdout)
+    assert suite["format"] == "agora-p9-blackbox-suite/v1"
+    assert suite["guide"] == "docs/development/p9-operations-readiness-blackbox.zh-CN.md"
+    assert suite["roles"] == ["Developer", "Reviewer", "Project Manager", "Quality", "Operations"]
+    assert len(suite["checks"]) >= 11
+    check_ids = {check["id"] for check in suite["checks"]}
+    assert {
+        "service-probes",
+        "developer-ai-tool",
+        "reviewer-governance",
+        "project-manager-status",
+        "quality-evidence",
+        "sqlite-recovery",
+        "postgres-recovery",
+        "project-export",
+        "operations-summary",
+        "outbox-diagnostics",
+        "retention-cleanup",
+        "compatibility-check",
+        "context-concurrency",
+    }.issubset(check_ids)
+    assert json.loads(output_path.read_text())["format"] == "agora-p9-blackbox-suite/v1"
+
+
 def test_admin_cli_smoke_checks_api_readiness_metrics_and_web(tmp_path):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):

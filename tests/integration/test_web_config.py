@@ -227,6 +227,11 @@ def test_p9_operations_blackbox_guide_exists():
     assert "outbox-summary" in content
     assert "retention-summary" in content
     assert "cleanup-retention" in content
+    assert "compatibility-check" in content
+    assert "agora_get_protocol_manifest" in content
+    assert "p9-blackbox-suite" in content
+    assert "context-concurrency" in content
+    assert "needs_rebase" in content
     assert "agora_outbox_events_total" in content
     assert "agora_outbox_retryable_total" in content
     assert "Operations summary" in content

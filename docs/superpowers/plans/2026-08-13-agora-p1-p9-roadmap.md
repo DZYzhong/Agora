@@ -4,7 +4,7 @@
 
 **Current branch:** `codex/agora-p0`
 
-**Current baseline:** P0-P8 are implemented on the realigned Agent-first, Harness-first architecture. P9 operations readiness foundation is in progress.
+**Current baseline:** P0-P9 are implemented on the realigned Agent-first, Harness-first architecture. P9 is pending user production-like black-box validation.
 
 **Canonical product design:** `docs/superpowers/specs/2026-08-14-agora-product-functional-design.zh-CN.md`
 
@@ -374,7 +374,7 @@ Current implementation:
 
 **Goal:** Make Agora reliable to deploy, operate, upgrade and recover for a real software team.
 
-**Status:** In progress; readiness/metrics, production-like container runtime assets and black-box operations guide are implemented.
+**Status:** Implemented; pending user production-like black-box validation.
 
 Current plan:
 
@@ -414,6 +414,9 @@ Current implementation:
 - `scripts.agora_admin project-summary`, `GET /projects/{project_id}/operations-summary` and Web `Operations summary` expose the same persisted governance summary.
 - `scripts.agora_admin outbox-summary` and `/metrics` expose outbox backlog, retryable and dead-letter diagnostics.
 - `scripts.agora_admin retention-summary` and `cleanup-retention --yes` support conservative export and terminal outbox retention cleanup.
+- `agora_get_protocol_manifest` and `scripts.agora_admin compatibility-check` expose Local Connector and Harness compatibility metadata.
+- `scripts.agora_admin p9-blackbox-suite` emits the complete role and operations black-box validation checklist.
+- Context head overwrite invariants are covered by P9 regression tests; stale proposals cannot replace an advanced ContextStream head.
 - `scripts.agora_admin smoke` verifies deployed API readiness, metrics and optional Web reachability.
 - Black-box guide: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
 
@@ -428,6 +431,47 @@ When a historical title conflicts with this Roadmap, this Roadmap and the canoni
 ---
 
 ## Execution Log
+
+### 2026-08-27: P9 Protocol Compatibility and Final Black-box Suite
+
+Scope:
+
+- Added shared protocol manifest metadata for Local Connector/Harness compatibility.
+- Added `agora_get_protocol_manifest` to the MCP server for AI tools.
+- Added `compatibility-check` admin CLI command with optional JSON output.
+- Added `p9-blackbox-suite` admin CLI command for the complete P9 role and operations validation checklist.
+- Added a context governance concurrency regression proving stale ContextProposals cannot overwrite an advanced stream head.
+- Updated the P9 black-box guide with compatibility, context-concurrency and full-suite validation steps.
+
+Files changed:
+
+- Created: `packages/core/services/protocol.py`
+- Modified: `apps/mcp/server.py`
+- Modified: `scripts/agora_admin.py`
+- Modified: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Modified: `docs/superpowers/plans/2026-08-26-agora-p9-operations-readiness.md`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+- Modified: `tests/unit/mcp/test_stdio_server.py`
+- Modified: `tests/integration/test_admin_cli.py`
+- Modified: `tests/integration/api/test_context_governance_api.py`
+- Modified: `tests/integration/test_web_config.py`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/test_admin_cli.py::test_admin_cli_p9_blackbox_suite_lists_complete_role_and_operations_checks tests/integration/test_admin_cli.py::test_admin_cli_compatibility_check_reports_protocol_manifest tests/integration/api/test_context_governance_api.py::test_multiple_same_head_context_proposals_cannot_overwrite_stream_head
+# 3 passed
+.venv/bin/pytest tests/integration/test_web_config.py::test_p9_operations_blackbox_guide_exists
+# failed first, then 1 passed
+```
+
+Black-box validation path:
+
+- Use `docs/development/p9-operations-readiness-blackbox.zh-CN.md`, steps 12-14.
+
+Commit:
+
+- Pending
 
 ### 2026-08-26: P8 CI QualitySignal Ingestion
 

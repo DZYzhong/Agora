@@ -36,6 +36,7 @@ from packages.core.models import (
 from packages.core.schema_manager import MigrationRequiredError, ensure_schema
 from packages.core.services.outbox_diagnostics import build_outbox_summary
 from packages.core.services.project_summary import build_project_summary
+from packages.core.services.protocol import HARNESS_PROTOCOL_CURRENT, build_protocol_manifest
 from packages.core.services.retention import RetentionPolicy, build_retention_summary, cleanup_retention
 from packages.core.uow import SqlAlchemyUnitOfWork
 from packages.knowledge.index_rebuilder import rebuild_indexes_from_assets
@@ -238,6 +239,100 @@ def cleanup_retention_targets(
             return result
 
 
+def compatibility_check(*, database_url: str) -> dict:
+    ensure_schema(database_url)
+    engine = create_app_engine(database_url)
+    with engine.connect() as connection:
+        revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
+    manifest = build_protocol_manifest()
+    compatible = revision is not None and HARNESS_PROTOCOL_CURRENT in manifest["harness_protocol"]["supported"]
+    return {
+        "format": "agora-compatibility-check/v1",
+        "compatible": compatible,
+        "schema_revision": revision,
+        "protocol_manifest": manifest,
+        "checks": {
+            "schema": "ok" if revision else "missing",
+            "harness_protocol": "ok" if compatible else "unsupported",
+        },
+    }
+
+
+def p9_blackbox_suite() -> dict:
+    return {
+        "format": "agora-p9-blackbox-suite/v1",
+        "guide": "docs/development/p9-operations-readiness-blackbox.zh-CN.md",
+        "roles": ["Developer", "Reviewer", "Project Manager", "Quality", "Operations"],
+        "checks": [
+            {
+                "id": "service-probes",
+                "title": "Service probes",
+                "entrypoints": ["/health", "/ready", "/metrics", "scripts.agora_admin smoke"],
+            },
+            {
+                "id": "developer-ai-tool",
+                "title": "Developer AI-tool workflow",
+                "entrypoints": ["agora_start_work", "agora_prepare_context", "agora_complete_workflow_step"],
+            },
+            {
+                "id": "reviewer-governance",
+                "title": "Reviewer governance approval",
+                "entrypoints": ["Context proposal approval", "Skill approval", "Security audit"],
+            },
+            {
+                "id": "project-manager-status",
+                "title": "Project manager status",
+                "entrypoints": ["agora_get_project_status", "Web Project status", "Web Operations summary"],
+            },
+            {
+                "id": "quality-evidence",
+                "title": "Quality evidence",
+                "entrypoints": ["agora_record_evidence", "agora_get_quality_status", "Web Latest evidence"],
+            },
+            {
+                "id": "sqlite-recovery",
+                "title": "SQLite backup and recovery drill",
+                "entrypoints": ["scripts.agora_admin backup-sqlite", "scripts.agora_admin restore-sqlite"],
+            },
+            {
+                "id": "postgres-recovery",
+                "title": "PostgreSQL backup and recovery drill",
+                "entrypoints": ["pg_dump", "pg_restore", "/ready"],
+            },
+            {
+                "id": "project-export",
+                "title": "Project governance export archive",
+                "entrypoints": ["scripts.agora_admin export-project", "manifest.json", "JSONL"],
+            },
+            {
+                "id": "operations-summary",
+                "title": "Project operations summary",
+                "entrypoints": ["scripts.agora_admin project-summary", "/projects/{project_id}/operations-summary"],
+            },
+            {
+                "id": "outbox-diagnostics",
+                "title": "Outbox backlog and dead-letter diagnostics",
+                "entrypoints": ["scripts.agora_admin outbox-summary", "agora_outbox_events_total"],
+            },
+            {
+                "id": "retention-cleanup",
+                "title": "Retention preview and cleanup",
+                "entrypoints": ["scripts.agora_admin retention-summary", "scripts.agora_admin cleanup-retention --yes"],
+            },
+            {
+                "id": "compatibility-check",
+                "title": "Local Connector and Harness compatibility",
+                "entrypoints": ["scripts.agora_admin compatibility-check", "agora_get_protocol_manifest"],
+            },
+            {
+                "id": "context-concurrency",
+                "title": "Context head concurrency invariant",
+                "entrypoints": ["ContextProposal expected_head_revision_id", "needs_rebase"],
+            },
+        ],
+    }
+
+
 def _write_jsonl(path: Path, records) -> int:
     count = 0
     with path.open("w", encoding="utf-8") as handle:
@@ -350,6 +445,13 @@ def build_parser() -> argparse.ArgumentParser:
     cleanup.add_argument("--outbox-retention-days", type=int, default=14)
     cleanup.add_argument("--yes", action="store_true", help="Confirm deleting retention cleanup candidates")
 
+    compatibility = subparsers.add_parser("compatibility-check", help="Print Local Connector and Harness protocol compatibility")
+    compatibility.add_argument("--database-url", required=True)
+    compatibility.add_argument("--output", type=Path, help="Optional JSON output path")
+
+    p9_suite = subparsers.add_parser("p9-blackbox-suite", help="Print complete P9 black-box validation checklist")
+    p9_suite.add_argument("--output", type=Path, help="Optional JSON output path")
+
     smoke_parser = subparsers.add_parser("smoke", help="Run deployment smoke checks against running Agora services")
     smoke_parser.add_argument("--api-base-url", required=True)
     smoke_parser.add_argument("--web-base-url")
@@ -443,6 +545,24 @@ def main() -> int:
             yes=args.yes,
         )
         print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0
+    if args.command == "compatibility-check":
+        report = compatibility_check(database_url=args.database_url)
+        payload = json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+        if args.output:
+            output = args.output.expanduser().resolve()
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(payload, encoding="utf-8")
+        print(payload, end="")
+        return 0
+    if args.command == "p9-blackbox-suite":
+        suite = p9_blackbox_suite()
+        payload = json.dumps(suite, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+        if args.output:
+            output = args.output.expanduser().resolve()
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(payload, encoding="utf-8")
+        print(payload, end="")
         return 0
     if args.command == "smoke":
         for line in smoke(api_base_url=args.api_base_url, web_base_url=args.web_base_url, timeout=args.timeout):

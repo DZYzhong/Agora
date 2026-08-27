@@ -256,6 +256,35 @@ Verification:
 # failed first because retention commands and documentation did not exist, then passed
 ```
 
+## Chunk 11: Protocol compatibility and final black-box suite
+
+### Task 1: Local Connector upgrade guardrails and P9 suite inventory
+
+**Files:**
+
+- Create: `packages/core/services/protocol.py`
+- Modify: `apps/mcp/server.py`
+- Modify: `scripts/agora_admin.py`
+- Modify: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Modify: `tests/unit/mcp/test_stdio_server.py`
+- Modify: `tests/integration/test_admin_cli.py`
+- Modify: `tests/integration/api/test_context_governance_api.py`
+- Modify: `tests/integration/test_web_config.py`
+
+- [x] Add `agora_get_protocol_manifest` for AI tools to inspect supported Harness/MCP protocol versions.
+- [x] Add canonical/deprecated MCP tool mapping so older connectors can discover migration paths.
+- [x] Add `compatibility-check` admin CLI command with optional JSON output path.
+- [x] Add `p9-blackbox-suite` admin CLI command that emits the complete P9 role and operations validation checklist.
+- [x] Add concurrency regression coverage proving stale ContextProposals cannot overwrite an advanced stream head.
+- [x] Document protocol compatibility, context concurrency and the complete P9 suite in the black-box guide.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/unit/mcp/test_stdio_server.py::test_stdio_mcp_server_lists_agora_tools tests/unit/mcp/test_stdio_server.py::test_stdio_protocol_manifest_reports_versions_and_tool_compatibility tests/integration/test_admin_cli.py::test_admin_cli_compatibility_check_reports_protocol_manifest tests/integration/test_admin_cli.py::test_admin_cli_p9_blackbox_suite_lists_complete_role_and_operations_checks tests/integration/api/test_context_governance_api.py::test_multiple_same_head_context_proposals_cannot_overwrite_stream_head tests/integration/test_web_config.py::test_p9_operations_blackbox_guide_exists
+# failed first for missing protocol manifest, compatibility CLI, P9 suite CLI and documentation, then passed
+```
+
 ## Verification
 
 Run:

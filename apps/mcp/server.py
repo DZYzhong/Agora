@@ -8,6 +8,7 @@ from mcp import types
 from mcp.server.lowlevel import NotificationOptions, Server
 from mcp.server.stdio import stdio_server
 
+from packages.core.services.protocol import MCP_SERVER_NAME, MCP_SERVER_VERSION, build_protocol_manifest
 from packages.local_connector.git_observer import observe_git_workspace
 
 AGORA_API_URL = os.environ.get("AGORA_API_URL", "http://127.0.0.1:8000")
@@ -156,6 +157,12 @@ TOOLS = [
         ["project_id"],
     ),
     _tool(
+        "agora_get_protocol_manifest",
+        "Return Agora Local Connector and Harness protocol compatibility metadata for AI tool upgrades.",
+        {},
+        [],
+    ),
+    _tool(
         "agora_close_work",
         "Close an Agora work session. When repo_path or agent_summary is provided, Agora captures a development_update draft for human review.",
         {
@@ -197,6 +204,8 @@ async def call_tool(_ctx, params: types.CallToolRequestParams) -> types.CallTool
 
 
 async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    if name == "agora_get_protocol_manifest":
+        return build_protocol_manifest()
     if name == "agora_start_work":
         local_observation = arguments.get("local_observation") or observe_git_workspace().model_dump()
         return await _post(
@@ -368,7 +377,7 @@ def _with_tool_deprecation(result: dict[str, Any], *, legacy_tool: str, canonica
 
 
 async def run() -> None:
-    server = Server("agora", version="0.1.0", on_list_tools=list_tools, on_call_tool=call_tool)
+    server = Server(MCP_SERVER_NAME, version=MCP_SERVER_VERSION, on_list_tools=list_tools, on_call_tool=call_tool)
     async with stdio_server() as (read_stream, write_stream):
         await server.run(
             read_stream,
