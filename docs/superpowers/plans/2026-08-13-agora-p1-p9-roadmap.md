@@ -777,7 +777,7 @@ Black-box validation path:
 
 Commit:
 
-- Pending after full verification.
+- `06a8962 feat: add request tracing headers`
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 
