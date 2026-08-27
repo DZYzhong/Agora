@@ -864,7 +864,7 @@ Black-box validation path:
 
 Commit:
 
-- Pending after full verification.
+- `3158800 feat: add outbox operations diagnostics`
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 
