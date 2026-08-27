@@ -463,6 +463,14 @@ Verification:
 # 3 passed
 .venv/bin/pytest tests/integration/test_web_config.py::test_p9_operations_blackbox_guide_exists
 # failed first, then 1 passed
+.venv/bin/pytest tests/unit/mcp/test_stdio_server.py tests/unit/mcp/test_tools.py tests/integration/test_admin_cli.py tests/integration/api/test_context_governance_api.py tests/integration/test_web_config.py
+# 58 passed
+.venv/bin/pytest
+# 255 passed, 2 skipped
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# passed
+git diff --check
+# passed
 ```
 
 Black-box validation path:
@@ -471,7 +479,7 @@ Black-box validation path:
 
 Commit:
 
-- Pending
+- `fd6f225 feat: finalize p9 compatibility checks`
 
 ### 2026-08-26: P8 CI QualitySignal Ingestion
 
