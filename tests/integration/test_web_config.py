@@ -96,6 +96,21 @@ def test_project_status_page_is_available_and_linked_from_project_home():
     assert "quality_state" in content
 
 
+def test_p9_operations_summary_page_is_available_and_linked_from_project_home():
+    operations_page = Path("apps/web/app/projects/[projectId]/operations/page.tsx")
+    project_page = Path("apps/web/app/projects/[projectId]/page.tsx").read_text()
+
+    assert operations_page.exists()
+    content = operations_page.read_text()
+    assert "/operations" in project_page
+    assert "Operations summary" in content
+    assert "operations-summary" in content
+    assert "Context governance" in content
+    assert "Quality evidence" in content
+    assert "Repository signals" in content
+    assert "Security audit" in content
+
+
 def test_work_item_detail_page_renders_workflow_audit_evidence():
     detail_page = Path("apps/web/app/projects/[projectId]/work-items/[workItemId]/page.tsx").read_text()
 
@@ -208,6 +223,9 @@ def test_p9_operations_blackbox_guide_exists():
     assert "备份" in content
     assert "恢复" in content
     assert "export-project" in content
+    assert "project-summary" in content
+    assert "Operations summary" in content
+    assert "operations-summary" in content
     assert "scripts.agora_admin smoke" in content
     assert "manifest.json" in content
     assert "JSONL" in content

@@ -10,7 +10,19 @@ from sqlalchemy.orm import sessionmaker
 from apps.api.dependencies import create_app_engine
 from packages.core.database import Base
 import packages.core.models  # noqa: F401
-from packages.core.models import QualityEvidenceModel
+from packages.core.models import (
+    ApprovalDecisionModel,
+    AssetModel,
+    ContextProposalModel,
+    ContextRevisionModel,
+    ContextStreamModel,
+    PullRequestSignalModel,
+    QualityEvidenceModel,
+    RepositoryRevisionSignalModel,
+    SecurityAuditEventModel,
+    SkillModel,
+    SkillVersionModel,
+)
 from packages.core.repositories.assets import AssetRepository
 from packages.core.repositories.projects import ProjectRepository
 from packages.core.repositories.work import WorkRepository
@@ -223,6 +235,205 @@ def test_admin_cli_export_project_archive_writes_manifest_and_jsonl_assets(tmp_p
     quality_records = [json.loads(line) for line in (export_dir / "quality_evidence.jsonl").read_text().splitlines()]
     assert project_records[0]["slug"] == "order-dev-platform"
     assert quality_records[0]["conclusion"] == "订单取消补偿回归测试通过。"
+
+
+def test_admin_cli_project_summary_reports_governance_and_delivery_state(tmp_path):
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'agora.db'}"
+    summary_path = tmp_path / "summary.json"
+    engine = create_app_engine(database_url)
+    session = sessionmaker(bind=engine)()
+    with SqlAlchemyUnitOfWork(session) as uow:
+        project = ProjectRepository(session).create(
+            org_id="org_1",
+            name="研发协作中台",
+            slug="rd-collaboration-platform",
+            git_remotes=["git@example.com:rd-collaboration-platform.git"],
+        )
+        work_item = WorkRepository(session).create_work_item(
+            org_id="org_1",
+            project_id=project.id,
+            external_key="AG-9201",
+            title="项目上下文自动更新",
+            source="jira",
+        )
+        session.add_all(
+            [
+                AssetModel(
+                    org_id="org_1",
+                    project_id=project.id,
+                    type="code_file",
+                    source="local_scan",
+                    source_uri="src/context/sync.py",
+                    title="sync.py",
+                    content="context sync",
+                ),
+                AssetModel(
+                    org_id="org_1",
+                    project_id=project.id,
+                    type="doc",
+                    source="local_scan",
+                    source_uri="docs/context.md",
+                    title="context.md",
+                    content="context doc",
+                ),
+            ]
+        )
+        stream = ContextStreamModel(
+            id="stream-main",
+            org_id="org_1",
+            project_id=project.id,
+            name="main",
+            branch="main",
+            repository_identity={"remote": "git@example.com:rd-collaboration-platform.git"},
+        )
+        session.add(stream)
+        session.add(
+            ContextRevisionModel(
+                id="rev-main-1",
+                org_id="org_1",
+                project_id=project.id,
+                stream_id=stream.id,
+                commit_sha="a1b2c3",
+                content={"summary": "项目主干上下文。"},
+                created_by_user_id="user_reviewer",
+            )
+        )
+        proposal = ContextProposalModel(
+            id="proposal-context-refresh",
+            org_id="org_1",
+            project_id=project.id,
+            stream_id=stream.id,
+            work_item_id=work_item.id,
+            type="context_update",
+            status="submitted",
+            title="补充上下文自动更新策略",
+            summary="AI 工具扫描本地代码后提交上下文更新。",
+            target_branch="main",
+            created_by_user_id="user_developer",
+        )
+        session.add(proposal)
+        session.add(
+            ApprovalDecisionModel(
+                org_id="org_1",
+                project_id=project.id,
+                proposal_id=proposal.id,
+                decision="approve",
+                decided_by_user_id="user_reviewer",
+            )
+        )
+        session.add(
+            QualityEvidenceModel(
+                org_id="org_1",
+                project_id=project.id,
+                work_item_id=work_item.id,
+                session_id=None,
+                evidence_type="test",
+                source="pytest",
+                status="passed",
+                conclusion="上下文同步回归通过。",
+            )
+        )
+        session.add(
+            SkillModel(
+                id="skill-risk-review",
+                org_id="org_1",
+                project_id=project.id,
+                slug="risk-review",
+                name="风险评审",
+                status="approved",
+                definition={"summary": "检查变更风险。"},
+            )
+        )
+        session.add(
+            SkillVersionModel(
+                org_id="org_1",
+                project_id=project.id,
+                skill_id="skill-risk-review",
+                version="1.0.0",
+                status="approved",
+                definition={"steps": ["分析", "评审"]},
+            )
+        )
+        session.add(
+            SecurityAuditEventModel(
+                org_id="org_1",
+                project_id=project.id,
+                actor_user_id="user_reviewer",
+                actor_credential_kind="human",
+                action="approve_context_proposal",
+                target_type="context_proposal",
+                target_id=proposal.id,
+                decision="allow",
+            )
+        )
+        session.add(
+            RepositoryRevisionSignalModel(
+                org_id="org_1",
+                project_id=project.id,
+                work_item_id=work_item.id,
+                provider="gitlab",
+                repository_identity="git@example.com:rd-collaboration-platform.git",
+                branch="main",
+                observed_head_sha="d4e5f6",
+                previous_head_sha="a1b2c3",
+                signal_type="push",
+                status="context_outdated",
+            )
+        )
+        session.add(
+            PullRequestSignalModel(
+                org_id="org_1",
+                project_id=project.id,
+                work_item_id=work_item.id,
+                provider="gitlab",
+                repository_identity="git@example.com:rd-collaboration-platform.git",
+                pull_request_id="9201",
+                title="项目上下文自动更新",
+                action="merge",
+                target_branch="main",
+                status="merged",
+            )
+        )
+        uow.commit()
+    session.close()
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.agora_admin",
+            "project-summary",
+            "--database-url",
+            database_url,
+            "--project-slug",
+            "rd-collaboration-platform",
+            "--output",
+            str(summary_path),
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    summary = json.loads(result.stdout)
+    assert summary["format"] == "agora-project-summary/v1"
+    assert summary["project"]["slug"] == "rd-collaboration-platform"
+    assert summary["assets"]["total"] == 2
+    assert summary["assets"]["by_type"] == {"code_file": 1, "doc": 1}
+    assert summary["work_items"]["total"] == 1
+    assert summary["work_items"]["by_stage"] == {"backlog": 1}
+    assert summary["context"]["streams"] == 1
+    assert summary["context"]["revisions"] == 1
+    assert summary["context"]["proposals_by_status"] == {"submitted": 1}
+    assert summary["quality"]["evidence_by_status"] == {"passed": 1}
+    assert summary["skills"]["skills_by_status"] == {"approved": 1}
+    assert summary["skills"]["versions_by_status"] == {"approved": 1}
+    assert summary["approvals"]["decisions"] == {"approve": 1}
+    assert summary["security"]["decisions"] == {"allow": 1}
+    assert summary["repository_signals"]["by_status"] == {"context_outdated": 1}
+    assert summary["pull_request_signals"]["by_status"] == {"merged": 1}
+    assert json.loads(summary_path.read_text())["project"]["slug"] == "rd-collaboration-platform"
 
 
 def test_admin_cli_smoke_checks_api_readiness_metrics_and_web(tmp_path):

@@ -13,6 +13,7 @@ from packages.core.repositories.identities import IdentityRepository
 from packages.core.repositories.initialization_jobs import InitializationJobRepository
 from packages.core.repositories.projects import ProjectRepository
 from packages.core.auth import Principal
+from packages.core.services.project_summary import build_project_summary
 from packages.core.services.runtime import CoreRuntime
 from packages.core.services.skills import ensure_builtin_skills
 from packages.core.uow import SqlAlchemyUnitOfWork
@@ -140,6 +141,19 @@ def get_project(
         default_branch=project.default_branch,
         status=project.status,
     )
+
+
+@router.get("/{project_id}/operations-summary")
+def get_project_operations_summary(
+    project_id: str,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
+    project = ProjectRepository(session).get(project_id)
+    if project is None or (not principal.is_bypass and project.org_id != principal.org_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    require_project_member(session, principal, project_id=project.id)
+    return build_project_summary(session, project)
 
 
 @router.get("/{project_id}/security-audit")

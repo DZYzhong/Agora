@@ -173,6 +173,36 @@ Verification:
 # failed first because X-Request-ID was not emitted, then passed
 ```
 
+## Chunk 8: Project operations summary
+
+### Task 1: Shared governance summary for CLI, API and Web
+
+**Files:**
+
+- Create: `packages/core/services/project_summary.py`
+- Modify: `scripts/agora_admin.py`
+- Modify: `apps/api/routers/projects.py`
+- Create: `apps/web/app/projects/[projectId]/operations/page.tsx`
+- Modify: `apps/web/app/projects/[projectId]/page.tsx`
+- Modify: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Modify: `tests/integration/test_admin_cli.py`
+- Modify: `tests/integration/api/test_projects_api.py`
+- Modify: `tests/integration/test_web_config.py`
+
+- [x] Add `project-summary` admin CLI command.
+- [x] Build project governance summary from real persisted tables.
+- [x] Include assets, work items, context, quality, skills, approvals, security audit, repository signals and PR/MR signals.
+- [x] Add `GET /projects/{project_id}/operations-summary`.
+- [x] Add Web `Operations summary` page and project-home entry.
+- [x] Document black-box validation steps.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_admin_cli.py::test_admin_cli_project_summary_reports_governance_and_delivery_state tests/integration/api/test_projects_api.py::test_project_operations_summary_api_reports_project_governance_state tests/integration/test_web_config.py::test_p9_operations_summary_page_is_available_and_linked_from_project_home tests/integration/test_web_config.py::test_p9_operations_blackbox_guide_exists
+# failed first because the CLI/API/Web/documentation did not expose the summary, then passed
+```
+
 ## Verification
 
 Run:

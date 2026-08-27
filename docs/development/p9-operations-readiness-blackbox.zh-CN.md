@@ -8,6 +8,8 @@
 - `/ready` 必须检查数据库连通性、Alembic schema revision 和关键配置。
 - `/metrics` 输出 Prometheus 风格文本，至少包含 ready、schema revision、项目数量和待审上下文数量。
 - API 每个响应都带 `X-Request-ID`；调用方传入时沿用，未传入时自动生成。
+- Web 项目页提供 `Operations summary`，项目经理和质量人员可以直接查看治理、上下文、质量、技能、审批、仓库和 PR/MR 信号统计。
+- 运维人员和 AI 工具可通过 `project-summary` 导出同一份项目治理摘要 JSON。
 - SQLite 可用于本地演练；生产-like 验证应优先使用 PostgreSQL。
 - SQLite 试点环境可以使用 `scripts.agora_admin backup-sqlite` 和 `scripts.agora_admin restore-sqlite` 演练备份恢复；PostgreSQL 生产-like 环境使用数据库原生命令完成。
 
@@ -163,6 +165,34 @@ python -m scripts.agora_admin export-project \
 - 导出目录至少包含 `projects.jsonl`、`work_items.jsonl`、`context_revisions.jsonl`、`context_proposals.jsonl`、`skills.jsonl`、`skill_versions.jsonl`、`quality_evidence.jsonl`、`security_audit_events.jsonl`。
 - 审计人员可以不连接生产库，直接检查导出文件中的上下文、技能、质量证据和审批记录。
 
+## 步骤 9：项目运维治理摘要
+
+打开 Web 项目主页，点击 `Operations summary`。
+
+期望：
+
+- 页面显示项目状态、schema revision 和生成时间。
+- `Assets` 显示资产总量，并按 type/source 分组。
+- `Work items` 显示任务总量，并按 status/stage/source 分组。
+- `Context governance` 显示 context streams、revisions 和 proposal 状态。
+- `Quality evidence`、`Skills`、`Approvals`、`Security audit`、`Repository signals` 都显示真实数据库统计。
+- 页面数据与 AI 工具或运维命令读取的一致。
+
+运维人员或 AI 工具也可以直接导出摘要：
+
+```bash
+python -m scripts.agora_admin project-summary \
+  --database-url "$AGORA_DATABASE_URL" \
+  --project-slug your-project-slug \
+  --output .agora/exports/your-project-slug/summary.json
+```
+
+期望：
+
+- stdout 输出 `format = agora-project-summary/v1` 的 JSON。
+- `summary.json` 存在，并包含 `operations-summary` 页面展示的同一类统计。
+- 该摘要可作为项目经理日报、质量巡检和上线前审计输入。
+
 ## 通过标准
 
 - 生产-like 环境能启动 API 和 Web。
@@ -170,6 +200,8 @@ python -m scripts.agora_admin export-project \
 - `/metrics` 能被监控系统抓取。
 - API 响应包含 `X-Request-ID`，便于排查 AI 工具、CI 和 Web 调用链。
 - `scripts.agora_admin smoke` 能完成部署后自动冒烟检查。
+- Web `Operations summary` 能展示项目治理、上下文、质量、技能、审批和集成信号统计。
+- `GET /projects/{project_id}/operations-summary` 与 `scripts.agora_admin project-summary` 使用同一统计口径。
 - Developer、Reviewer、Project Manager、Quality 四类角色的核心路径都能通过 AI 工具和 Web 完成。
 - 备份恢复后，治理状态和项目资产仍可查询。
 - 项目治理资产可以导出为 JSONL 归档，用于审计、迁移前比对和离线留档。

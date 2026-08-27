@@ -34,6 +34,7 @@ from packages.core.models import (
     WritebackModel,
 )
 from packages.core.schema_manager import MigrationRequiredError, ensure_schema
+from packages.core.services.project_summary import build_project_summary
 from packages.knowledge.index_rebuilder import rebuild_indexes_from_assets
 from packages.storage.opensearch.fake import FakeKeywordIndex
 from packages.storage.qdrant.fake import FakeVectorIndex
@@ -177,6 +178,16 @@ def export_project(*, database_url: str, project_slug: str, output_dir: Path) ->
     return output_dir
 
 
+def project_summary(*, database_url: str, project_slug: str) -> dict:
+    ensure_schema(database_url)
+    engine = create_app_engine(database_url)
+    with sessionmaker(bind=engine)() as session:
+        project = session.scalar(select(ProjectModel).where(ProjectModel.slug == project_slug))
+        if project is None:
+            raise SystemExit(f"Project not found: {project_slug}")
+        return build_project_summary(session, project)
+
+
 def _write_jsonl(path: Path, records) -> int:
     count = 0
     with path.open("w", encoding="utf-8") as handle:
@@ -264,6 +275,11 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--project-slug", required=True)
     export.add_argument("--output-dir", required=True, type=Path)
 
+    summary = subparsers.add_parser("project-summary", help="Print one project operational governance summary")
+    summary.add_argument("--database-url", required=True)
+    summary.add_argument("--project-slug", required=True)
+    summary.add_argument("--output", type=Path, help="Optional JSON output path")
+
     smoke_parser = subparsers.add_parser("smoke", help="Run deployment smoke checks against running Agora services")
     smoke_parser.add_argument("--api-base-url", required=True)
     smoke_parser.add_argument("--web-base-url")
@@ -311,6 +327,15 @@ def main() -> int:
             output_dir=args.output_dir,
         )
         print(f"Project export written: {path}")
+        return 0
+    if args.command == "project-summary":
+        summary = project_summary(database_url=args.database_url, project_slug=args.project_slug)
+        payload = json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+        if args.output:
+            output = args.output.expanduser().resolve()
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(payload, encoding="utf-8")
+        print(payload, end="")
         return 0
     if args.command == "smoke":
         for line in smoke(api_base_url=args.api_base_url, web_base_url=args.web_base_url, timeout=args.timeout):

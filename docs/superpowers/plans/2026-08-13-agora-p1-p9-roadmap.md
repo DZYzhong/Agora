@@ -411,6 +411,7 @@ Current implementation:
 - `.env.example` includes production-like database/token defaults, including CI service token.
 - `scripts.agora_admin backup-sqlite` and `restore-sqlite` support local/SQLite backup and recovery drills.
 - `scripts.agora_admin export-project` writes project governance archives as JSONL plus a manifest for audit, migration dry-runs and offline review.
+- `scripts.agora_admin project-summary`, `GET /projects/{project_id}/operations-summary` and Web `Operations summary` expose the same persisted governance summary.
 - `scripts.agora_admin smoke` verifies deployed API readiness, metrics and optional Web reachability.
 - Black-box guide: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
 
@@ -778,6 +779,50 @@ Black-box validation path:
 Commit:
 
 - `06a8962 feat: add request tracing headers`
+
+### 2026-08-27: P9 Project Operations Summary
+
+Scope:
+
+- Added shared project operations summary service over persisted governance tables.
+- Added `project-summary` admin CLI command.
+- Added `GET /projects/{project_id}/operations-summary`.
+- Added Web `Operations summary` page and project-home entry.
+- Included assets, work items, context governance, quality evidence, skills, approvals, security audit, repository signals and PR/MR signals.
+- Updated P9 black-box guide with Web and CLI validation.
+
+Files changed:
+
+- Created: `packages/core/services/project_summary.py`
+- Modified: `scripts/agora_admin.py`
+- Modified: `apps/api/routers/projects.py`
+- Created: `apps/web/app/projects/[projectId]/operations/page.tsx`
+- Modified: `apps/web/app/projects/[projectId]/page.tsx`
+- Modified: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Modified: `docs/superpowers/plans/2026-08-26-agora-p9-operations-readiness.md`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+- Modified: `tests/integration/test_admin_cli.py`
+- Modified: `tests/integration/api/test_projects_api.py`
+- Modified: `tests/integration/test_web_config.py`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/test_admin_cli.py::test_admin_cli_project_summary_reports_governance_and_delivery_state tests/integration/api/test_projects_api.py::test_project_operations_summary_api_reports_project_governance_state tests/integration/test_web_config.py::test_p9_operations_summary_page_is_available_and_linked_from_project_home tests/integration/test_web_config.py::test_p9_operations_blackbox_guide_exists
+# failed first, then 4 passed
+.venv/bin/pytest
+# 247 passed, 2 skipped
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Use `docs/development/p9-operations-readiness-blackbox.zh-CN.md`, step 9.
+
+Commit:
+
+- Pending after full verification.
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 
