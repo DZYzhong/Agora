@@ -822,7 +822,7 @@ Black-box validation path:
 
 Commit:
 
-- Pending after full verification.
+- `daf2c0e feat: add project operations summary`
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 
