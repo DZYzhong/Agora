@@ -7,6 +7,7 @@
 - API 提供 `/health`、`/ready` 和 `/metrics`。
 - `/ready` 必须检查数据库连通性、Alembic schema revision 和关键配置。
 - `/metrics` 输出 Prometheus 风格文本，至少包含 ready、schema revision、项目数量和待审上下文数量。
+- API 每个响应都带 `X-Request-ID`；调用方传入时沿用，未传入时自动生成。
 - SQLite 可用于本地演练；生产-like 验证应优先使用 PostgreSQL。
 - SQLite 试点环境可以使用 `scripts.agora_admin backup-sqlite` 和 `scripts.agora_admin restore-sqlite` 演练备份恢复；PostgreSQL 生产-like 环境使用数据库原生命令完成。
 
@@ -45,6 +46,8 @@ GET http://127.0.0.1:8000/metrics
 - `/ready.checks.schema.revision` 是当前 Alembic head。
 - `/ready.checks.configuration.missing_required = []`。
 - `/metrics` 包含 `agora_ready`、`agora_schema_revision_info`、`agora_projects_total`、`agora_pending_context_proposals_total`。
+- 每个响应头包含 `X-Request-ID`。
+- 如果请求头传入 `X-Request-ID`，响应头应返回同一个值，便于 CI、AI 工具和服务日志关联。
 
 部署脚本也可以直接执行：
 
@@ -165,6 +168,7 @@ python -m scripts.agora_admin export-project \
 - 生产-like 环境能启动 API 和 Web。
 - `/ready` 能发现数据库、schema 和配置问题。
 - `/metrics` 能被监控系统抓取。
+- API 响应包含 `X-Request-ID`，便于排查 AI 工具、CI 和 Web 调用链。
 - `scripts.agora_admin smoke` 能完成部署后自动冒烟检查。
 - Developer、Reviewer、Project Manager、Quality 四类角色的核心路径都能通过 AI 工具和 Web 完成。
 - 备份恢复后，治理状态和项目资产仍可查询。

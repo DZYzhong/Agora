@@ -149,6 +149,30 @@ Verification:
 # failed first because smoke did not exist, then 1 passed
 ```
 
+## Chunk 7: Request tracing headers
+
+### Task 1: Request ID middleware
+
+**Files:**
+
+- Create: `apps/api/middleware.py`
+- Modify: `apps/api/main.py`
+- Modify: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Modify: `tests/integration/test_web_config.py`
+- Test: `tests/unit/test_health.py`
+
+- [x] Generate `X-Request-ID` for requests that do not provide one.
+- [x] Preserve incoming `X-Request-ID` for caller correlation.
+- [x] Attach `X-Request-ID` to error responses.
+- [x] Document request id validation in the P9 black-box guide.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/unit/test_health.py::test_api_generates_request_id_for_every_response tests/unit/test_health.py::test_api_preserves_incoming_request_id tests/unit/test_health.py::test_api_adds_request_id_to_error_responses tests/integration/test_web_config.py::test_p9_operations_blackbox_guide_exists
+# failed first because X-Request-ID was not emitted, then passed
+```
+
 ## Verification
 
 Run:

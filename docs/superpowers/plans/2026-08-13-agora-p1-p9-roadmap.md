@@ -405,6 +405,7 @@ Current implementation:
 - `GET /health` returns process liveness.
 - `GET /ready` verifies database connectivity, Alembic schema revision and required runtime configuration.
 - `GET /metrics` exposes Prometheus-style ready/schema/project/pending-context counters.
+- API responses include `X-Request-ID`, preserving caller-supplied values for CI, AI-tool and Web correlation.
 - Docker runtime assets exist for API, Web and Local Connector/MCP.
 - `infra/docker-compose.yml` runs API, Web, Local Connector and dependency services with API/Postgres health checks.
 - `.env.example` includes production-like database/token defaults, including CI service token.
@@ -742,6 +743,41 @@ Black-box validation path:
 Commit:
 
 - `c6124e1 feat: add deployment smoke command`
+
+### 2026-08-27: P9 Request Tracing Headers
+
+Scope:
+
+- Added API request id middleware.
+- Generated `X-Request-ID` for requests that do not provide one.
+- Preserved incoming `X-Request-ID` values for caller correlation.
+- Attached request id headers to normal and error responses.
+- Updated the P9 black-box guide with request-id validation.
+
+Files changed:
+
+- Created: `apps/api/middleware.py`
+- Modified: `apps/api/main.py`
+- Modified: `tests/unit/test_health.py`
+- Modified: `tests/integration/test_web_config.py`
+- Modified: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Modified: `docs/superpowers/plans/2026-08-26-agora-p9-operations-readiness.md`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/unit/test_health.py::test_api_generates_request_id_for_every_response tests/unit/test_health.py::test_api_preserves_incoming_request_id tests/unit/test_health.py::test_api_adds_request_id_to_error_responses tests/integration/test_web_config.py::test_p9_operations_blackbox_guide_exists
+# failed first, then 4 passed
+```
+
+Black-box validation path:
+
+- Use `docs/development/p9-operations-readiness-blackbox.zh-CN.md`.
+
+Commit:
+
+- Pending after full verification.
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 

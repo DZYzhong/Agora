@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy.orm import sessionmaker
 
+from apps.api.middleware import RequestIdMiddleware
 from apps.api.routers.harness import router as harness_router
 from apps.api.routers.health import router as health_router
 from apps.api.routers.context_governance import router as context_governance_router
@@ -38,6 +39,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Agora API", lifespan=lifespan)
+app.add_middleware(RequestIdMiddleware)
 
 app.include_router(health_router)
 app.include_router(projects_router)

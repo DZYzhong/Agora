@@ -40,3 +40,31 @@ def test_metrics_endpoint_exposes_prometheus_style_operational_counters():
     assert "agora_schema_revision_info" in text
     assert "agora_projects_total" in text
     assert "agora_pending_context_proposals_total" in text
+
+
+def test_api_generates_request_id_for_every_response():
+    client = TestClient(app)
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    request_id = response.headers["X-Request-ID"]
+    assert len(request_id) >= 16
+
+
+def test_api_preserves_incoming_request_id():
+    client = TestClient(app)
+
+    response = client.get("/health", headers={"X-Request-ID": "deploy-smoke-123"})
+
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] == "deploy-smoke-123"
+
+
+def test_api_adds_request_id_to_error_responses():
+    client = TestClient(app)
+
+    response = client.get("/missing-route")
+
+    assert response.status_code == 404
+    assert response.headers["X-Request-ID"]

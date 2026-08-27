@@ -202,6 +202,7 @@ def test_p9_operations_blackbox_guide_exists():
     assert "P9 Production and Operations Readiness 黑盒验证步骤" in content
     assert "/ready" in content
     assert "/metrics" in content
+    assert "X-Request-ID" in content
     assert "AGORA_DATABASE_URL" in content
     assert "PostgreSQL" in content
     assert "备份" in content
