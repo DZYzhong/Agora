@@ -413,6 +413,7 @@ Current implementation:
 - `scripts.agora_admin export-project` writes project governance archives as JSONL plus a manifest for audit, migration dry-runs and offline review.
 - `scripts.agora_admin project-summary`, `GET /projects/{project_id}/operations-summary` and Web `Operations summary` expose the same persisted governance summary.
 - `scripts.agora_admin outbox-summary` and `/metrics` expose outbox backlog, retryable and dead-letter diagnostics.
+- `scripts.agora_admin retention-summary` and `cleanup-retention --yes` support conservative export and terminal outbox retention cleanup.
 - `scripts.agora_admin smoke` verifies deployed API readiness, metrics and optional Web reachability.
 - Black-box guide: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
 
@@ -865,6 +866,46 @@ Black-box validation path:
 Commit:
 
 - `3158800 feat: add outbox operations diagnostics`
+
+### 2026-08-27: P9 Retention Cleanup Controls
+
+Scope:
+
+- Added retention policy for export artifacts and terminal outbox events.
+- Added `retention-summary` admin CLI command for cleanup preview.
+- Added `cleanup-retention --yes` admin CLI command for confirmed cleanup.
+- Deleted only expired export files/directories and expired `completed`/`dead` outbox events.
+- Kept active project data, ContextRevisions, SkillVersions, QualityEvidence and SecurityAuditEvents out of cleanup scope.
+- Updated P9 black-box guide with retention validation.
+
+Files changed:
+
+- Created: `packages/core/services/retention.py`
+- Modified: `scripts/agora_admin.py`
+- Modified: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Modified: `docs/superpowers/plans/2026-08-26-agora-p9-operations-readiness.md`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+- Modified: `tests/integration/test_admin_cli.py`
+- Modified: `tests/integration/test_web_config.py`
+
+Verification:
+
+```bash
+.venv/bin/pytest tests/integration/test_admin_cli.py::test_admin_cli_retention_summary_reports_export_and_outbox_cleanup_candidates tests/integration/test_admin_cli.py::test_admin_cli_cleanup_retention_requires_confirmation_and_prunes_terminal_records tests/integration/test_web_config.py::test_p9_operations_blackbox_guide_exists
+# failed first, then 3 passed
+.venv/bin/pytest
+# 251 passed, 2 skipped
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# passed
+```
+
+Black-box validation path:
+
+- Use `docs/development/p9-operations-readiness-blackbox.zh-CN.md`, step 11.
+
+Commit:
+
+- Pending after full verification.
 
 ### 2026-08-26: P7 Approval RBAC and Security Audit
 

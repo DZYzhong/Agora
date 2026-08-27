@@ -1,6 +1,8 @@
 import subprocess
 import sys
 import json
+import os
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Thread
 
@@ -510,6 +512,189 @@ def test_admin_cli_outbox_summary_reports_backlog_and_dead_events(tmp_path):
     assert summary["dead_events"][0]["idempotency_key"] == "context_head_changed:stream-main:rev-3"
     assert summary["dead_events"][0]["last_error"] == "projection schema mismatch"
     assert json.loads(output_path.read_text())["by_status"]["dead"] == 1
+
+
+def test_admin_cli_retention_summary_reports_export_and_outbox_cleanup_candidates(tmp_path):
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'agora.db'}"
+    exports_dir = tmp_path / "exports"
+    old_export = exports_dir / "old-project"
+    recent_export = exports_dir / "recent-project"
+    old_export.mkdir(parents=True)
+    recent_export.mkdir(parents=True)
+    (old_export / "manifest.json").write_text('{"project":{"slug":"old-project"}}', encoding="utf-8")
+    (recent_export / "manifest.json").write_text('{"project":{"slug":"recent-project"}}', encoding="utf-8")
+    old_mtime = (datetime.now(timezone.utc) - timedelta(days=45)).timestamp()
+    os.utime(old_export, (old_mtime, old_mtime))
+    os.utime(old_export / "manifest.json", (old_mtime, old_mtime))
+    engine = create_app_engine(database_url)
+    session = sessionmaker(bind=engine)()
+    old_time = datetime.now(timezone.utc) - timedelta(days=20)
+    with SqlAlchemyUnitOfWork(session) as uow:
+        session.add_all(
+            [
+                OutboxEventModel(
+                    org_id="org_1",
+                    aggregate_type="context_stream",
+                    aggregate_id="stream-main",
+                    type="context_head_changed",
+                    payload={"project_id": "project-1"},
+                    status="completed",
+                    attempts=1,
+                    idempotency_key="context_head_changed:stream-main:completed-old",
+                    created_at=old_time,
+                    updated_at=old_time,
+                ),
+                OutboxEventModel(
+                    org_id="org_1",
+                    aggregate_type="context_stream",
+                    aggregate_id="stream-main",
+                    type="context_head_changed",
+                    payload={"project_id": "project-1"},
+                    status="dead",
+                    attempts=3,
+                    last_error="projection schema mismatch",
+                    idempotency_key="context_head_changed:stream-main:dead-old",
+                    created_at=old_time,
+                    updated_at=old_time,
+                ),
+                OutboxEventModel(
+                    org_id="org_1",
+                    aggregate_type="context_stream",
+                    aggregate_id="stream-main",
+                    type="context_head_changed",
+                    payload={"project_id": "project-1"},
+                    status="failed",
+                    attempts=1,
+                    idempotency_key="context_head_changed:stream-main:failed-retryable",
+                ),
+            ]
+        )
+        uow.commit()
+    session.close()
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.agora_admin",
+            "retention-summary",
+            "--database-url",
+            database_url,
+            "--export-dir",
+            str(exports_dir),
+            "--export-retention-days",
+            "30",
+            "--outbox-retention-days",
+            "14",
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    summary = json.loads(result.stdout)
+    assert summary["format"] == "agora-retention-summary/v1"
+    assert summary["exports"]["candidates"] == 1
+    assert summary["exports"]["candidate_paths"] == [str(old_export.resolve())]
+    assert summary["outbox"]["candidates_by_status"] == {"completed": 1, "dead": 1}
+    assert summary["outbox"]["candidate_total"] == 2
+    assert old_export.exists()
+    assert recent_export.exists()
+
+
+def test_admin_cli_cleanup_retention_requires_confirmation_and_prunes_terminal_records(tmp_path):
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'agora.db'}"
+    exports_dir = tmp_path / "exports"
+    old_export = exports_dir / "old-project"
+    recent_export = exports_dir / "recent-project"
+    old_export.mkdir(parents=True)
+    recent_export.mkdir(parents=True)
+    (old_export / "manifest.json").write_text("{}", encoding="utf-8")
+    (recent_export / "manifest.json").write_text("{}", encoding="utf-8")
+    old_mtime = (datetime.now(timezone.utc) - timedelta(days=45)).timestamp()
+    os.utime(old_export, (old_mtime, old_mtime))
+    os.utime(old_export / "manifest.json", (old_mtime, old_mtime))
+    engine = create_app_engine(database_url)
+    session = sessionmaker(bind=engine)()
+    old_time = datetime.now(timezone.utc) - timedelta(days=20)
+    with SqlAlchemyUnitOfWork(session) as uow:
+        session.add_all(
+            [
+                OutboxEventModel(
+                    org_id="org_1",
+                    aggregate_type="context_stream",
+                    aggregate_id="stream-main",
+                    type="context_head_changed",
+                    payload={"project_id": "project-1"},
+                    status="completed",
+                    attempts=1,
+                    idempotency_key="context_head_changed:stream-main:completed-cleanup",
+                    created_at=old_time,
+                    updated_at=old_time,
+                ),
+                OutboxEventModel(
+                    org_id="org_1",
+                    aggregate_type="context_stream",
+                    aggregate_id="stream-main",
+                    type="context_head_changed",
+                    payload={"project_id": "project-1"},
+                    status="failed",
+                    attempts=1,
+                    idempotency_key="context_head_changed:stream-main:failed-kept",
+                ),
+            ]
+        )
+        uow.commit()
+    session.close()
+
+    refused = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.agora_admin",
+            "cleanup-retention",
+            "--database-url",
+            database_url,
+            "--export-dir",
+            str(exports_dir),
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    cleaned = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.agora_admin",
+            "cleanup-retention",
+            "--database-url",
+            database_url,
+            "--export-dir",
+            str(exports_dir),
+            "--export-retention-days",
+            "30",
+            "--outbox-retention-days",
+            "14",
+            "--yes",
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert refused.returncode != 0
+    assert "without --yes" in refused.stderr
+    assert cleaned.returncode == 0
+    summary = json.loads(cleaned.stdout)
+    assert summary["exports"]["deleted"] == 1
+    assert summary["outbox"]["deleted"] == 1
+    assert not old_export.exists()
+    assert recent_export.exists()
+    with sessionmaker(bind=create_engine(database_url))() as restored_session:
+        statuses = [event.status for event in restored_session.query(OutboxEventModel).all()]
+    assert statuses == ["failed"]
 
 
 def test_admin_cli_smoke_checks_api_readiness_metrics_and_web(tmp_path):

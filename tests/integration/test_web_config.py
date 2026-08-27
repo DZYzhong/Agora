@@ -225,6 +225,8 @@ def test_p9_operations_blackbox_guide_exists():
     assert "export-project" in content
     assert "project-summary" in content
     assert "outbox-summary" in content
+    assert "retention-summary" in content
+    assert "cleanup-retention" in content
     assert "agora_outbox_events_total" in content
     assert "agora_outbox_retryable_total" in content
     assert "Operations summary" in content

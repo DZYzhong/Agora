@@ -230,6 +230,32 @@ Verification:
 # failed first because CLI, metrics and documentation did not expose outbox diagnostics, then passed
 ```
 
+## Chunk 10: Retention cleanup controls
+
+### Task 1: Conservative cleanup preview and execution
+
+**Files:**
+
+- Create: `packages/core/services/retention.py`
+- Modify: `scripts/agora_admin.py`
+- Modify: `docs/development/p9-operations-readiness-blackbox.zh-CN.md`
+- Modify: `tests/integration/test_admin_cli.py`
+- Modify: `tests/integration/test_web_config.py`
+
+- [x] Add retention policy for export artifacts and terminal outbox events.
+- [x] Add `retention-summary` admin CLI command for dry-run cleanup preview.
+- [x] Add `cleanup-retention --yes` admin CLI command for confirmed cleanup.
+- [x] Delete only expired export files/directories and expired `completed`/`dead` outbox events.
+- [x] Keep active project data, context revisions, skills, quality evidence and security audit records untouched.
+- [x] Document black-box validation steps.
+
+Verification:
+
+```text
+.venv/bin/pytest tests/integration/test_admin_cli.py::test_admin_cli_retention_summary_reports_export_and_outbox_cleanup_candidates tests/integration/test_admin_cli.py::test_admin_cli_cleanup_retention_requires_confirmation_and_prunes_terminal_records tests/integration/test_web_config.py::test_p9_operations_blackbox_guide_exists
+# failed first because retention commands and documentation did not exist, then passed
+```
+
 ## Verification
 
 Run:

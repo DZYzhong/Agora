@@ -11,6 +11,7 @@
 - API 每个响应都带 `X-Request-ID`；调用方传入时沿用，未传入时自动生成。
 - Web 项目页提供 `Operations summary`，项目经理和质量人员可以直接查看治理、上下文、质量、技能、审批、仓库和 PR/MR 信号统计。
 - 运维人员和 AI 工具可通过 `project-summary` 导出同一份项目治理摘要 JSON。
+- 运维人员和 AI 工具可通过 `retention-summary` 预览清理候选，通过 `cleanup-retention --yes` 清理过期导出和终态 outbox 事件。
 - SQLite 可用于本地演练；生产-like 验证应优先使用 PostgreSQL。
 - SQLite 试点环境可以使用 `scripts.agora_admin backup-sqlite` 和 `scripts.agora_admin restore-sqlite` 演练备份恢复；PostgreSQL 生产-like 环境使用数据库原生命令完成。
 
@@ -215,6 +216,45 @@ python -m scripts.agora_admin outbox-summary \
 - `dead_events` 包含死信样本、`idempotency_key`、`last_error`、聚合对象和更新时间。
 - `outbox-summary.json` 可作为故障排查和上线巡检留档。
 
+## 步骤 11：Retention 预览与清理
+
+先让运维人员或 AI 工具预览清理候选：
+
+```bash
+python -m scripts.agora_admin retention-summary \
+  --database-url "$AGORA_DATABASE_URL" \
+  --export-dir .agora/exports \
+  --export-retention-days 30 \
+  --outbox-retention-days 14 \
+  --output .agora/exports/retention-summary.json
+```
+
+期望：
+
+- stdout 输出 `format = agora-retention-summary/v1` 的 JSON。
+- `exports.candidate_paths` 只包含超过保留期的导出目录或文件。
+- `outbox.candidates_by_status` 只包含超过保留期的 `completed` 和 `dead` 事件。
+- `pending` 和可重试的 `failed` outbox 事件不会被列为清理对象。
+- 预览命令不会删除任何文件或数据库记录。
+
+确认预览结果后再执行清理：
+
+```bash
+python -m scripts.agora_admin cleanup-retention \
+  --database-url "$AGORA_DATABASE_URL" \
+  --export-dir .agora/exports \
+  --export-retention-days 30 \
+  --outbox-retention-days 14 \
+  --yes
+```
+
+期望：
+
+- 不带 `--yes` 时命令拒绝执行。
+- 带 `--yes` 后，过期导出目录被删除。
+- 超过保留期的 `completed` 和 `dead` outbox 事件被清理。
+- 项目、资产、ContextRevision、SkillVersion、QualityEvidence 和 SecurityAuditEvent 不会被清理。
+
 ## 通过标准
 
 - 生产-like 环境能启动 API 和 Web。
@@ -223,6 +263,7 @@ python -m scripts.agora_admin outbox-summary \
 - API 响应包含 `X-Request-ID`，便于排查 AI 工具、CI 和 Web 调用链。
 - `scripts.agora_admin smoke` 能完成部署后自动冒烟检查。
 - `scripts.agora_admin outbox-summary` 能输出 outbox backlog、retryable 和 dead-letter 诊断摘要。
+- `scripts.agora_admin retention-summary` 能预览清理候选，`cleanup-retention --yes` 能执行保守清理。
 - Web `Operations summary` 能展示项目治理、上下文、质量、技能、审批和集成信号统计。
 - `GET /projects/{project_id}/operations-summary` 与 `scripts.agora_admin project-summary` 使用同一统计口径。
 - Developer、Reviewer、Project Manager、Quality 四类角色的核心路径都能通过 AI 工具和 Web 完成。

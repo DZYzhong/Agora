@@ -36,6 +36,8 @@ from packages.core.models import (
 from packages.core.schema_manager import MigrationRequiredError, ensure_schema
 from packages.core.services.outbox_diagnostics import build_outbox_summary
 from packages.core.services.project_summary import build_project_summary
+from packages.core.services.retention import RetentionPolicy, build_retention_summary, cleanup_retention
+from packages.core.uow import SqlAlchemyUnitOfWork
 from packages.knowledge.index_rebuilder import rebuild_indexes_from_assets
 from packages.storage.opensearch.fake import FakeKeywordIndex
 from packages.storage.qdrant.fake import FakeVectorIndex
@@ -196,6 +198,46 @@ def outbox_summary(*, database_url: str, max_attempts: int = 3, dead_limit: int 
         return build_outbox_summary(session, max_attempts=max_attempts, dead_limit=dead_limit)
 
 
+def retention_summary(
+    *,
+    database_url: str,
+    export_dir: Path | None,
+    export_retention_days: int = 30,
+    outbox_retention_days: int = 14,
+) -> dict:
+    ensure_schema(database_url)
+    policy = RetentionPolicy(
+        export_retention_days=export_retention_days,
+        outbox_retention_days=outbox_retention_days,
+    )
+    engine = create_app_engine(database_url)
+    with sessionmaker(bind=engine)() as session:
+        return build_retention_summary(session, export_dir=export_dir, policy=policy)
+
+
+def cleanup_retention_targets(
+    *,
+    database_url: str,
+    export_dir: Path | None,
+    export_retention_days: int = 30,
+    outbox_retention_days: int = 14,
+    yes: bool,
+) -> dict:
+    if not yes:
+        raise SystemExit("Refusing to cleanup retention targets without --yes")
+    ensure_schema(database_url)
+    policy = RetentionPolicy(
+        export_retention_days=export_retention_days,
+        outbox_retention_days=outbox_retention_days,
+    )
+    engine = create_app_engine(database_url)
+    with sessionmaker(bind=engine)() as session:
+        with SqlAlchemyUnitOfWork(session) as uow:
+            result = cleanup_retention(session, export_dir=export_dir, policy=policy)
+            uow.commit()
+            return result
+
+
 def _write_jsonl(path: Path, records) -> int:
     count = 0
     with path.open("w", encoding="utf-8") as handle:
@@ -294,6 +336,20 @@ def build_parser() -> argparse.ArgumentParser:
     outbox.add_argument("--dead-limit", type=int, default=10)
     outbox.add_argument("--output", type=Path, help="Optional JSON output path")
 
+    retention = subparsers.add_parser("retention-summary", help="Print retention cleanup candidates")
+    retention.add_argument("--database-url", required=True)
+    retention.add_argument("--export-dir", type=Path)
+    retention.add_argument("--export-retention-days", type=int, default=30)
+    retention.add_argument("--outbox-retention-days", type=int, default=14)
+    retention.add_argument("--output", type=Path, help="Optional JSON output path")
+
+    cleanup = subparsers.add_parser("cleanup-retention", help="Delete retention cleanup candidates")
+    cleanup.add_argument("--database-url", required=True)
+    cleanup.add_argument("--export-dir", type=Path)
+    cleanup.add_argument("--export-retention-days", type=int, default=30)
+    cleanup.add_argument("--outbox-retention-days", type=int, default=14)
+    cleanup.add_argument("--yes", action="store_true", help="Confirm deleting retention cleanup candidates")
+
     smoke_parser = subparsers.add_parser("smoke", help="Run deployment smoke checks against running Agora services")
     smoke_parser.add_argument("--api-base-url", required=True)
     smoke_parser.add_argument("--web-base-url")
@@ -363,6 +419,30 @@ def main() -> int:
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(payload, encoding="utf-8")
         print(payload, end="")
+        return 0
+    if args.command == "retention-summary":
+        summary = retention_summary(
+            database_url=args.database_url,
+            export_dir=args.export_dir,
+            export_retention_days=args.export_retention_days,
+            outbox_retention_days=args.outbox_retention_days,
+        )
+        payload = json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+        if args.output:
+            output = args.output.expanduser().resolve()
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(payload, encoding="utf-8")
+        print(payload, end="")
+        return 0
+    if args.command == "cleanup-retention":
+        summary = cleanup_retention_targets(
+            database_url=args.database_url,
+            export_dir=args.export_dir,
+            export_retention_days=args.export_retention_days,
+            outbox_retention_days=args.outbox_retention_days,
+            yes=args.yes,
+        )
+        print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
         return 0
     if args.command == "smoke":
         for line in smoke(api_base_url=args.api_base_url, web_base_url=args.web_base_url, timeout=args.timeout):
