@@ -4,7 +4,7 @@
 
 **Current branch:** `codex/agora-p0`
 
-**Current baseline:** P0-P9 are implemented on the realigned Agent-first, Harness-first architecture. P9 is pending user production-like black-box validation.
+**Current baseline:** P0-P9 feature slices exist on the realigned Agent-first, Harness-first architecture, but the 2026-08-28 code review found unmet phase exit criteria and production blockers. The repository is a local/controlled team-trial build pending remediation and production-like black-box validation; it must not yet be described as P0-P9 production-complete.
 
 **Canonical product design:** `docs/superpowers/specs/2026-08-14-agora-product-functional-design.zh-CN.md`
 
@@ -431,6 +431,66 @@ When a historical title conflicts with this Roadmap, this Roadmap and the canoni
 ---
 
 ## Execution Log
+
+### 2026-08-28: P0-P9 Full Code Review and Beginner System Manual
+
+Scope:
+
+- Performed a full repository review against the canonical product design, technical architecture and P0-P9 exit criteria.
+- Ran the complete Python suite, Web production build, Python compilation, dependency checks and a real local API/Web project flow.
+- Added a severity-ordered review report with exact file/line evidence, impact, remediation order and release recommendation.
+- Added a detailed beginner-oriented system manual covering concepts, architecture, local startup, MCP/AI-tool use, Developer/Reviewer/PM/Quality workflows, Web navigation, authentication, persistence, backup/recovery, operations, troubleshooting and black-box acceptance.
+- Corrected the durable baseline statement: feature slices exist, but P0-P9 exit criteria are not all satisfied.
+
+Review findings:
+
+- Critical: legacy server-side repository initialization can read arbitrary server-accessible directories and violates customer-local source rules.
+- High: stdio MCP does not advertise or dispatch `agora_complete_workflow_step`, so the real P4 workflow cannot complete through an AI tool.
+- High: Docker Compose uses API URL variables that Web/MCP do not read; PostgreSQL has no persistence volume; no worker service is deployed.
+- High: auth bypass has no non-test environment guard; real team identity/member lifecycle is absent; frontend audit reports high-severity dependencies.
+- Medium: runtime uses Fake in-memory indexes, readiness returns HTTP 200 when not ready, Web lacks structured error/loading boundaries, and roadmap statuses conflict.
+
+Files:
+
+- Created: `docs/reviews/2026-08-28-agora-p0-p9-code-review.zh-CN.md`
+- Created: `docs/manual/agora-system-user-and-technical-manual.zh-CN.md`
+- Modified: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
+
+Verification:
+
+```text
+.venv/bin/pytest
+# 255 passed, 2 skipped in 62.30s
+
+cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
+# passed (Next.js 15.5.23)
+
+.venv/bin/python -m compileall -q apps packages scripts alembic
+# passed
+
+.venv/bin/pip check
+# No broken requirements found
+
+npm audit --omit=dev --registry=https://registry.npmjs.org --json
+# failed as expected: 3 high severity vulnerability entries
+
+Local API/Web runtime review
+# /health and /projects rendered; temporary project create and sample initialization passed
+
+git diff --check
+# passed before final documentation verification
+```
+
+Environment limitations:
+
+- PostgreSQL integration tests skipped because `AGORA_TEST_POSTGRES_URL` was not configured.
+- Docker Compose could not be executed because this machine did not have the `docker` command.
+- Four parallel review agents stopped due external usage limits; no uncompleted agent result was treated as review evidence.
+
+Black-box path:
+
+- The new manual contains the complete role and operations acceptance checklist.
+- Do not start final production-like acceptance until the Critical/High remediation batch is implemented and self-tested.
 
 ### 2026-08-27: P9 Protocol Compatibility and Final Black-box Suite
 
