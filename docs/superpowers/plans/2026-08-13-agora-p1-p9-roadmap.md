@@ -432,6 +432,32 @@ When a historical title conflicts with this Roadmap, this Roadmap and the canoni
 
 ## Execution Log
 
+### 2026-08-28: Production Readiness Design Approved by Spec Review
+
+Scope:
+
+- Confirmed the first production target as enterprise intranet, single organization and Docker Compose deployment.
+- Selected incremental hardening of the existing modular monolith instead of infrastructure-first rollout or core rewrite.
+- Added the production-readiness design covering customer-local source boundaries, MCP 1.1 compatibility, local identity/session security, team credentials, PostgreSQL persistence/search, persistent Worker, branch-scoped freshness, encrypted off-host recovery, operations and release evidence.
+- Defined PR1-PR6 with separate `implemented`, `automated verified`, `black-box passed` and `exit criteria passed` states.
+
+File:
+
+- Created: `docs/superpowers/specs/2026-08-28-agora-production-readiness-design.zh-CN.md`
+
+Spec review:
+
+- Iteration 1 found authentication/session, backup failure-domain, server upload-policy, freshness evidence, protocol naming, trial-gate and ownership gaps.
+- Iterations 2-4 tightened human approval channels, branch/source ordering, at-rest encryption, deletion-ledger recovery, account enrollment/reset and Local Connector queue protection.
+- Iteration 5 added server-computed upload risk tiers and downgrade rejection.
+- Final independent result: `APPROVED`; no remaining blocking contradiction found.
+
+Current gate:
+
+- Production design: direction confirmed and spec-review approved.
+- User review of the written specification: pending.
+- Implementation plan and PR1 code changes: not started.
+
 ### 2026-08-28: P0-P9 Full Code Review and Beginner System Manual
 
 Scope:
