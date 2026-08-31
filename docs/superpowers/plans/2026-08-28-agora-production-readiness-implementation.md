@@ -29,6 +29,8 @@ No phase is described as complete until all four are true and the roadmap contai
 
 Plan: `docs/superpowers/plans/2026-08-28-agora-pr1a-runtime-mcp-hardening.md`
 
+Current execution state (2026-08-31): Task 1 is implemented and automated-verified; Task 2 is in progress. PR1A black-box and exit criteria remain pending.
+
 Outcomes:
 
 - Test bypass is impossible outside isolated `AGORA_ENV=test`.

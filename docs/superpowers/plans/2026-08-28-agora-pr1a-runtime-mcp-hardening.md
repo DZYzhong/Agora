@@ -29,7 +29,7 @@
 - Modify: `docs/manual/agora-system-user-and-technical-manual.zh-CN.md`
 - Modify: `tests/integration/test_web_config.py`
 
-- [ ] **Step 1: Write failing policy tests**
+- [x] **Step 1: Write failing policy tests**
 
 Tests cover:
 
@@ -47,7 +47,7 @@ def test_production_rejects_bypass_and_local_init_root():
 
 Also assert unknown `local` and `production-like` values fail with a stable `AGORA_ENV_INVALID` code.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 .venv/bin/pytest tests/unit/core/test_settings.py -q
@@ -55,7 +55,7 @@ Also assert unknown `local` and `production-like` values fail with a stable `AGO
 
 Expected: import failure because `packages.core.settings` does not exist.
 
-- [ ] **Step 3: Implement immutable runtime policy**
+- [x] **Step 3: Implement immutable runtime policy**
 
 - Accept exactly `test`, `development`, `production`.
 - Default to `development` when absent.
@@ -64,14 +64,14 @@ Expected: import failure because `packages.core.settings` does not exist.
 - Resolve and retain an explicit local-init root; never infer `/` or current working directory.
 - Expose secret-free `{code, message, field}` configuration diagnostics.
 
-- [ ] **Step 4: Migrate configuration examples and docs**
+- [x] **Step 4: Migrate configuration examples and docs**
 
 - Replace `production-like` with `production` in `.env.example`, Compose contracts and P9 guide.
 - Replace manual `local` examples with `development`.
 - Do not enable `AGORA_LOCAL_INIT_ROOT` in production examples.
 - Add source-level tests proving all supported values agree.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 ```bash
 .venv/bin/pytest tests/unit/core/test_settings.py tests/integration/test_web_config.py -q
@@ -79,12 +79,20 @@ Expected: import failure because `packages.core.settings` does not exist.
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/core/settings.py tests/unit/core/test_settings.py tests/conftest.py .env.example infra/docker-compose.yml docs/development/p9-operations-readiness-blackbox.zh-CN.md docs/manual/agora-system-user-and-technical-manual.zh-CN.md tests/integration/test_web_config.py
 git commit -m "feat: enforce supported runtime environments"
 ```
+
+**Execution record (2026-08-31):**
+
+- Commits: `945a48f`, `87bd4aa`, `331b5d6`, `ccb0abb`, `f387f5a`.
+- RED evidence: initial settings import failed; subsequent boundary suites failed for unsafe paths, symlinks, YAML variants and inherited Compose environment values before implementation.
+- GREEN evidence: focused policy/config suite `72 passed`; full suite `308 passed, 2 skipped`; `pip check` and `git diff --check` passed.
+- Review evidence: specification review approved; code-quality review approved after three correction rounds.
+- State: `implemented` and `automated verified`; no black-box or PR1A exit claim yet.
 
 ### Task 2: Startup refusal and complete readiness failure coverage
 
