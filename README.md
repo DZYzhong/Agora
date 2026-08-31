@@ -6,7 +6,7 @@ Agora is a team AI project harness.
 
 ```bash
 python -m venv .venv
-.venv/bin/pip install -e .
+.venv/bin/pip install -e '.[test]'
 docker compose -f infra/docker-compose.yml up -d
 .venv/bin/pytest
 .venv/bin/uvicorn apps.api.main:app --reload

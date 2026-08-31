@@ -9,6 +9,8 @@ from packages.core.settings import SUPPORTED_ENVIRONMENTS
 
 DOTENV_ENV_PATTERN = re.compile(r"^AGORA_ENV=([^\s#]+)\s*$", re.MULTILINE)
 EXPORT_ENV_PATTERN = re.compile(r"^export AGORA_ENV=([^\s#]+)\s*$", re.MULTILINE)
+EDITABLE_INSTALL_PATTERN = re.compile(r"^\.venv/bin/pip install -e (\S+)\s*$", re.MULTILINE)
+UNRESOLVED_COMPOSE_ENVIRONMENT = "<unresolved>"
 
 
 def _compose_service_environment_values(compose: str) -> dict[str, list[str]]:
@@ -35,6 +37,9 @@ def _normalize_compose_environment(environment: object) -> list[str]:
         values = []
         for item in environment:
             if not isinstance(item, str):
+                continue
+            if item == "AGORA_ENV":
+                values.append(UNRESOLVED_COMPOSE_ENVIRONMENT)
                 continue
             name, separator, value = item.partition("=")
             if name == "AGORA_ENV" and separator:
@@ -121,6 +126,36 @@ services:
 """
 
     assert _compose_service_environment_values(compose) == {"api": ["production"]}
+
+
+def test_compose_environment_parser_rejects_key_only_value_with_supported_value():
+    compose = """\
+services:
+  api:
+    environment:
+      - AGORA_ENV
+      - AGORA_ENV=production
+"""
+
+    discovered = _compose_service_environment_values(compose)
+
+    assert discovered == {"api": ["<unresolved>", "production"]}
+    with pytest.raises(AssertionError, match="<unresolved>"):
+        _assert_supported_runtime_environments(discovered)
+
+
+def test_documented_test_setup_installs_test_extra():
+    documented_installs = {
+        "README.md": EDITABLE_INSTALL_PATTERN.findall(Path("README.md").read_text()),
+        "docs/manual/agora-system-user-and-technical-manual.zh-CN.md": EDITABLE_INSTALL_PATTERN.findall(
+            Path("docs/manual/agora-system-user-and-technical-manual.zh-CN.md").read_text()
+        ),
+    }
+
+    assert documented_installs == {
+        "README.md": ["'.[test]'"],
+        "docs/manual/agora-system-user-and-technical-manual.zh-CN.md": ["'.[test]'"],
+    }
 
 
 def test_next_dev_and_build_use_separate_dist_dirs():

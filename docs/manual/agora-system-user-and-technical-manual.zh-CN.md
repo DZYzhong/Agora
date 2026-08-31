@@ -192,7 +192,7 @@ npm --version
 ```bash
 cd /Users/daniel/Documents/Agora/.worktrees/agora-p0
 python3 -m venv .venv
-.venv/bin/pip install -e .
+.venv/bin/pip install -e '.[test]'
 ```
 
 虚拟环境是本项目独立的一套 Python 依赖。
