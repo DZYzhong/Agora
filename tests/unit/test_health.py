@@ -1,4 +1,7 @@
 import pytest
+from alembic import command
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
@@ -19,11 +22,35 @@ def _memory_engine():
     )
 
 
+def _configure_database(monkeypatch, database_url):
+    monkeypatch.setenv("AGORA_ENV", "test")
+    monkeypatch.setenv("AGORA_DATABASE_URL", database_url)
+    monkeypatch.setenv("AGORA_TEST_AUTH_BYPASS", "1")
+
+
+def _upgrade_to_previous_revision(database_url):
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", database_url)
+    script = ScriptDirectory.from_config(config)
+    heads = script.get_heads()
+    assert len(heads) == 1
+    previous_revision = script.get_revision(heads[0]).down_revision
+    assert isinstance(previous_revision, str)
+    command.upgrade(config, previous_revision)
+
+
 def test_health_endpoint_stays_dependency_free(monkeypatch):
     def fail_if_called():
         raise AssertionError("health endpoint touched a dependency")
 
-    monkeypatch.setattr(health_router, "get_engine", fail_if_called)
+    for dependency_name in (
+        "get_runtime_policy",
+        "create_readiness_probe_engine",
+        "get_engine",
+        "get_alembic_heads",
+        "build_readiness_result",
+    ):
+        monkeypatch.setattr(health_router, dependency_name, fail_if_called, raising=False)
     client = TestClient(app)
     response = client.get("/health")
 
@@ -39,6 +66,12 @@ def test_readiness_endpoint_returns_503_for_invalid_secret_bearing_configuration
         health_router,
         "get_engine",
         lambda: pytest.fail("invalid configuration must not create an engine"),
+    )
+    monkeypatch.setattr(
+        health_router,
+        "create_readiness_probe_engine",
+        lambda policy: pytest.fail("invalid configuration must not create a probe engine"),
+        raising=False,
     )
     client = TestClient(app)
 
@@ -70,6 +103,12 @@ def test_readiness_endpoint_returns_503_when_engine_creation_fails(monkeypatch):
         raise SecretEngineError("postgresql://user:password@database/agora")
 
     monkeypatch.setattr(health_router, "get_engine", fail_engine_creation)
+    monkeypatch.setattr(
+        health_router,
+        "create_readiness_probe_engine",
+        lambda policy: fail_engine_creation(),
+        raising=False,
+    )
 
     response = TestClient(app).get("/ready")
 
@@ -100,7 +139,16 @@ def test_readiness_endpoint_returns_503_when_database_query_fails(monkeypatch):
         def connect(self):
             return FailingConnection()
 
+        def dispose(self):
+            pass
+
     monkeypatch.setattr(health_router, "get_engine", lambda: FailingEngine())
+    monkeypatch.setattr(
+        health_router,
+        "create_readiness_probe_engine",
+        lambda policy: FailingEngine(),
+        raising=False,
+    )
 
     response = TestClient(app).get("/ready")
 
@@ -120,6 +168,12 @@ def test_readiness_endpoint_returns_503_when_database_query_fails(monkeypatch):
 def test_readiness_endpoint_returns_503_when_alembic_revision_is_missing(monkeypatch):
     engine = _memory_engine()
     monkeypatch.setattr(health_router, "get_engine", lambda: engine)
+    monkeypatch.setattr(
+        health_router,
+        "create_readiness_probe_engine",
+        lambda policy: engine,
+        raising=False,
+    )
 
     response = TestClient(app).get("/ready")
 
@@ -141,6 +195,12 @@ def test_readiness_endpoint_returns_503_when_database_revision_is_stale(monkeypa
         connection.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)"))
         connection.execute(text("INSERT INTO alembic_version VALUES ('stale-revision')"))
     monkeypatch.setattr(health_router, "get_engine", lambda: engine)
+    monkeypatch.setattr(
+        health_router,
+        "create_readiness_probe_engine",
+        lambda policy: engine,
+        raising=False,
+    )
 
     response = TestClient(app).get("/ready")
 
@@ -152,7 +212,81 @@ def test_readiness_endpoint_returns_503_when_database_revision_is_stale(monkeypa
     engine.dispose()
 
 
+def test_readiness_probe_does_not_migrate_a_real_stale_database(monkeypatch, tmp_path):
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'readiness-stale-test.db'}"
+    _upgrade_to_previous_revision(database_url)
+    _configure_database(monkeypatch, database_url)
+    engine = create_engine(database_url)
+    with engine.connect() as connection:
+        revisions_before = connection.scalars(
+            text("SELECT version_num FROM alembic_version")
+        ).all()
+
+    response = TestClient(app).get("/ready")
+
+    with engine.connect() as connection:
+        revisions_after = connection.scalars(
+            text("SELECT version_num FROM alembic_version")
+        ).all()
+    engine.dispose()
+    assert response.status_code == 503
+    assert response.json()["checks"]["schema"] == {
+        "status": "error",
+        "code": "SCHEMA_REVISION_STALE",
+    }
+    assert revisions_after == revisions_before
+
+
+def test_readiness_rejects_current_head_with_an_unexpected_extra_row(
+    monkeypatch, tmp_path
+):
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'readiness-extra-head-test.db'}"
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)"))
+        connection.execute(
+            text("INSERT INTO alembic_version VALUES (:revision)"),
+            {"revision": health_router.get_alembic_heads()[0]},
+        )
+        connection.execute(
+            text("INSERT INTO alembic_version VALUES ('unexpected-stale-row')")
+        )
+    engine.dispose()
+    _configure_database(monkeypatch, database_url)
+
+    response = TestClient(app).get("/ready")
+
+    assert response.status_code == 503
+    assert response.json()["checks"]["schema"] == {
+        "status": "error",
+        "code": "SCHEMA_REVISION_STALE",
+    }
+    assert "unexpected-stale-row" not in response.text
+
+
+def test_readiness_rejects_duplicate_current_head_rows(monkeypatch, tmp_path):
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'readiness-duplicate-head-test.db'}"
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)"))
+        connection.execute(
+            text("INSERT INTO alembic_version VALUES (:revision), (:revision)"),
+            {"revision": health_router.get_alembic_heads()[0]},
+        )
+    engine.dispose()
+    _configure_database(monkeypatch, database_url)
+
+    response = TestClient(app).get("/ready")
+
+    assert response.status_code == 503
+    assert response.json()["checks"]["schema"] == {
+        "status": "error",
+        "code": "SCHEMA_REVISION_STALE",
+    }
+
+
 def test_readiness_endpoint_returns_200_for_valid_isolated_test_configuration():
+    dependencies.get_engine()
     response = TestClient(app).get("/ready")
 
     assert response.status_code == 200
@@ -167,6 +301,7 @@ def test_readiness_endpoint_returns_200_for_valid_isolated_test_configuration():
 
 
 def test_metrics_endpoint_exposes_prometheus_style_operational_counters():
+    dependencies.get_engine()
     client = TestClient(app)
 
     response = client.get("/metrics")
@@ -202,6 +337,12 @@ def test_metrics_reports_not_ready_without_raising_when_readiness_fails(monkeypa
         health_router,
         "get_engine",
         lambda: pytest.fail("failed readiness must not retry dependency access"),
+    )
+    monkeypatch.setattr(
+        health_router,
+        "create_readiness_probe_engine",
+        lambda policy: pytest.fail("failed readiness must not retry probe dependencies"),
+        raising=False,
     )
 
     response = TestClient(app).get("/metrics")

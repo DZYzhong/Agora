@@ -35,6 +35,26 @@ def create_app_engine(database_url: str) -> Engine:
     return create_engine(database_url, connect_args=connect_args)
 
 
+def create_readiness_probe_engine(policy: RuntimePolicy) -> Engine:
+    url = make_url(policy.database_url)
+    if url.get_backend_name() != "sqlite":
+        return create_engine(url)
+    if url.database == ":memory:":
+        return create_engine(
+            url,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+
+    query = dict(url.query)
+    query.update({"mode": "ro", "uri": "true"})
+    read_only_url = url.set(database=f"file:{url.database}", query=query)
+    return create_engine(
+        read_only_url,
+        connect_args={"check_same_thread": False},
+    )
+
+
 @lru_cache
 def get_engine():
     database_url = os.environ.get("AGORA_DATABASE_URL", DEFAULT_DATABASE_URL)

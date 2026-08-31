@@ -4,9 +4,13 @@ from fastapi import APIRouter, Response, status
 from sqlalchemy import func, inspect, text
 from sqlalchemy.orm import sessionmaker
 
-from apps.api.dependencies import get_engine, get_runtime_policy
+from apps.api.dependencies import (
+    create_readiness_probe_engine,
+    get_engine,
+    get_runtime_policy,
+)
 from packages.core.models import ContextProposalModel, ProjectModel
-from packages.core.schema_manager import get_alembic_head
+from packages.core.schema_manager import get_alembic_heads
 from packages.core.services.outbox_diagnostics import build_outbox_summary
 from packages.core.settings import RuntimeConfigurationError
 
@@ -26,7 +30,7 @@ def build_readiness_result() -> dict[str, Any]:
     }
 
     try:
-        get_runtime_policy()
+        runtime_policy = get_runtime_policy()
     except RuntimeConfigurationError as exc:
         checks["configuration"] = {
             "status": "error",
@@ -44,7 +48,7 @@ def build_readiness_result() -> dict[str, Any]:
     checks["configuration"] = {"status": "ok", "code": "RUNTIME_POLICY_VALID"}
 
     try:
-        engine = get_engine()
+        engine = create_readiness_probe_engine(runtime_policy)
     except Exception as exc:
         checks["database"] = {
             "status": "error",
@@ -54,47 +58,52 @@ def build_readiness_result() -> dict[str, Any]:
         return {"status": "not_ready", "checks": checks}
 
     try:
-        connection_context = engine.connect()
-        with connection_context as connection:
-            try:
-                connection.execute(text("SELECT 1"))
-            except Exception as exc:
-                checks["database"] = {
-                    "status": "error",
-                    "code": "DATABASE_QUERY_FAILED",
-                    "error": type(exc).__name__,
-                }
-                return {"status": "not_ready", "checks": checks}
-            checks["database"] = {"status": "ok", "code": "DATABASE_REACHABLE"}
+        try:
+            connection_context = engine.connect()
+            with connection_context as connection:
+                try:
+                    connection.execute(text("SELECT 1"))
+                except Exception as exc:
+                    checks["database"] = {
+                        "status": "error",
+                        "code": "DATABASE_QUERY_FAILED",
+                        "error": type(exc).__name__,
+                    }
+                    return {"status": "not_ready", "checks": checks}
+                checks["database"] = {"status": "ok", "code": "DATABASE_REACHABLE"}
 
-            try:
-                has_revision_table = inspect(connection).has_table("alembic_version")
-                revision = (
-                    connection.scalar(text("SELECT version_num FROM alembic_version"))
-                    if has_revision_table
-                    else None
-                )
-            except Exception as exc:
-                checks["schema"] = {
-                    "status": "error",
-                    "code": "SCHEMA_QUERY_FAILED",
-                    "error": type(exc).__name__,
-                }
-                return {"status": "not_ready", "checks": checks}
-    except Exception as exc:
-        checks["database"] = {
-            "status": "error",
-            "code": "DATABASE_CONNECTION_FAILED",
-            "error": type(exc).__name__,
-        }
-        return {"status": "not_ready", "checks": checks}
+                try:
+                    has_revision_table = inspect(connection).has_table("alembic_version")
+                    revisions = (
+                        connection.scalars(
+                            text("SELECT version_num FROM alembic_version")
+                        ).all()
+                        if has_revision_table
+                        else []
+                    )
+                except Exception as exc:
+                    checks["schema"] = {
+                        "status": "error",
+                        "code": "SCHEMA_QUERY_FAILED",
+                        "error": type(exc).__name__,
+                    }
+                    return {"status": "not_ready", "checks": checks}
+        except Exception as exc:
+            checks["database"] = {
+                "status": "error",
+                "code": "DATABASE_CONNECTION_FAILED",
+                "error": type(exc).__name__,
+            }
+            return {"status": "not_ready", "checks": checks}
+    finally:
+        engine.dispose()
 
-    if revision is None:
+    if not revisions:
         checks["schema"] = {"status": "error", "code": "SCHEMA_REVISION_MISSING"}
         return {"status": "not_ready", "checks": checks}
 
     try:
-        expected_revision = get_alembic_head()
+        expected_revisions = get_alembic_heads()
     except Exception as exc:
         checks["schema"] = {
             "status": "error",
@@ -103,10 +112,12 @@ def build_readiness_result() -> dict[str, Any]:
         }
         return {"status": "not_ready", "checks": checks}
 
-    if expected_revision is None:
+    if not expected_revisions:
         checks["schema"] = {"status": "error", "code": "SCHEMA_HEAD_MISSING"}
         return {"status": "not_ready", "checks": checks}
-    if revision != expected_revision:
+    if len(revisions) != len(set(revisions)) or set(revisions) != set(
+        expected_revisions
+    ):
         checks["schema"] = {"status": "error", "code": "SCHEMA_REVISION_STALE"}
         return {"status": "not_ready", "checks": checks}
 

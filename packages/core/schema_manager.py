@@ -45,8 +45,8 @@ def _alembic_config(database_url: str) -> Config:
     return config
 
 
-def get_alembic_head() -> str | None:
-    return ScriptDirectory.from_config(_alembic_config("sqlite://")).get_current_head()
+def get_alembic_heads() -> tuple[str, ...]:
+    return tuple(ScriptDirectory.from_config(_alembic_config("sqlite://")).get_heads())
 
 
 def _sqlite_path(database_url: str) -> Path | None:
