@@ -1,6 +1,6 @@
 # P9 Production and Operations Readiness 黑盒验证步骤
 
-目标：验证 Agora 在生产-like 环境中具备基本部署、可观测、备份恢复和角色流程冒烟能力。用户仍通过 AI 工具和 Web UI 验证产品行为；运维探针用于部署系统、CI 或值班人员确认服务状态。
+目标：验证 Agora 在 production 环境中具备基本部署、可观测、备份恢复和角色流程冒烟能力。用户仍通过 AI 工具和 Web UI 验证产品行为；运维探针用于部署系统、CI 或值班人员确认服务状态。
 
 ## 验证边界
 
@@ -12,15 +12,15 @@
 - Web 项目页提供 `Operations summary`，项目经理和质量人员可以直接查看治理、上下文、质量、技能、审批、仓库和 PR/MR 信号统计。
 - 运维人员和 AI 工具可通过 `project-summary` 导出同一份项目治理摘要 JSON。
 - 运维人员和 AI 工具可通过 `retention-summary` 预览清理候选，通过 `cleanup-retention --yes` 清理过期导出和终态 outbox 事件。
-- SQLite 可用于本地演练；生产-like 验证应优先使用 PostgreSQL。
-- SQLite 试点环境可以使用 `scripts.agora_admin backup-sqlite` 和 `scripts.agora_admin restore-sqlite` 演练备份恢复；PostgreSQL 生产-like 环境使用数据库原生命令完成。
+- SQLite 可用于本地演练；production 验证应优先使用 PostgreSQL。
+- SQLite 试点环境可以使用 `scripts.agora_admin backup-sqlite` 和 `scripts.agora_admin restore-sqlite` 演练备份恢复；PostgreSQL production 环境使用数据库原生命令完成。
 
 ## 前置条件
 
 1. 准备环境变量：
 
 ```bash
-export AGORA_ENV=production-like
+export AGORA_ENV=production
 export AGORA_DATABASE_URL=postgresql+psycopg://agora:agora@localhost:5432/agora
 export AGORA_BOOTSTRAP_ORG_ID=local-org
 export AGORA_BOOTSTRAP_HUMAN_TOKEN=p9-human-token
@@ -326,7 +326,7 @@ python -m scripts.agora_admin p9-blackbox-suite \
 
 ## 通过标准
 
-- 生产-like 环境能启动 API 和 Web。
+- production 环境能启动 API 和 Web。
 - `/ready` 能发现数据库、schema 和配置问题。
 - `/metrics` 能被监控系统抓取，并暴露 outbox 积压、死信和可重试数量。
 - API 响应包含 `X-Request-ID`，便于排查 AI 工具、CI 和 Web 调用链。

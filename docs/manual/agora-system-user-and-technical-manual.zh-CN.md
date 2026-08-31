@@ -228,7 +228,7 @@ openssl rand -hex 32
 ```bash
 cd /Users/daniel/Documents/Agora/.worktrees/agora-p0
 
-export AGORA_ENV=local
+export AGORA_ENV=development
 export AGORA_DATABASE_URL='sqlite+pysqlite:///.agora/agora.db'
 export AGORA_BOOTSTRAP_ORG_ID='local-org'
 export AGORA_BOOTSTRAP_HUMAN_TOKEN='替换成人工token'

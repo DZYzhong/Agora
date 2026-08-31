@@ -264,4 +264,23 @@ def test_p9_container_runtime_assets_exist():
     assert "healthcheck:" in compose
     assert "http://127.0.0.1:8000/ready" in compose
     assert "AGORA_BOOTSTRAP_CI_TOKEN" in env_example
-    assert "AGORA_ENV=production-like" in env_example
+    assert "AGORA_ENV=production" in env_example
+
+
+def test_runtime_environment_examples_use_supported_values():
+    env_example = Path(".env.example").read_text()
+    compose = Path("infra/docker-compose.yml").read_text()
+    p9_guide = Path("docs/development/p9-operations-readiness-blackbox.zh-CN.md").read_text()
+    manual = Path("docs/manual/agora-system-user-and-technical-manual.zh-CN.md").read_text()
+
+    assert "AGORA_ENV=production" in env_example
+    assert "AGORA_ENV: production" in compose
+    assert "AGORA_ENV=production" in p9_guide
+    assert "AGORA_ENV=development" in manual
+
+    for source in (env_example, compose, p9_guide, manual):
+        assert "AGORA_ENV=local" not in source
+        assert "AGORA_ENV=production-like" not in source
+
+    for production_source in (env_example, compose, p9_guide):
+        assert "AGORA_LOCAL_INIT_ROOT" not in production_source

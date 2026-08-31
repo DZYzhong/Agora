@@ -6,6 +6,7 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def isolate_agora_api_runtime(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGORA_ENV", "test")
     monkeypatch.setenv("AGORA_DATABASE_URL", f"sqlite+pysqlite:///{tmp_path / 'agora-test.db'}")
     monkeypatch.setenv("AGORA_TEST_AUTH_BYPASS", "1")
 
