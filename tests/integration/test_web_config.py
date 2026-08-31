@@ -1,12 +1,104 @@
 import re
 from pathlib import Path
 
+import pytest
+
 from packages.core.settings import SUPPORTED_ENVIRONMENTS
 
 
 DOTENV_ENV_PATTERN = re.compile(r"^AGORA_ENV=([^\s#]+)\s*$", re.MULTILINE)
-COMPOSE_ENV_PATTERN = re.compile(r"^\s+AGORA_ENV:\s*([^\s#]+)\s*$", re.MULTILINE)
 EXPORT_ENV_PATTERN = re.compile(r"^export AGORA_ENV=([^\s#]+)\s*$", re.MULTILINE)
+COMPOSE_SERVICE_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+:$")
+COMPOSE_MAPPING_ENV_PATTERN = re.compile(r"^AGORA_ENV\s*:\s*([^\s#]+)\s*$")
+COMPOSE_LIST_ENV_PATTERN = re.compile(r"^-\s*AGORA_ENV=([^\s#]+)\s*$")
+
+
+def _compose_service_environment_values(compose: str) -> dict[str, list[str]]:
+    discovered: dict[str, list[str]] = {}
+    in_services = False
+    current_service: str | None = None
+    environment_indent: int | None = None
+
+    for line in compose.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+
+        indent = len(line) - len(line.lstrip())
+        if indent == 0:
+            in_services = stripped == "services:"
+            current_service = None
+            environment_indent = None
+            continue
+        if not in_services:
+            continue
+
+        if indent == 2 and COMPOSE_SERVICE_PATTERN.fullmatch(stripped):
+            current_service = stripped[:-1]
+            environment_indent = None
+            continue
+        if current_service is None:
+            continue
+
+        if environment_indent is not None and indent <= environment_indent:
+            environment_indent = None
+        if indent == 4 and stripped == "environment:":
+            environment_indent = indent
+            continue
+        if environment_indent is None:
+            continue
+
+        match = COMPOSE_MAPPING_ENV_PATTERN.fullmatch(stripped)
+        if match is None:
+            match = COMPOSE_LIST_ENV_PATTERN.fullmatch(stripped)
+        if match is not None:
+            discovered.setdefault(current_service, []).append(match.group(1))
+
+    return discovered
+
+
+def _assert_supported_runtime_environments(discovered: dict[str, list[str]]) -> None:
+    unsupported = sorted(
+        value
+        for values in discovered.values()
+        for value in values
+        if value not in SUPPORTED_ENVIRONMENTS
+    )
+    assert not unsupported, f"Unsupported AGORA_ENV values: {unsupported}"
+
+
+def test_compose_environment_parser_supports_mapping_and_list_syntax():
+    compose = """\
+services:
+  mapping-service:
+    environment:
+      AGORA_ENV: production
+  list-service:
+    environment:
+      - AGORA_ENV=local
+  unrelated-service:
+    labels:
+      AGORA_ENV: ignored
+"""
+
+    assert _compose_service_environment_values(compose) == {
+        "mapping-service": ["production"],
+        "list-service": ["local"],
+    }
+
+
+def test_compose_environment_parser_rejects_unsupported_list_value():
+    compose = """\
+services:
+  api:
+    environment:
+      - AGORA_ENV=local
+"""
+
+    discovered = _compose_service_environment_values(compose)
+
+    with pytest.raises(AssertionError, match="local"):
+        _assert_supported_runtime_environments(discovered)
 
 
 def test_next_dev_and_build_use_separate_dist_dirs():
@@ -281,9 +373,20 @@ def test_runtime_environment_examples_use_supported_values():
     p9_guide = Path("docs/development/p9-operations-readiness-blackbox.zh-CN.md").read_text()
     manual = Path("docs/manual/agora-system-user-and-technical-manual.zh-CN.md").read_text()
 
+    compose_environments = _compose_service_environment_values(compose)
+    assert compose_environments == {
+        "api": ["production"],
+        "web": ["production"],
+        "local-connector": ["production"],
+    }
+
     discovered_values = {
         ".env.example": DOTENV_ENV_PATTERN.findall(env_example),
-        "infra/docker-compose.yml": COMPOSE_ENV_PATTERN.findall(compose),
+        "infra/docker-compose.yml": [
+            value
+            for values in compose_environments.values()
+            for value in values
+        ],
         "docs/development/p9-operations-readiness-blackbox.zh-CN.md": EXPORT_ENV_PATTERN.findall(p9_guide),
         "docs/manual/agora-system-user-and-technical-manual.zh-CN.md": EXPORT_ENV_PATTERN.findall(manual),
     }
@@ -294,11 +397,7 @@ def test_runtime_environment_examples_use_supported_values():
         "docs/development/p9-operations-readiness-blackbox.zh-CN.md": ["production"],
         "docs/manual/agora-system-user-and-technical-manual.zh-CN.md": ["development"],
     }
-    assert all(
-        value in SUPPORTED_ENVIRONMENTS
-        for values in discovered_values.values()
-        for value in values
-    )
+    _assert_supported_runtime_environments(discovered_values)
 
     for production_source in (env_example, compose, p9_guide):
         assert "AGORA_LOCAL_INIT_ROOT" not in production_source

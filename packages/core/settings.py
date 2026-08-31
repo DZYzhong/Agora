@@ -97,8 +97,7 @@ def _is_isolated_test_database(database_url: str) -> bool:
         database_path = Path(database_name)
         if not database_path.is_absolute() or SQLITE_TEST_TOKEN.search(database_path.name) is None:
             return False
-        configured_parent = database_path.parent.resolve()
-        if database_path.is_symlink() and not database_path.resolve().is_relative_to(configured_parent):
+        if database_path.is_symlink():
             return False
         return True
     if url.get_backend_name() == "postgresql":

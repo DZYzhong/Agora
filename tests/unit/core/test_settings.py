@@ -136,22 +136,38 @@ def test_test_bypass_rejects_sqlite_symlink_escaping_configured_parent(tmp_path)
     assert exc.value.field == "AGORA_DATABASE_URL"
 
 
-def test_test_bypass_allows_sqlite_symlink_within_configured_parent(tmp_path):
+def test_test_bypass_rejects_sqlite_symlink_within_configured_parent(tmp_path):
     configured_parent = tmp_path / "configured"
     configured_parent.mkdir()
-    target_database = configured_parent / "target-test.db"
+    target_database = configured_parent / "agora.db"
     target_database.touch()
     configured_database = configured_parent / "agora-test.db"
     configured_database.symlink_to(target_database)
 
+    with pytest.raises(RuntimeConfigurationError) as exc:
+        validate_runtime_policy(
+            "test",
+            f"sqlite+pysqlite:///{configured_database}",
+            True,
+            None,
+        )
+
+    assert exc.value.code == "AGORA_TEST_DATABASE_NOT_ISOLATED"
+    assert exc.value.field == "AGORA_DATABASE_URL"
+
+
+def test_test_bypass_allows_non_existing_regular_sqlite_path(tmp_path):
+    database_path = tmp_path / "agora-test.db"
+
     policy = validate_runtime_policy(
         "test",
-        f"sqlite+pysqlite:///{configured_database}",
+        f"sqlite+pysqlite:///{database_path}",
         True,
         None,
     )
 
     assert policy.auth_bypass is True
+    assert not database_path.exists()
 
 
 @pytest.mark.parametrize("environment", ["test", "development"])
