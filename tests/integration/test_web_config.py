@@ -2,59 +2,45 @@ import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 from packages.core.settings import SUPPORTED_ENVIRONMENTS
 
 
 DOTENV_ENV_PATTERN = re.compile(r"^AGORA_ENV=([^\s#]+)\s*$", re.MULTILINE)
 EXPORT_ENV_PATTERN = re.compile(r"^export AGORA_ENV=([^\s#]+)\s*$", re.MULTILINE)
-COMPOSE_SERVICE_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+:$")
-COMPOSE_MAPPING_ENV_PATTERN = re.compile(r"^AGORA_ENV\s*:\s*([^\s#]+)\s*$")
-COMPOSE_LIST_ENV_PATTERN = re.compile(r"^-\s*AGORA_ENV=([^\s#]+)\s*$")
 
 
 def _compose_service_environment_values(compose: str) -> dict[str, list[str]]:
+    document = yaml.safe_load(compose) or {}
+    if not isinstance(document, dict) or not isinstance(document.get("services"), dict):
+        return {}
+
     discovered: dict[str, list[str]] = {}
-    in_services = False
-    current_service: str | None = None
-    environment_indent: int | None = None
-
-    for line in compose.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
+    for service_name, service_config in document["services"].items():
+        if not isinstance(service_config, dict):
             continue
-
-        indent = len(line) - len(line.lstrip())
-        if indent == 0:
-            in_services = stripped == "services:"
-            current_service = None
-            environment_indent = None
-            continue
-        if not in_services:
-            continue
-
-        if indent == 2 and COMPOSE_SERVICE_PATTERN.fullmatch(stripped):
-            current_service = stripped[:-1]
-            environment_indent = None
-            continue
-        if current_service is None:
-            continue
-
-        if environment_indent is not None and indent <= environment_indent:
-            environment_indent = None
-        if indent == 4 and stripped == "environment:":
-            environment_indent = indent
-            continue
-        if environment_indent is None:
-            continue
-
-        match = COMPOSE_MAPPING_ENV_PATTERN.fullmatch(stripped)
-        if match is None:
-            match = COMPOSE_LIST_ENV_PATTERN.fullmatch(stripped)
-        if match is not None:
-            discovered.setdefault(current_service, []).append(match.group(1))
+        values = _normalize_compose_environment(service_config.get("environment"))
+        if values:
+            discovered[str(service_name)] = values
 
     return discovered
+
+
+def _normalize_compose_environment(environment: object) -> list[str]:
+    if isinstance(environment, dict):
+        value = environment.get("AGORA_ENV")
+        return [str(value)] if value is not None else []
+    if isinstance(environment, list):
+        values = []
+        for item in environment:
+            if not isinstance(item, str):
+                continue
+            name, separator, value = item.partition("=")
+            if name == "AGORA_ENV" and separator:
+                values.append(value)
+        return values
+    return []
 
 
 def _assert_supported_runtime_environments(discovered: dict[str, list[str]]) -> None:
@@ -99,6 +85,42 @@ services:
 
     with pytest.raises(AssertionError, match="local"):
         _assert_supported_runtime_environments(discovered)
+
+
+def test_compose_environment_parser_discovers_quoted_list_value():
+    compose = """\
+services:
+  api:
+    environment:
+      - "AGORA_ENV=local"
+"""
+
+    discovered = _compose_service_environment_values(compose)
+
+    assert discovered == {"api": ["local"]}
+    with pytest.raises(AssertionError, match="local"):
+        _assert_supported_runtime_environments(discovered)
+
+
+def test_compose_environment_parser_supports_inline_list_syntax():
+    compose = """\
+services:
+  api:
+    environment: [AGORA_ENV=production]
+"""
+
+    assert _compose_service_environment_values(compose) == {"api": ["production"]}
+
+
+def test_compose_environment_parser_supports_varied_indentation():
+    compose = """\
+services:
+    api:
+        environment:
+            AGORA_ENV: production
+"""
+
+    assert _compose_service_environment_values(compose) == {"api": ["production"]}
 
 
 def test_next_dev_and_build_use_separate_dist_dirs():

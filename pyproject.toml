@@ -14,6 +14,11 @@ dependencies = [
   "mcp>=2.0.0",
 ]
 
+[project.optional-dependencies]
+test = [
+  "PyYAML>=6.0",
+]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
