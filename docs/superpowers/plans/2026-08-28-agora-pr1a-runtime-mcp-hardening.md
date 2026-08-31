@@ -105,7 +105,7 @@ git commit -m "feat: enforce supported runtime environments"
 - Modify: `tests/unit/test_health.py`
 - Modify: `tests/integration/api/test_auth.py`
 
-- [ ] **Step 1: Add failing startup and readiness tests**
+- [x] **Step 1: Add failing startup and readiness tests**
 
 Separate tests must prove:
 
@@ -119,7 +119,7 @@ Separate tests must prove:
 - valid isolated test returns 200;
 - `/health` stays dependency-free.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 .venv/bin/pytest tests/unit/test_health.py tests/integration/api/test_auth.py -q
@@ -127,7 +127,7 @@ Separate tests must prove:
 
 Expected: failures because engine creation occurs outside the handler, schema missing/stale does not fail, and readiness always returns 200.
 
-- [ ] **Step 3: Implement one pure readiness builder**
+- [x] **Step 3: Implement one pure readiness builder**
 
 - Put policy loading, engine creation, connection and schema comparison inside guarded checks.
 - Read expected Alembic head through the existing migration configuration/helper, not a copied revision string.
@@ -136,7 +136,7 @@ Expected: failures because engine creation occurs outside the handler, schema mi
 - Metrics calls the builder directly and emits `agora_ready 0` without requiring a FastAPI response object.
 - Lifespan validates policy before database bootstrap.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 ```bash
 .venv/bin/pytest tests/unit/core/test_settings.py tests/unit/test_health.py tests/integration/api/test_auth.py -q
@@ -144,12 +144,20 @@ Expected: failures because engine creation occurs outside the handler, schema mi
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/dependencies.py apps/api/auth.py apps/api/routers/health.py apps/api/main.py tests/unit/test_health.py tests/integration/api/test_auth.py
 git commit -m "fix: refuse unsafe startup and return truthful readiness"
 ```
+
+**Execution record (2026-08-31):**
+
+- Commits: `3ef536f`, `91a676d`, `5b0d4c6`.
+- RED evidence: initial suite `9 failed, 12 passed`; review-driven suites then exposed mutating probes, partial Alembic-head comparison, cleanup leakage and in-memory engine isolation.
+- GREEN evidence: final focused review suite `75 passed`; full suite `324 passed, 2 skipped`; `pip check` and `git diff --check` passed.
+- Review evidence: specification review approved; code-quality review approved after non-mutating probes, complete migration-head comparison and owned/borrowed probe lifecycles were verified.
+- State: `implemented` and `automated verified`; no black-box or PR1A exit claim yet.
 
 ## Chunk 2: Legacy repository import containment
 
