@@ -1,8 +1,11 @@
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
 from apps.api.dependencies import get_engine
+from apps.api import main as api_main
 from apps.api.main import app
+from packages.core.settings import RuntimeConfigurationError
 from packages.core.models import AssetModel, ProjectModel, TaskSessionModel
 from packages.core.uow import SqlAlchemyUnitOfWork
 
@@ -56,6 +59,43 @@ def _create_unowned_project_and_session():
             return ids
     finally:
         db.close()
+
+
+def test_lifespan_startup_refuses_production_auth_bypass_before_bootstrap(monkeypatch):
+    monkeypatch.setenv("AGORA_ENV", "production")
+    monkeypatch.setenv("AGORA_TEST_AUTH_BYPASS", "1")
+    monkeypatch.setenv("AGORA_DATABASE_URL", "postgresql://user:secret@database/agora")
+    monkeypatch.setattr(
+        api_main,
+        "bootstrap_auth_from_env",
+        lambda: pytest.fail("auth bootstrap ran before runtime policy validation"),
+    )
+
+    with pytest.raises(RuntimeConfigurationError) as exc:
+        with TestClient(app):
+            pass
+
+    assert exc.value.code == "AGORA_TEST_AUTH_BYPASS_FORBIDDEN"
+
+
+def test_lifespan_startup_refuses_production_local_init_root_before_bootstrap(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("AGORA_ENV", "production")
+    monkeypatch.delenv("AGORA_TEST_AUTH_BYPASS", raising=False)
+    monkeypatch.setenv("AGORA_DATABASE_URL", "postgresql://user:secret@database/agora")
+    monkeypatch.setenv("AGORA_LOCAL_INIT_ROOT", str(tmp_path / "local-init"))
+    monkeypatch.setattr(
+        api_main,
+        "bootstrap_auth_from_env",
+        lambda: pytest.fail("auth bootstrap ran before runtime policy validation"),
+    )
+
+    with pytest.raises(RuntimeConfigurationError) as exc:
+        with TestClient(app):
+            pass
+
+    assert exc.value.code == "AGORA_LOCAL_INIT_ROOT_FORBIDDEN"
 
 
 def test_missing_and_invalid_bearer_tokens_return_stable_auth_errors(monkeypatch):

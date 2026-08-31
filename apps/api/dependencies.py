@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from packages.core.schema_manager import ensure_schema
+from packages.core.settings import RuntimePolicy, validate_runtime_policy
 from packages.knowledge.index_rebuilder import rebuild_indexes_from_assets
 from packages.storage.opensearch.fake import FakeKeywordIndex
 from packages.storage.qdrant.fake import FakeVectorIndex
@@ -52,8 +53,17 @@ def get_db_session() -> Generator[Session, None, None]:
         session.close()
 
 
+def get_runtime_policy() -> RuntimePolicy:
+    return validate_runtime_policy(
+        os.environ.get("AGORA_ENV"),
+        os.environ.get("AGORA_DATABASE_URL", DEFAULT_DATABASE_URL),
+        os.environ.get(AGORA_TEST_AUTH_BYPASS) == "1",
+        os.environ.get("AGORA_LOCAL_INIT_ROOT"),
+    )
+
+
 def auth_bypass_enabled() -> bool:
-    return os.environ.get(AGORA_TEST_AUTH_BYPASS) == "1"
+    return get_runtime_policy().auth_bypass
 
 
 @lru_cache

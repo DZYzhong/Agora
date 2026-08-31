@@ -1,12 +1,14 @@
-import os
+from typing import Any
 
-from fastapi import APIRouter, Response
-from sqlalchemy import func, text
+from fastapi import APIRouter, Response, status
+from sqlalchemy import func, inspect, text
 from sqlalchemy.orm import sessionmaker
 
-from apps.api.dependencies import AGORA_TEST_AUTH_BYPASS, get_engine
+from apps.api.dependencies import get_engine, get_runtime_policy
 from packages.core.models import ContextProposalModel, ProjectModel
+from packages.core.schema_manager import get_alembic_head
 from packages.core.services.outbox_diagnostics import build_outbox_summary
+from packages.core.settings import RuntimeConfigurationError
 
 router = APIRouter()
 
@@ -16,60 +18,152 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.get("/ready")
-def ready() -> dict:
-    engine = get_engine()
-    checks = {
-        "database": {"status": "unknown"},
-        "schema": {"status": "unknown", "revision": None},
-        "configuration": _configuration_check(),
+def build_readiness_result() -> dict[str, Any]:
+    checks: dict[str, dict[str, str]] = {
+        "configuration": {"status": "unknown", "code": "CHECK_NOT_RUN"},
+        "database": {"status": "unknown", "code": "CHECK_NOT_RUN"},
+        "schema": {"status": "unknown", "code": "CHECK_NOT_RUN"},
     }
-    status = "ready"
+
     try:
-        with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
-            revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
-            checks["database"] = {"status": "ok"}
-            checks["schema"] = {"status": "ok" if revision else "missing", "revision": revision}
+        get_runtime_policy()
+    except RuntimeConfigurationError as exc:
+        checks["configuration"] = {
+            "status": "error",
+            "code": exc.code,
+            "error": type(exc).__name__,
+        }
+        return {"status": "not_ready", "checks": checks}
     except Exception as exc:
-        status = "not_ready"
-        checks["database"] = {"status": "error", "error": type(exc).__name__}
-        checks["schema"] = {"status": "unknown", "revision": None}
-    if checks["configuration"]["missing_required"]:
-        status = "not_ready"
-    return {"status": status, "checks": checks}
+        checks["configuration"] = {
+            "status": "error",
+            "code": "RUNTIME_POLICY_LOAD_FAILED",
+            "error": type(exc).__name__,
+        }
+        return {"status": "not_ready", "checks": checks}
+    checks["configuration"] = {"status": "ok", "code": "RUNTIME_POLICY_VALID"}
+
+    try:
+        engine = get_engine()
+    except Exception as exc:
+        checks["database"] = {
+            "status": "error",
+            "code": "ENGINE_CREATION_FAILED",
+            "error": type(exc).__name__,
+        }
+        return {"status": "not_ready", "checks": checks}
+
+    try:
+        connection_context = engine.connect()
+        with connection_context as connection:
+            try:
+                connection.execute(text("SELECT 1"))
+            except Exception as exc:
+                checks["database"] = {
+                    "status": "error",
+                    "code": "DATABASE_QUERY_FAILED",
+                    "error": type(exc).__name__,
+                }
+                return {"status": "not_ready", "checks": checks}
+            checks["database"] = {"status": "ok", "code": "DATABASE_REACHABLE"}
+
+            try:
+                has_revision_table = inspect(connection).has_table("alembic_version")
+                revision = (
+                    connection.scalar(text("SELECT version_num FROM alembic_version"))
+                    if has_revision_table
+                    else None
+                )
+            except Exception as exc:
+                checks["schema"] = {
+                    "status": "error",
+                    "code": "SCHEMA_QUERY_FAILED",
+                    "error": type(exc).__name__,
+                }
+                return {"status": "not_ready", "checks": checks}
+    except Exception as exc:
+        checks["database"] = {
+            "status": "error",
+            "code": "DATABASE_CONNECTION_FAILED",
+            "error": type(exc).__name__,
+        }
+        return {"status": "not_ready", "checks": checks}
+
+    if revision is None:
+        checks["schema"] = {"status": "error", "code": "SCHEMA_REVISION_MISSING"}
+        return {"status": "not_ready", "checks": checks}
+
+    try:
+        expected_revision = get_alembic_head()
+    except Exception as exc:
+        checks["schema"] = {
+            "status": "error",
+            "code": "SCHEMA_HEAD_LOOKUP_FAILED",
+            "error": type(exc).__name__,
+        }
+        return {"status": "not_ready", "checks": checks}
+
+    if expected_revision is None:
+        checks["schema"] = {"status": "error", "code": "SCHEMA_HEAD_MISSING"}
+        return {"status": "not_ready", "checks": checks}
+    if revision != expected_revision:
+        checks["schema"] = {"status": "error", "code": "SCHEMA_REVISION_STALE"}
+        return {"status": "not_ready", "checks": checks}
+
+    checks["schema"] = {"status": "ok", "code": "SCHEMA_CURRENT"}
+    return {"status": "ready", "checks": checks}
+
+
+@router.get("/ready")
+def ready(response: Response) -> dict[str, Any]:
+    result = build_readiness_result()
+    response.status_code = (
+        status.HTTP_200_OK
+        if result["status"] == "ready"
+        else status.HTTP_503_SERVICE_UNAVAILABLE
+    )
+    return result
 
 
 @router.get("/metrics")
 def metrics() -> Response:
-    readiness = ready()
-    engine = get_engine()
+    readiness = build_readiness_result()
+    ready_value = 1 if readiness["status"] == "ready" else 0
     project_count = 0
     pending_context_count = 0
     outbox = {"by_status": {}, "retryable": 0}
-    with sessionmaker(bind=engine)() as session:
-        project_count = session.scalar(func.count(ProjectModel.id)) or 0
-        pending_context_count = (
-            session.query(ContextProposalModel)
-            .filter(ContextProposalModel.status.in_(["submitted", "needs_rebase"]))
-            .count()
-        )
-        outbox = build_outbox_summary(session, max_attempts=3, dead_limit=1)
-    revision = readiness["checks"]["schema"]["revision"] or "unknown"
-    ready_value = 1 if readiness["status"] == "ready" else 0
+
+    if ready_value:
+        try:
+            engine = get_engine()
+            with sessionmaker(bind=engine)() as session:
+                project_count = session.scalar(func.count(ProjectModel.id)) or 0
+                pending_context_count = (
+                    session.query(ContextProposalModel)
+                    .filter(ContextProposalModel.status.in_(["submitted", "needs_rebase"]))
+                    .count()
+                )
+                outbox = build_outbox_summary(session, max_attempts=3, dead_limit=1)
+        except Exception:
+            ready_value = 0
+            project_count = 0
+            pending_context_count = 0
+            outbox = {"by_status": {}, "retryable": 0}
+
+    schema_code = readiness["checks"]["schema"]["code"]
     lines = [
         "# TYPE agora_ready gauge",
         f"agora_ready {ready_value}",
         "# TYPE agora_schema_revision_info gauge",
-        f'agora_schema_revision_info{{revision="{revision}"}} 1',
+        f'agora_schema_revision_info{{status="{schema_code}"}} 1',
         "# TYPE agora_projects_total gauge",
         f"agora_projects_total {project_count}",
         "# TYPE agora_pending_context_proposals_total gauge",
         f"agora_pending_context_proposals_total {pending_context_count}",
         "# TYPE agora_outbox_events_total gauge",
     ]
-    for status, count in outbox["by_status"].items():
-        lines.append(f'agora_outbox_events_total{{status="{status}"}} {count}')
+    for event_status, count in outbox["by_status"].items():
+        lines.append(f'agora_outbox_events_total{{status="{event_status}"}} {count}')
     lines.extend(
         [
             "# TYPE agora_outbox_retryable_total gauge",
@@ -77,23 +171,7 @@ def metrics() -> Response:
             "",
         ]
     )
-    body = "\n".join(lines)
-    return Response(content=body, media_type="text/plain; version=0.0.4")
-
-
-def _configuration_check() -> dict:
-    test_bypass = os.environ.get(AGORA_TEST_AUTH_BYPASS) == "1"
-    required = ["AGORA_DATABASE_URL"]
-    if not test_bypass:
-        required.extend(["AGORA_BOOTSTRAP_HUMAN_TOKEN", "AGORA_BOOTSTRAP_AGENT_TOKEN"])
-        if os.environ.get("AGORA_BOOTSTRAP_CI_TOKEN"):
-            required.append("AGORA_BOOTSTRAP_CI_TOKEN")
-    missing = [name for name in required if not os.environ.get(name)]
-    environment = os.environ.get("AGORA_ENV") or ("test" if test_bypass else "local")
-    return {
-        "status": "ok" if not missing else "missing_required",
-        "environment": environment,
-        "missing_required": missing,
-        "database_url_configured": bool(os.environ.get("AGORA_DATABASE_URL")),
-        "ci_token_configured": bool(os.environ.get("AGORA_BOOTSTRAP_CI_TOKEN")),
-    }
+    return Response(
+        content="\n".join(lines),
+        media_type="text/plain; version=0.0.4",
+    )

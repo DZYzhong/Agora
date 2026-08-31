@@ -15,7 +15,7 @@ from apps.api.routers.skills import router as skills_router
 from apps.api.routers.work_items import router as work_items_router
 from apps.api.routers.writebacks import router as writebacks_router
 from apps.api.auth import bootstrap_auth_from_env
-from apps.api.dependencies import get_engine
+from apps.api.dependencies import get_engine, get_runtime_policy
 from packages.core.services.runtime import CoreRuntime
 from packages.core.services.skills import ensure_builtin_skills_for_existing_projects
 from packages.core.uow import SqlAlchemyUnitOfWork
@@ -33,7 +33,8 @@ def _bootstrap_builtin_skills() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    bootstrap_auth_from_env()
+    runtime_policy = get_runtime_policy()
+    bootstrap_auth_from_env(runtime_policy)
     _bootstrap_builtin_skills()
     yield
 

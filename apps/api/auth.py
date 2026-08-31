@@ -3,7 +3,7 @@ import os
 from fastapi import Header, HTTPException, status
 from sqlalchemy.orm import sessionmaker
 
-from apps.api.dependencies import auth_bypass_enabled, get_engine
+from apps.api.dependencies import auth_bypass_enabled, get_engine, get_runtime_policy
 from packages.core.auth import (
     BootstrapAuthError,
     Principal,
@@ -14,10 +14,12 @@ from packages.core.auth import (
     project_role,
     resolve_principal,
 )
+from packages.core.settings import RuntimePolicy
 
 
-def bootstrap_auth_from_env() -> None:
-    if auth_bypass_enabled():
+def bootstrap_auth_from_env(policy: RuntimePolicy | None = None) -> None:
+    runtime_policy = policy or get_runtime_policy()
+    if runtime_policy.auth_bypass:
         return
     session = sessionmaker(bind=get_engine())()
     try:
