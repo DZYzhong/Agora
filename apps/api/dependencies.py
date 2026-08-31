@@ -1,6 +1,9 @@
 from collections.abc import Generator
+from contextlib import contextmanager
+from dataclasses import dataclass
 from functools import lru_cache
 import os
+from typing import Callable
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, make_url
@@ -16,6 +19,17 @@ from packages.storage.qdrant.fake import FakeVectorIndex
 
 DEFAULT_DATABASE_URL = "sqlite+pysqlite:///.agora/agora.db"
 AGORA_TEST_AUTH_BYPASS = "AGORA_TEST_AUTH_BYPASS"
+
+
+class ReadinessProbeUnavailableError(RuntimeError):
+    pass
+
+
+@dataclass
+class ReadinessProbe:
+    engine: Engine
+    owned: bool
+    cleanup_error: Exception | None = None
 
 
 def create_app_engine(database_url: str) -> Engine:
@@ -53,6 +67,31 @@ def create_readiness_probe_engine(policy: RuntimePolicy) -> Engine:
         read_only_url,
         connect_args={"check_same_thread": False},
     )
+
+
+@contextmanager
+def open_readiness_probe(
+    policy: RuntimePolicy,
+    engine_factory: Callable[[RuntimePolicy], Engine],
+) -> Generator[ReadinessProbe, None, None]:
+    url = make_url(policy.database_url)
+    if url.get_backend_name() == "sqlite" and url.database == ":memory:":
+        if get_engine.cache_info().currsize == 0:
+            raise ReadinessProbeUnavailableError(
+                "in-memory application engine has not been initialized"
+            )
+        probe = ReadinessProbe(engine=get_engine(), owned=False)
+        yield probe
+        return
+
+    probe = ReadinessProbe(engine=engine_factory(policy), owned=True)
+    try:
+        yield probe
+    finally:
+        try:
+            probe.engine.dispose()
+        except Exception as exc:
+            probe.cleanup_error = exc
 
 
 @lru_cache

@@ -46,6 +46,7 @@ def test_health_endpoint_stays_dependency_free(monkeypatch):
     for dependency_name in (
         "get_runtime_policy",
         "create_readiness_probe_engine",
+        "open_readiness_probe",
         "get_engine",
         "get_alembic_heads",
         "build_readiness_result",
@@ -163,6 +164,69 @@ def test_readiness_endpoint_returns_503_when_database_query_fails(monkeypatch):
         "code": "CHECK_NOT_RUN",
     }
     assert "secret_value" not in response.text
+
+
+def test_readiness_returns_503_when_owned_probe_disposal_fails(monkeypatch):
+    class SecretCleanupError(RuntimeError):
+        pass
+
+    delegate = dependencies.create_app_engine("sqlite+pysqlite:///:memory:")
+
+    class CleanupFailingEngine:
+        def connect(self):
+            return delegate.connect()
+
+        def dispose(self):
+            raise SecretCleanupError("postgresql://user:cleanup-secret@database/agora")
+
+    monkeypatch.setattr(
+        health_router,
+        "create_readiness_probe_engine",
+        lambda policy: CleanupFailingEngine(),
+    )
+
+    response = TestClient(app).get("/ready")
+
+    delegate.dispose()
+    assert response.status_code == 503
+    assert response.json()["checks"]["database"] == {
+        "status": "error",
+        "code": "PROBE_CLEANUP_FAILED",
+        "error": "SecretCleanupError",
+    }
+    assert "cleanup-secret" not in response.text
+
+
+def test_probe_disposal_failure_does_not_override_connection_failure(monkeypatch):
+    class SecretConnectionError(RuntimeError):
+        pass
+
+    class SecretCleanupError(RuntimeError):
+        pass
+
+    class FailingEngine:
+        def connect(self):
+            raise SecretConnectionError("postgresql://user:connection-secret@database/agora")
+
+        def dispose(self):
+            raise SecretCleanupError("postgresql://user:cleanup-secret@database/agora")
+
+    monkeypatch.setattr(
+        health_router,
+        "create_readiness_probe_engine",
+        lambda policy: FailingEngine(),
+    )
+
+    response = TestClient(app).get("/ready")
+
+    assert response.status_code == 503
+    assert response.json()["checks"]["database"] == {
+        "status": "error",
+        "code": "DATABASE_CONNECTION_FAILED",
+        "error": "SecretConnectionError",
+    }
+    assert "connection-secret" not in response.text
+    assert "cleanup-secret" not in response.text
 
 
 def test_readiness_endpoint_returns_503_when_alembic_revision_is_missing(monkeypatch):
@@ -300,6 +364,44 @@ def test_readiness_endpoint_returns_200_for_valid_isolated_test_configuration():
     }
 
 
+def test_readiness_reuses_initialized_in_memory_application_engine(monkeypatch):
+    monkeypatch.setenv("AGORA_ENV", "development")
+    monkeypatch.setenv("AGORA_DATABASE_URL", "sqlite+pysqlite:///:memory:")
+    monkeypatch.delenv("AGORA_TEST_AUTH_BYPASS", raising=False)
+    application_engine = dependencies.get_engine()
+
+    response = TestClient(app).get("/ready")
+
+    assert response.status_code == 200
+    assert response.json()["checks"]["schema"] == {
+        "status": "ok",
+        "code": "SCHEMA_CURRENT",
+    }
+    assert dependencies.get_engine() is application_engine
+    with application_engine.connect() as connection:
+        assert connection.scalars(
+            text("SELECT version_num FROM alembic_version")
+        ).all() == list(health_router.get_alembic_heads())
+
+
+def test_readiness_returns_stable_503_before_in_memory_startup_initialization(monkeypatch):
+    monkeypatch.setenv("AGORA_ENV", "development")
+    monkeypatch.setenv("AGORA_DATABASE_URL", "sqlite+pysqlite:///:memory:")
+    monkeypatch.delenv("AGORA_TEST_AUTH_BYPASS", raising=False)
+    dependencies.get_engine.cache_clear()
+
+    response = TestClient(app).get("/ready")
+
+    assert response.status_code == 503
+    assert response.json()["checks"]["database"] == {
+        "status": "error",
+        "code": "ENGINE_CREATION_FAILED",
+        "error": "ReadinessProbeUnavailableError",
+    }
+    assert "memory" not in response.text
+    assert dependencies.get_engine.cache_info().currsize == 0
+
+
 def test_metrics_endpoint_exposes_prometheus_style_operational_counters():
     dependencies.get_engine()
     client = TestClient(app)
@@ -349,6 +451,38 @@ def test_metrics_reports_not_ready_without_raising_when_readiness_fails(monkeypa
 
     assert response.status_code == 200
     assert "agora_ready 0" in response.text
+
+
+def test_metrics_emits_not_ready_when_probe_disposal_fails(monkeypatch):
+    class SecretCleanupError(RuntimeError):
+        pass
+
+    delegate = dependencies.create_app_engine("sqlite+pysqlite:///:memory:")
+
+    class CleanupFailingEngine:
+        def connect(self):
+            return delegate.connect()
+
+        def dispose(self):
+            raise SecretCleanupError("postgresql://user:cleanup-secret@database/agora")
+
+    monkeypatch.setattr(
+        health_router,
+        "create_readiness_probe_engine",
+        lambda policy: CleanupFailingEngine(),
+    )
+    monkeypatch.setattr(
+        health_router,
+        "get_engine",
+        lambda: pytest.fail("cleanup failure must not collect database metrics"),
+    )
+
+    response = TestClient(app).get("/metrics")
+
+    delegate.dispose()
+    assert response.status_code == 200
+    assert "agora_ready 0" in response.text
+    assert "cleanup-secret" not in response.text
 
 
 def test_metrics_endpoint_exposes_outbox_backlog_counters():

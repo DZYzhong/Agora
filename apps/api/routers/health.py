@@ -8,6 +8,7 @@ from apps.api.dependencies import (
     create_readiness_probe_engine,
     get_engine,
     get_runtime_policy,
+    open_readiness_probe,
 )
 from packages.core.models import ContextProposalModel, ProjectModel
 from packages.core.schema_manager import get_alembic_heads
@@ -47,8 +48,60 @@ def build_readiness_result() -> dict[str, Any]:
         return {"status": "not_ready", "checks": checks}
     checks["configuration"] = {"status": "ok", "code": "RUNTIME_POLICY_VALID"}
 
+    probe_failure = None
+    revisions = []
     try:
-        engine = create_readiness_probe_engine(runtime_policy)
+        with open_readiness_probe(
+            runtime_policy, create_readiness_probe_engine
+        ) as probe:
+            engine = probe.engine
+            try:
+                connection_context = engine.connect()
+                with connection_context as connection:
+                    try:
+                        connection.execute(text("SELECT 1"))
+                    except Exception as exc:
+                        checks["database"] = {
+                            "status": "error",
+                            "code": "DATABASE_QUERY_FAILED",
+                            "error": type(exc).__name__,
+                        }
+                        probe_failure = {"status": "not_ready", "checks": checks}
+                    if probe_failure is None:
+                        checks["database"] = {
+                            "status": "ok",
+                            "code": "DATABASE_REACHABLE",
+                        }
+
+                        try:
+                            has_revision_table = inspect(connection).has_table(
+                                "alembic_version"
+                            )
+                            revisions = (
+                                connection.scalars(
+                                    text("SELECT version_num FROM alembic_version")
+                                ).all()
+                                if has_revision_table
+                                else []
+                            )
+                        except Exception as exc:
+                            checks["schema"] = {
+                                "status": "error",
+                                "code": "SCHEMA_QUERY_FAILED",
+                                "error": type(exc).__name__,
+                            }
+                            probe_failure = {
+                                "status": "not_ready",
+                                "checks": checks,
+                            }
+            except Exception as exc:
+                if probe_failure is None:
+                    checks["database"] = {
+                        "status": "error",
+                        "code": "DATABASE_CONNECTION_FAILED",
+                        "error": type(exc).__name__,
+                    }
+                    probe_failure = {"status": "not_ready", "checks": checks}
     except Exception as exc:
         checks["database"] = {
             "status": "error",
@@ -57,46 +110,15 @@ def build_readiness_result() -> dict[str, Any]:
         }
         return {"status": "not_ready", "checks": checks}
 
-    try:
-        try:
-            connection_context = engine.connect()
-            with connection_context as connection:
-                try:
-                    connection.execute(text("SELECT 1"))
-                except Exception as exc:
-                    checks["database"] = {
-                        "status": "error",
-                        "code": "DATABASE_QUERY_FAILED",
-                        "error": type(exc).__name__,
-                    }
-                    return {"status": "not_ready", "checks": checks}
-                checks["database"] = {"status": "ok", "code": "DATABASE_REACHABLE"}
-
-                try:
-                    has_revision_table = inspect(connection).has_table("alembic_version")
-                    revisions = (
-                        connection.scalars(
-                            text("SELECT version_num FROM alembic_version")
-                        ).all()
-                        if has_revision_table
-                        else []
-                    )
-                except Exception as exc:
-                    checks["schema"] = {
-                        "status": "error",
-                        "code": "SCHEMA_QUERY_FAILED",
-                        "error": type(exc).__name__,
-                    }
-                    return {"status": "not_ready", "checks": checks}
-        except Exception as exc:
-            checks["database"] = {
-                "status": "error",
-                "code": "DATABASE_CONNECTION_FAILED",
-                "error": type(exc).__name__,
-            }
-            return {"status": "not_ready", "checks": checks}
-    finally:
-        engine.dispose()
+    if probe_failure is not None:
+        return probe_failure
+    if probe.cleanup_error is not None:
+        checks["database"] = {
+            "status": "error",
+            "code": "PROBE_CLEANUP_FAILED",
+            "error": type(probe.cleanup_error).__name__,
+        }
+        return {"status": "not_ready", "checks": checks}
 
     if not revisions:
         checks["schema"] = {"status": "error", "code": "SCHEMA_REVISION_MISSING"}
