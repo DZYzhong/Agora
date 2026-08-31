@@ -1,4 +1,12 @@
+import re
 from pathlib import Path
+
+from packages.core.settings import SUPPORTED_ENVIRONMENTS
+
+
+DOTENV_ENV_PATTERN = re.compile(r"^AGORA_ENV=([^\s#]+)\s*$", re.MULTILINE)
+COMPOSE_ENV_PATTERN = re.compile(r"^\s+AGORA_ENV:\s*([^\s#]+)\s*$", re.MULTILINE)
+EXPORT_ENV_PATTERN = re.compile(r"^export AGORA_ENV=([^\s#]+)\s*$", re.MULTILINE)
 
 
 def test_next_dev_and_build_use_separate_dist_dirs():
@@ -264,7 +272,7 @@ def test_p9_container_runtime_assets_exist():
     assert "healthcheck:" in compose
     assert "http://127.0.0.1:8000/ready" in compose
     assert "AGORA_BOOTSTRAP_CI_TOKEN" in env_example
-    assert "AGORA_ENV=production" in env_example
+    assert DOTENV_ENV_PATTERN.findall(env_example) == ["production"]
 
 
 def test_runtime_environment_examples_use_supported_values():
@@ -273,14 +281,24 @@ def test_runtime_environment_examples_use_supported_values():
     p9_guide = Path("docs/development/p9-operations-readiness-blackbox.zh-CN.md").read_text()
     manual = Path("docs/manual/agora-system-user-and-technical-manual.zh-CN.md").read_text()
 
-    assert "AGORA_ENV=production" in env_example
-    assert "AGORA_ENV: production" in compose
-    assert "AGORA_ENV=production" in p9_guide
-    assert "AGORA_ENV=development" in manual
+    discovered_values = {
+        ".env.example": DOTENV_ENV_PATTERN.findall(env_example),
+        "infra/docker-compose.yml": COMPOSE_ENV_PATTERN.findall(compose),
+        "docs/development/p9-operations-readiness-blackbox.zh-CN.md": EXPORT_ENV_PATTERN.findall(p9_guide),
+        "docs/manual/agora-system-user-and-technical-manual.zh-CN.md": EXPORT_ENV_PATTERN.findall(manual),
+    }
 
-    for source in (env_example, compose, p9_guide, manual):
-        assert "AGORA_ENV=local" not in source
-        assert "AGORA_ENV=production-like" not in source
+    assert discovered_values == {
+        ".env.example": ["production"],
+        "infra/docker-compose.yml": ["production", "production", "production"],
+        "docs/development/p9-operations-readiness-blackbox.zh-CN.md": ["production"],
+        "docs/manual/agora-system-user-and-technical-manual.zh-CN.md": ["development"],
+    }
+    assert all(
+        value in SUPPORTED_ENVIRONMENTS
+        for values in discovered_values.values()
+        for value in values
+    )
 
     for production_source in (env_example, compose, p9_guide):
         assert "AGORA_LOCAL_INIT_ROOT" not in production_source

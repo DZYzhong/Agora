@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, cast
@@ -9,6 +10,7 @@ from sqlalchemy.exc import ArgumentError
 
 RuntimeEnvironment = Literal["test", "development", "production"]
 SUPPORTED_ENVIRONMENTS: tuple[RuntimeEnvironment, ...] = ("test", "development", "production")
+SQLITE_TEST_TOKEN = re.compile(r"(?:^|[^a-z0-9])test(?:[^a-z0-9]|$)", re.IGNORECASE)
 
 
 class RuntimeConfigurationError(ValueError):
@@ -53,7 +55,10 @@ def validate_runtime_policy(
             field="AGORA_TEST_AUTH_BYPASS",
         )
 
-    if normalized_environment == "production" and local_init_root is not None:
+    configured_local_init_root = (
+        local_init_root if local_init_root and local_init_root.strip() else None
+    )
+    if normalized_environment == "production" and configured_local_init_root is not None:
         raise RuntimeConfigurationError(
             code="AGORA_LOCAL_INIT_ROOT_FORBIDDEN",
             message="AGORA_LOCAL_INIT_ROOT is not allowed in production",
@@ -67,9 +72,11 @@ def validate_runtime_policy(
             field="AGORA_DATABASE_URL",
         )
 
-    resolved_local_init_root = None
-    if local_init_root is not None and local_init_root.strip():
-        resolved_local_init_root = Path(local_init_root).expanduser().resolve()
+    resolved_local_init_root = (
+        _resolve_local_init_root(configured_local_init_root)
+        if configured_local_init_root is not None
+        else None
+    )
 
     return RuntimePolicy(
         environment=normalized_environment,
@@ -87,7 +94,33 @@ def _is_isolated_test_database(database_url: str) -> bool:
 
     database_name = url.database or ""
     if url.get_backend_name() == "sqlite":
-        return "test" in Path(database_name).name.lower()
+        database_path = Path(database_name)
+        if not database_path.is_absolute() or SQLITE_TEST_TOKEN.search(database_path.name) is None:
+            return False
+        configured_parent = database_path.parent.resolve()
+        if database_path.is_symlink() and not database_path.resolve().is_relative_to(configured_parent):
+            return False
+        return True
     if url.get_backend_name() == "postgresql":
         return database_name.lower().endswith("_test")
     return False
+
+
+def _resolve_local_init_root(local_init_root: str) -> Path:
+    raw_path = Path(local_init_root)
+    if not raw_path.is_absolute():
+        raise _invalid_local_init_root()
+
+    resolved_path = raw_path.resolve()
+    unsafe_paths = {Path("/").resolve(), Path.cwd().resolve(), Path.home().resolve()}
+    if resolved_path in unsafe_paths:
+        raise _invalid_local_init_root()
+    return resolved_path
+
+
+def _invalid_local_init_root() -> RuntimeConfigurationError:
+    return RuntimeConfigurationError(
+        code="AGORA_LOCAL_INIT_ROOT_INVALID",
+        message="AGORA_LOCAL_INIT_ROOT must be an explicit safe absolute path",
+        field="AGORA_LOCAL_INIT_ROOT",
+    )

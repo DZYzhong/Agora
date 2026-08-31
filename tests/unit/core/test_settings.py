@@ -29,7 +29,7 @@ def test_development_rejects_auth_bypass():
     assert exc.value.field == "AGORA_TEST_AUTH_BYPASS"
 
 
-@pytest.mark.parametrize("local_init_root", ["/srv/repos", ".", "/", ""])
+@pytest.mark.parametrize("local_init_root", ["/srv/repos", ".", "/"])
 def test_production_rejects_any_local_init_root(local_init_root):
     with pytest.raises(RuntimeConfigurationError) as exc:
         validate_runtime_policy(
@@ -83,7 +83,8 @@ def test_missing_environment_defaults_to_development():
     "database_url",
     [
         "sqlite+pysqlite:////tmp/agora-test.db",
-        "sqlite+pysqlite:////tmp/contest.sqlite3",
+        "sqlite+pysqlite:////tmp/test-agora.db",
+        "sqlite+pysqlite:////tmp/agora_test.db",
         "postgresql+psycopg://agora@db/agora_test",
     ],
 )
@@ -96,7 +97,11 @@ def test_test_bypass_accepts_isolated_test_database_names(database_url):
 @pytest.mark.parametrize(
     "database_url",
     [
+        "sqlite+pysqlite:////tmp/latest.db",
+        "sqlite+pysqlite:////tmp/contest-production.db",
+        "sqlite+pysqlite:////tmp/protest.db",
         "sqlite+pysqlite:////tmp/test-fixtures/agora.db",
+        "sqlite+pysqlite:///agora-test.db",
         "postgresql+psycopg://agora@db/test_agora",
         "postgresql+psycopg://agora@db/agora_test_copy",
     ],
@@ -107,6 +112,46 @@ def test_test_bypass_rejects_non_isolated_database_names(database_url):
 
     assert exc.value.code == "AGORA_TEST_DATABASE_NOT_ISOLATED"
     assert exc.value.field == "AGORA_DATABASE_URL"
+
+
+def test_test_bypass_rejects_sqlite_symlink_escaping_configured_parent(tmp_path):
+    configured_parent = tmp_path / "configured"
+    configured_parent.mkdir()
+    outside_parent = tmp_path / "outside"
+    outside_parent.mkdir()
+    outside_database = outside_parent / "agora-test.db"
+    outside_database.touch()
+    configured_database = configured_parent / "agora-test.db"
+    configured_database.symlink_to(outside_database)
+
+    with pytest.raises(RuntimeConfigurationError) as exc:
+        validate_runtime_policy(
+            "test",
+            f"sqlite+pysqlite:///{configured_database}",
+            True,
+            None,
+        )
+
+    assert exc.value.code == "AGORA_TEST_DATABASE_NOT_ISOLATED"
+    assert exc.value.field == "AGORA_DATABASE_URL"
+
+
+def test_test_bypass_allows_sqlite_symlink_within_configured_parent(tmp_path):
+    configured_parent = tmp_path / "configured"
+    configured_parent.mkdir()
+    target_database = configured_parent / "target-test.db"
+    target_database.touch()
+    configured_database = configured_parent / "agora-test.db"
+    configured_database.symlink_to(target_database)
+
+    policy = validate_runtime_policy(
+        "test",
+        f"sqlite+pysqlite:///{configured_database}",
+        True,
+        None,
+    )
+
+    assert policy.auth_bypass is True
 
 
 @pytest.mark.parametrize("environment", ["test", "development"])
@@ -123,11 +168,46 @@ def test_non_production_resolves_explicit_local_init_root(environment, tmp_path)
     assert policy.local_init_root == Path(configured_root).resolve()
 
 
+@pytest.mark.parametrize("environment", ["test", "development", "production"])
 @pytest.mark.parametrize("local_init_root", [None, "", "   "])
-def test_missing_local_init_root_is_not_inferred(local_init_root):
-    policy = validate_runtime_policy("development", "sqlite+pysqlite:////tmp/agora.db", False, local_init_root)
+def test_missing_local_init_root_is_not_inferred(environment, local_init_root):
+    policy = validate_runtime_policy(
+        environment,
+        "sqlite+pysqlite:////tmp/agora.db",
+        False,
+        local_init_root,
+    )
 
     assert policy.local_init_root is None
+
+
+@pytest.mark.parametrize(
+    "local_init_root",
+    [
+        "/",
+        str(Path.cwd()),
+        str(Path.home()),
+        ".",
+        "..",
+        "repos",
+        "~/repos",
+    ],
+)
+def test_non_production_rejects_unsafe_local_init_root(local_init_root):
+    with pytest.raises(RuntimeConfigurationError) as exc:
+        validate_runtime_policy(
+            "development",
+            "sqlite+pysqlite:////tmp/agora.db",
+            False,
+            local_init_root,
+        )
+
+    assert exc.value.diagnostic == {
+        "code": "AGORA_LOCAL_INIT_ROOT_INVALID",
+        "message": "AGORA_LOCAL_INIT_ROOT must be an explicit safe absolute path",
+        "field": "AGORA_LOCAL_INIT_ROOT",
+    }
+    assert local_init_root not in str(exc.value.diagnostic)
 
 
 def test_runtime_policy_is_immutable():
