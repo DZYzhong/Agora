@@ -274,7 +274,7 @@ git commit -m "fix: remove server-local repository controls and disclosure"
 
 **Execution record (2026-09-01):**
 
-- Commit: `20c5961`.
+- Commit: `30365eb`.
 - RED evidence: production initialization history returned `repo_path`; Web project page still contained local repository path controls and Retry action; production project/job responses also exposed absolute-path remotes, credential-bearing remotes and path-bearing warnings before redaction fixes.
 - GREEN evidence: focused Task4 redaction/Web tests passed; initialization/project/Web config suite `50 passed`; full Python suite `334 passed, 2 skipped`; `NEXT_TELEMETRY_DISABLED=1 npm run build` passed; `pip check` and `git diff --check` passed.
 - Review evidence: specification review found project `git_remotes`, job `git_remote` and `warnings` disclosure gaps; quality review found production warning-object rendering and stale five-column history layout risks. Both issue sets were fixed and locally reverified. Final review agent handles were unavailable after context transition, so this record does not claim final subagent approval for Task4.
