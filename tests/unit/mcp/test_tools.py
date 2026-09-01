@@ -199,6 +199,7 @@ def test_mcp_submit_context_proposal_delegates_to_harness():
         "content": {"risks": ["状态重复流转会产生重复审计"]},
         "source_anchors": [{"kind": "code", "path": "src/refund/service.py"}],
         "provenance": {"generating_tool": "codex"},
+        "protocol_version": "1.1",
     }
 
 
@@ -221,6 +222,7 @@ def test_mcp_complete_workflow_step_delegates_to_harness():
         "artifacts": [],
         "human_confirmation": None,
         "principal": "principal",
+        "protocol_version": "1.1",
     }
 
 
@@ -252,6 +254,7 @@ def test_mcp_complete_workflow_step_passes_artifacts_and_human_confirmation():
     assert result["human_confirmation"]["decision"] == "approved"
     assert fake_harness.completed_step_with["artifacts"][0]["title"] == "AG-300 分析记录"
     assert fake_harness.completed_step_with["human_confirmation"]["comment"] == "可以进入设计。"
+    assert fake_harness.completed_step_with["protocol_version"] == "1.1"
 
 
 def test_mcp_submit_skill_candidate_delegates_to_harness():
@@ -279,6 +282,7 @@ def test_mcp_submit_skill_candidate_delegates_to_harness():
         "instructions": "检查回滚方案和测试证据。",
         "artifact_ids": ["artifact_1"],
         "principal": "principal",
+        "protocol_version": "1.1",
     }
 
 
@@ -294,6 +298,7 @@ def test_mcp_suggest_skills_delegates_to_harness():
         "session_id": "sess_1",
         "query": "发布风险检查",
         "principal": "principal",
+        "protocol_version": "1.1",
     }
 
 
@@ -326,6 +331,7 @@ def test_mcp_record_evidence_delegates_to_harness():
         "raw_ref": "local://pytest/payment",
         "metadata": {"commit_sha": "abc123"},
         "principal": "principal",
+        "protocol_version": "1.1",
     }
 
 
@@ -342,8 +348,10 @@ def test_mcp_quality_and_project_status_delegate_to_harness():
         "session_id": "sess_1",
         "scope": "work_item",
         "principal": "principal",
+        "protocol_version": "1.1",
     }
     assert fake_harness.project_status_with == {
         "project_id": "project_1",
         "principal": "principal",
+        "protocol_version": "1.1",
     }

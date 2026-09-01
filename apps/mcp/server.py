@@ -8,7 +8,7 @@ from mcp import types
 from mcp.server.lowlevel import NotificationOptions, Server
 from mcp.server.stdio import stdio_server
 
-from packages.core.services.protocol import MCP_SERVER_NAME, MCP_SERVER_VERSION, build_protocol_manifest
+from packages.core.services.protocol import HARNESS_PROTOCOL_CURRENT, MCP_SERVER_NAME, MCP_SERVER_VERSION, build_protocol_manifest
 from packages.local_connector.git_observer import observe_git_workspace
 
 AGORA_API_URL = os.environ.get("AGORA_API_URL", "http://127.0.0.1:8000")
@@ -97,6 +97,25 @@ TOOLS = [
         ["session_id", "title", "summary", "content"],
     ),
     _tool(
+        "agora_complete_workflow_step",
+        "Complete the current Agora workflow step after producing required artifacts and receiving human confirmation.",
+        {
+            "session_id": {"type": "string"},
+            "step_key": {"type": "string", "description": "The current workflow step key, such as analysis, design, review, implementation, self_test, or upload."},
+            "summary": {"type": "string", "description": "Concise evidence-backed summary of what was completed in this step."},
+            "artifacts": {
+                "type": "array",
+                "items": {"type": "object"},
+                "description": "Structured artifacts produced for the workflow step.",
+            },
+            "human_confirmation": {
+                "type": "object",
+                "description": "Human review or confirmation record collected in the AI tool before advancing the workflow.",
+            },
+        },
+        ["session_id", "step_key", "summary"],
+    ),
+    _tool(
         "agora_suggest_skills",
         "Suggest reusable team SkillCandidates from repeated project work artifacts in the current Agora work session.",
         {
@@ -180,7 +199,12 @@ TOOLS = [
 
 
 async def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
-    headers = {"Authorization": f"Bearer {AGORA_AGENT_TOKEN}"} if AGORA_AGENT_TOKEN else {}
+    headers = {
+        "Agora-Protocol-Version": HARNESS_PROTOCOL_CURRENT,
+        "Agora-Connector-Version": MCP_SERVER_VERSION,
+    }
+    if AGORA_AGENT_TOKEN:
+        headers["Authorization"] = f"Bearer {AGORA_AGENT_TOKEN}"
     async with httpx.AsyncClient(base_url=AGORA_API_URL, timeout=30) as client:
         response = await client.post(path, json=payload, headers=headers)
         response.raise_for_status()
@@ -261,6 +285,17 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                 "content": arguments["content"],
                 "source_anchors": arguments.get("source_anchors", []),
                 "provenance": arguments.get("provenance", {}),
+            },
+        )
+    if name == "agora_complete_workflow_step":
+        return await _post(
+            "/harness/complete-workflow-step",
+            {
+                "session_id": arguments["session_id"],
+                "step_key": arguments["step_key"],
+                "summary": arguments["summary"],
+                "artifacts": arguments.get("artifacts", []),
+                "human_confirmation": arguments.get("human_confirmation"),
             },
         )
     if name == "agora_suggest_skills":

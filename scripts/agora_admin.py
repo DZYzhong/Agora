@@ -36,7 +36,7 @@ from packages.core.models import (
 from packages.core.schema_manager import MigrationRequiredError, ensure_schema
 from packages.core.services.outbox_diagnostics import build_outbox_summary
 from packages.core.services.project_summary import build_project_summary
-from packages.core.services.protocol import HARNESS_PROTOCOL_CURRENT, build_protocol_manifest
+from packages.core.services.protocol import HARNESS_PROTOCOL_CURRENT, MINIMUM_LOCAL_CONNECTOR_VERSION, build_protocol_manifest
 from packages.core.services.retention import RetentionPolicy, build_retention_summary, cleanup_retention
 from packages.core.uow import SqlAlchemyUnitOfWork
 from packages.knowledge.index_rebuilder import rebuild_indexes_from_assets
@@ -246,14 +246,16 @@ def compatibility_check(*, database_url: str) -> dict:
         revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
     manifest = build_protocol_manifest()
     compatible = revision is not None and HARNESS_PROTOCOL_CURRENT in manifest["harness_protocol"]["supported"]
+    connector_compatible = bool(MINIMUM_LOCAL_CONNECTOR_VERSION)
     return {
         "format": "agora-compatibility-check/v1",
-        "compatible": compatible,
+        "compatible": compatible and connector_compatible,
         "schema_revision": revision,
         "protocol_manifest": manifest,
         "checks": {
             "schema": "ok" if revision else "missing",
             "harness_protocol": "ok" if compatible else "unsupported",
+            "minimum_local_connector_version": "ok" if connector_compatible else "missing",
         },
     }
 

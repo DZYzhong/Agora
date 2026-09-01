@@ -723,7 +723,10 @@ def test_admin_cli_compatibility_check_reports_protocol_manifest(tmp_path):
     assert report["format"] == "agora-compatibility-check/v1"
     assert report["compatible"] is True
     assert report["schema_revision"] == "20260826_0012"
-    assert report["protocol_manifest"]["harness_protocol"]["current"] == "1.0"
+    assert report["protocol_manifest"]["harness_protocol"]["current"] == "1.1"
+    assert report["protocol_manifest"]["harness_protocol"]["supported"] == ["1.0", "1.1"]
+    assert report["protocol_manifest"]["compatibility"]["minimum_local_connector_version"] == "0.1.0"
+    assert report["checks"]["minimum_local_connector_version"] == "ok"
     assert "agora_get_protocol_manifest" in report["protocol_manifest"]["tools"]["canonical"]
     assert report["protocol_manifest"]["tools"]["deprecated"]["agora_plan_context"]["canonical_tool"] == "agora_prepare_context"
     assert json.loads(output_path.read_text())["compatible"] is True

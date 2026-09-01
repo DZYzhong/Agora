@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from packages.core.auth import Principal
 from packages.core.models import utc_now
 from packages.core.repositories.workflows import WorkflowStepError
+from packages.core.services.protocol import LEGACY_PROTOCOL_VERSION
 from packages.domain.local_workspace import LocalWorkspaceObservation
 from packages.harness.context_planner import ContextPlanner
 from packages.harness.development_capture import capture_development_change
@@ -282,6 +283,7 @@ class HarnessService:
         source_anchors: list[dict] | None = None,
         provenance: dict | None = None,
         principal: Principal | None = None,
+        protocol_version: str = LEGACY_PROTOCOL_VERSION,
     ) -> ContextProposalSubmission:
         if principal is None:
             raise ValueError("HarnessService.submit_context_proposal requires an authenticated Principal")
@@ -320,7 +322,7 @@ class HarnessService:
             created_by_user_id=principal.user_id,
         )
         return ContextProposalSubmission(
-            protocol_version="1.0",
+            protocol_version=protocol_version,
             operation="submit_context_proposal",
             proposal=_serialize_context_proposal(self.core, proposal),
             stream=_serialize_context_stream(stream),
@@ -342,6 +344,7 @@ class HarnessService:
         artifacts: list[dict] | None = None,
         human_confirmation: dict | None = None,
         principal: Principal | None = None,
+        protocol_version: str = LEGACY_PROTOCOL_VERSION,
     ) -> WorkflowStepCompletionResult:
         if principal is None:
             raise ValueError("HarnessService.complete_workflow_step requires an authenticated Principal")
@@ -406,7 +409,7 @@ class HarnessService:
             payload=event_payload,
         )
         return WorkflowStepCompletionResult(
-            protocol_version="1.0",
+            protocol_version=protocol_version,
             operation="complete_workflow_step",
             session_id=session_id,
             work_item_id=execution.work_item_id,
@@ -442,6 +445,7 @@ class HarnessService:
         triggers: list[str] | None = None,
         artifact_ids: list[str] | None = None,
         principal: Principal | None = None,
+        protocol_version: str = LEGACY_PROTOCOL_VERSION,
     ) -> SkillCandidateSubmission:
         if principal is None:
             raise ValueError("HarnessService.submit_skill_candidate requires an authenticated Principal")
@@ -504,7 +508,7 @@ class HarnessService:
             },
         )
         return SkillCandidateSubmission(
-            protocol_version="1.0",
+            protocol_version=protocol_version,
             operation="submit_skill_candidate",
             session_id=session_id,
             work_item_id=work_item_id,
@@ -532,6 +536,7 @@ class HarnessService:
         session_id: str,
         query: str | None = None,
         principal: Principal | None = None,
+        protocol_version: str = LEGACY_PROTOCOL_VERSION,
     ) -> SkillSuggestionResult:
         if principal is None:
             raise ValueError("HarnessService.suggest_skills requires an authenticated Principal")
@@ -562,7 +567,7 @@ class HarnessService:
                     }
                 )
         return SkillSuggestionResult(
-            protocol_version="1.0",
+            protocol_version=protocol_version,
             operation="suggest_skills",
             session_id=session_id,
             suggestions=suggestions,
@@ -590,6 +595,7 @@ class HarnessService:
         raw_ref: str | None = None,
         metadata: dict | None = None,
         principal: Principal | None = None,
+        protocol_version: str = LEGACY_PROTOCOL_VERSION,
     ) -> EvidenceRecordResult:
         if principal is None:
             raise ValueError("HarnessService.record_evidence requires an authenticated Principal")
@@ -623,7 +629,7 @@ class HarnessService:
             },
         )
         return EvidenceRecordResult(
-            protocol_version="1.0",
+            protocol_version=protocol_version,
             operation="record_evidence",
             session_id=session_id,
             evidence=_serialize_quality_evidence(evidence),
@@ -642,6 +648,7 @@ class HarnessService:
         session_id: str,
         scope: str = "work_item",
         principal: Principal | None = None,
+        protocol_version: str = LEGACY_PROTOCOL_VERSION,
     ) -> QualityStatusResult:
         if principal is None:
             raise ValueError("HarnessService.get_quality_status requires an authenticated Principal")
@@ -657,7 +664,7 @@ class HarnessService:
             scoped_work_item_id = work_item_id
         quality_state, counts, gaps, unverified_claims = _quality_summary(evidence)
         return QualityStatusResult(
-            protocol_version="1.0",
+            protocol_version=protocol_version,
             operation="get_quality_status",
             scope=scope,
             project_id=session.project_id,
@@ -675,6 +682,7 @@ class HarnessService:
         *,
         project_id: str,
         principal: Principal | None = None,
+        protocol_version: str = LEGACY_PROTOCOL_VERSION,
     ) -> ProjectStatusResult:
         if principal is None:
             raise ValueError("HarnessService.get_project_status requires an authenticated Principal")
@@ -750,7 +758,7 @@ class HarnessService:
             if skill.project_id == project_id and skill.status in {"candidate", "draft"}
         ]
         return ProjectStatusResult(
-            protocol_version="1.0",
+            protocol_version=protocol_version,
             operation="get_project_status",
             project={
                 "id": project.id,

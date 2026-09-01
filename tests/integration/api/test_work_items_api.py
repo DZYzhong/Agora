@@ -10,6 +10,7 @@ from packages.core.uow import SqlAlchemyUnitOfWork
 
 HUMAN_TOKEN = "test-human-token-secret-value"
 AGENT_TOKEN = "test-agent-token-secret-value"
+PROTOCOL_11_HEADERS = {"Agora-Protocol-Version": "1.1", "Agora-Connector-Version": "0.1.0"}
 
 
 def _auth_headers(token: str, extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -175,6 +176,7 @@ def test_work_item_detail_includes_workflow_artifacts_and_confirmations():
     ).json()
     client.post(
         "/harness/complete-workflow-step",
+        headers=PROTOCOL_11_HEADERS,
         json={
             "session_id": started["session_id"],
             "step_key": "analysis",

@@ -1,3 +1,6 @@
+from packages.core.services.protocol import HARNESS_PROTOCOL_CURRENT
+
+
 class AgoraMcpTools:
     def __init__(self, *, harness):
         self.harness = harness
@@ -68,6 +71,7 @@ class AgoraMcpTools:
         }
         if principal is not None:
             payload["principal"] = principal
+        payload["protocol_version"] = HARNESS_PROTOCOL_CURRENT
         return _object_to_dict(self.harness.submit_context_proposal(**payload))
 
     def agora_complete_workflow_step(
@@ -88,6 +92,7 @@ class AgoraMcpTools:
             "summary": summary,
             "artifacts": artifacts or [],
             "human_confirmation": human_confirmation,
+            "protocol_version": HARNESS_PROTOCOL_CURRENT,
         }
         if principal is not None:
             payload["principal"] = principal
@@ -118,6 +123,7 @@ class AgoraMcpTools:
         }
         if principal is not None:
             payload["principal"] = principal
+        payload["protocol_version"] = HARNESS_PROTOCOL_CURRENT
         return _object_to_dict(self.harness.submit_skill_candidate(**payload))
 
     def agora_suggest_skills(
@@ -135,6 +141,7 @@ class AgoraMcpTools:
         }
         if principal is not None:
             payload["principal"] = principal
+        payload["protocol_version"] = HARNESS_PROTOCOL_CURRENT
         return _object_to_dict(self.harness.suggest_skills(**payload))
 
     def agora_record_evidence(
@@ -166,6 +173,7 @@ class AgoraMcpTools:
         }
         if principal is not None:
             payload["principal"] = principal
+        payload["protocol_version"] = HARNESS_PROTOCOL_CURRENT
         return _object_to_dict(self.harness.record_evidence(**payload))
 
     def agora_get_quality_status(
@@ -183,6 +191,7 @@ class AgoraMcpTools:
         }
         if principal is not None:
             payload["principal"] = principal
+        payload["protocol_version"] = HARNESS_PROTOCOL_CURRENT
         return _object_to_dict(self.harness.get_quality_status(**payload))
 
     def agora_get_project_status(
@@ -196,6 +205,7 @@ class AgoraMcpTools:
         payload = {"project_id": project_id}
         if principal is not None:
             payload["principal"] = principal
+        payload["protocol_version"] = HARNESS_PROTOCOL_CURRENT
         return _object_to_dict(self.harness.get_project_status(**payload))
 
     def agora_run_skill(self, *, session_id: str, skill_slug: str, input: dict) -> dict:

@@ -1,6 +1,8 @@
 import asyncio
 
-from apps.mcp.server import _dispatch, list_tools
+import httpx
+
+from apps.mcp.server import _dispatch, _post, list_tools
 
 
 def test_stdio_mcp_server_lists_agora_tools():
@@ -12,6 +14,7 @@ def test_stdio_mcp_server_lists_agora_tools():
         "agora_prepare_context",
         "agora_fetch_context_ref",
         "agora_submit_context_proposal",
+        "agora_complete_workflow_step",
         "agora_submit_skill_candidate",
         "agora_suggest_skills",
         "agora_record_evidence",
@@ -35,6 +38,11 @@ def test_stdio_mcp_server_lists_agora_tools():
     proposal_tool = next(tool for tool in result.tools if tool.name == "agora_submit_context_proposal")
     assert "session_id" in proposal_tool.input_schema["required"]
     assert "content" in proposal_tool.input_schema["required"]
+
+    workflow_tool = next(tool for tool in result.tools if tool.name == "agora_complete_workflow_step")
+    assert "session_id" in workflow_tool.input_schema["required"]
+    assert "step_key" in workflow_tool.input_schema["required"]
+    assert "human_confirmation" in workflow_tool.input_schema["properties"]
 
     skill_tool = next(tool for tool in result.tools if tool.name == "agora_submit_skill_candidate")
     assert "session_id" in skill_tool.input_schema["required"]
@@ -63,11 +71,47 @@ def test_stdio_protocol_manifest_reports_versions_and_tool_compatibility():
     assert result["format"] == "agora-protocol-manifest/v1"
     assert result["mcp_server"]["name"] == "agora"
     assert result["mcp_server"]["version"]
-    assert result["harness_protocol"]["current"] == "1.0"
-    assert "1.0" in result["harness_protocol"]["supported"]
+    assert result["harness_protocol"]["current"] == "1.1"
+    assert result["harness_protocol"]["supported"] == ["1.0", "1.1"]
     assert "agora_prepare_context" in result["tools"]["canonical"]
     assert result["tools"]["deprecated"]["agora_plan_context"]["canonical_tool"] == "agora_prepare_context"
     assert result["compatibility"]["minimum_local_connector_version"]
+
+
+def test_stdio_post_sends_current_protocol_and_connector_headers(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"ok": True}
+
+    class FakeAsyncClient:
+        def __init__(self, *, base_url, timeout):
+            captured["base_url"] = base_url
+            captured["timeout"] = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, path, *, json, headers):
+            captured["path"] = path
+            captured["json"] = json
+            captured["headers"] = headers
+            return FakeResponse()
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeAsyncClient)
+
+    result = asyncio.run(_post("/harness/get-project-status", {"project_id": "project_1"}))
+
+    assert result == {"ok": True}
+    assert captured["headers"]["Agora-Protocol-Version"] == "1.1"
+    assert captured["headers"]["Agora-Connector-Version"] == "0.1.0"
 
 
 def test_stdio_submit_context_proposal_dispatches_to_harness(monkeypatch):
@@ -100,6 +144,36 @@ def test_stdio_submit_context_proposal_dispatches_to_harness(monkeypatch):
     assert captured["path"] == "/harness/submit-context-proposal"
     assert captured["payload"]["session_id"] == "sess_1"
     assert captured["payload"]["content"]["modules"][0]["path"] == "src/refund/service.py"
+
+
+def test_stdio_complete_workflow_step_dispatches_to_harness(monkeypatch):
+    captured = {}
+
+    async def fake_post(path, payload):
+        captured["path"] = path
+        captured["payload"] = payload
+        return {"protocol_version": "1.1", "operation": "complete_workflow_step", "completed_step": {"step_key": "analysis"}}
+
+    monkeypatch.setattr("apps.mcp.server._post", fake_post)
+
+    result = asyncio.run(
+        _dispatch(
+            "agora_complete_workflow_step",
+            {
+                "session_id": "sess_1",
+                "step_key": "analysis",
+                "summary": "分析完成，人工已确认。",
+                "artifacts": [{"type": "analysis_note", "title": "分析记录", "content": "影响面已确认。"}],
+                "human_confirmation": {"confirmation_type": "step_review", "decision": "approved"},
+            },
+        )
+    )
+
+    assert result["completed_step"]["step_key"] == "analysis"
+    assert captured["path"] == "/harness/complete-workflow-step"
+    assert captured["payload"]["summary"] == "分析完成，人工已确认。"
+    assert captured["payload"]["artifacts"][0]["title"] == "分析记录"
+    assert captured["payload"]["human_confirmation"]["decision"] == "approved"
 
 
 def test_stdio_submit_skill_candidate_dispatches_to_harness(monkeypatch):

@@ -5,10 +5,15 @@ from apps.api.main import app
 HUMAN_TOKEN = "integrations-human-token"
 AGENT_TOKEN = "integrations-agent-token"
 CI_TOKEN = "integrations-ci-token"
+PROTOCOL_11_HEADERS = {"Agora-Protocol-Version": "1.1", "Agora-Connector-Version": "0.1.0"}
 
 
 def _headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+def _protocol_headers(token: str) -> dict[str, str]:
+    return {**_headers(token), **PROTOCOL_11_HEADERS}
 
 
 def _production_auth(monkeypatch) -> None:
@@ -77,6 +82,62 @@ def test_ci_quality_signal_records_evidence_and_updates_project_status(monkeypat
     assert project_status["quality_counts"]["failing"] == 1
     assert project_status["quality_dimensions"]["ci"]["failed"] == 1
     assert project_status["work_items"][0]["task_links"][0]["external_url"] == "https://jira.example.com/browse/AG-1101"
+
+
+def test_ci_quality_signal_negotiates_protocol_for_nested_project_status(monkeypatch):
+    _production_auth(monkeypatch)
+
+    with TestClient(app) as client:
+        project = client.post(
+            "/projects",
+            headers=_headers(HUMAN_TOKEN),
+            json={
+                "org_id": "ignored-org",
+                "name": "CI Protocol Negotiation",
+                "slug": "ci-protocol-negotiation",
+                "git_remotes": [],
+            },
+        ).json()
+
+        response = client.post(
+            "/integrations/ci/quality-signal",
+            headers=_protocol_headers(CI_TOKEN),
+            json={
+                "project_id": project["id"],
+                "work_item_key": "AG-1504",
+                "status": "passed",
+                "conclusion": "新版 Connector 上报质量证据。",
+            },
+        )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["protocol_version"] == "1.1"
+    assert body["project_status"]["protocol_version"] == "1.1"
+
+
+def test_integrations_reject_old_connector_for_current_protocol(monkeypatch):
+    _production_auth(monkeypatch)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/integrations/repository/revision-signal",
+            headers={
+                **_headers(CI_TOKEN),
+                "Agora-Protocol-Version": "1.1",
+                "Agora-Connector-Version": "0.0.1",
+            },
+            json={
+                "project_id": "project_missing",
+                "provider": "gitlab",
+                "repository_identity": "git@example.com:team/missing.git",
+                "observed_head_sha": "abc123",
+            },
+        )
+
+    assert response.status_code == 426
+    assert response.json()["detail"]["error"]["code"] == "UPGRADE_REQUIRED"
+    assert response.json()["detail"]["minimum_connector_version"] == "0.1.0"
 
 
 def test_ci_quality_signal_rejects_non_ci_credentials(monkeypatch):

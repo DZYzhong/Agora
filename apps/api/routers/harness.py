@@ -14,6 +14,16 @@ from apps.api.dependencies import get_db_session, get_keyword_index, get_vector_
 from packages.core.auth import Principal
 from packages.core.models import utc_now
 from packages.core.repositories.workflows import WorkflowStepError
+from packages.core.services.protocol import (
+    HARNESS_PROTOCOL_CURRENT,
+    HARNESS_PROTOCOL_SUPPORTED,
+    MINIMUM_LOCAL_CONNECTOR_VERSION,
+    ProtocolContext,
+    ProtocolNegotiationError,
+    negotiate_protocol,
+    protocol_deprecation,
+    require_minimum_protocol,
+)
 from packages.core.services.runtime import CoreRuntime
 from packages.core.uow import SqlAlchemyUnitOfWork
 from packages.domain.local_workspace import LocalWorkspaceObservation
@@ -144,10 +154,47 @@ def _harness(session: Session, keyword_index: FakeKeywordIndex, vector_index: Fa
     return HarnessService(core=CoreRuntime(session), context_engine=context_engine)
 
 
+def _protocol_context(
+    protocol_version: str | None = Header(default=None, alias="Agora-Protocol-Version"),
+    connector_version: str | None = Header(default=None, alias="Agora-Connector-Version"),
+) -> ProtocolContext:
+    try:
+        return negotiate_protocol(protocol_version, connector_version=connector_version)
+    except ProtocolNegotiationError as exc:
+        raise _upgrade_required(exc) from exc
+
+
+def _upgrade_required(exc: ProtocolNegotiationError) -> HTTPException:
+    detail = {
+        "protocol_version": HARNESS_PROTOCOL_CURRENT,
+        "request_id": None,
+        "code": "UPGRADE_REQUIRED",
+        "message": exc.message,
+        "error": {"code": "UPGRADE_REQUIRED", "message": exc.message},
+        "supported_protocol_versions": HARNESS_PROTOCOL_SUPPORTED,
+        "current_protocol_version": HARNESS_PROTOCOL_CURRENT,
+        "minimum_connector_version": MINIMUM_LOCAL_CONNECTOR_VERSION,
+        "next_actions": [{"type": "upgrade_connector", "reason": exc.message}],
+    }
+    if exc.minimum_protocol_version is not None:
+        detail["minimum_protocol_version"] = exc.minimum_protocol_version
+    return HTTPException(status_code=426, detail=detail)
+
+
+def _apply_protocol_metadata(response: dict, protocol: ProtocolContext) -> dict:
+    response["protocol_version"] = protocol.protocol_version
+    deprecation = protocol_deprecation(protocol)
+    if deprecation is not None:
+        existing = response.get("deprecation")
+        response["deprecation"] = {**existing, **deprecation} if isinstance(existing, dict) else deprecation
+    return response
+
+
 @router.post("/start-work")
 def start_work(
     payload: StartWorkRequest,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
@@ -157,6 +204,7 @@ def start_work(
         return _start_work_idempotent(
             payload=payload,
             idempotency_key=idempotency_key,
+            protocol=protocol,
             principal=principal,
             session=session,
             keyword_index=keyword_index,
@@ -166,6 +214,7 @@ def start_work(
     with SqlAlchemyUnitOfWork(session) as uow:
         response = _execute_start_work(
             payload=payload,
+            protocol=protocol,
             principal=principal,
             session=session,
             keyword_index=keyword_index,
@@ -179,6 +228,7 @@ def start_work(
 @router.post("/plan-context")
 def plan_context(
     payload: PlanContextRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
@@ -196,12 +246,14 @@ def plan_context(
                 "canonical_endpoint": "/harness/prepare-context",
                 "remove_after": "P2",
             }
+            _apply_protocol_metadata(response, protocol)
             uow.commit()
     except TokenBudgetTooSmall as exc:
         raise _protocol_error(
             "TOKEN_BUDGET_TOO_SMALL",
             str(exc),
             status_code=400,
+            protocol=protocol,
             next_action_type="increase_token_budget",
         ) from exc
     return response
@@ -210,6 +262,7 @@ def plan_context(
 @router.post("/prepare-context")
 def prepare_context(
     payload: PlanContextRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
@@ -219,12 +272,14 @@ def prepare_context(
         with SqlAlchemyUnitOfWork(session) as uow:
             _ensure_session_member(session, principal, session_id=payload.session_id)
             response = _harness(session, keyword_index, vector_index).prepare_context(**payload.model_dump())
+            _apply_protocol_metadata(response, protocol)
             uow.commit()
     except TokenBudgetTooSmall as exc:
         raise _protocol_error(
             "TOKEN_BUDGET_TOO_SMALL",
             str(exc),
             status_code=400,
+            protocol=protocol,
             next_action_type="increase_token_budget",
         ) from exc
     return response
@@ -233,6 +288,7 @@ def prepare_context(
 @router.post("/record-event")
 def record_event(
     payload: RecordEventRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
@@ -242,6 +298,7 @@ def record_event(
         _ensure_session_member(session, principal, session_id=payload.session_id)
         event = _harness(session, keyword_index, vector_index).record_event(**payload.model_dump())
         response = {"ok": True, "event": event}
+        _apply_protocol_metadata(response, protocol)
         uow.commit()
     return response
 
@@ -249,6 +306,7 @@ def record_event(
 @router.post("/fetch-context-ref")
 def fetch_context_ref(
     payload: FetchContextRefRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
@@ -257,7 +315,7 @@ def fetch_context_ref(
     try:
         _ensure_session_member(session, principal, session_id=payload.session_id)
         result = _harness(session, keyword_index, vector_index).fetch_context_ref(**payload.model_dump())
-        return result.__dict__
+        return _apply_protocol_metadata(result.__dict__, protocol)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -265,6 +323,7 @@ def fetch_context_ref(
 @router.post("/submit-context-proposal", status_code=status.HTTP_201_CREATED)
 def submit_context_proposal(
     payload: SubmitContextProposalRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
@@ -275,9 +334,11 @@ def submit_context_proposal(
         response = _harness(session, keyword_index, vector_index).submit_context_proposal(
             **payload.model_dump(),
             principal=principal,
+            protocol_version=protocol.protocol_version,
         )
         response_dict = response.__dict__
         response_dict["request_id"] = task_session.id
+        _apply_protocol_metadata(response_dict, protocol)
         uow.commit()
     return response_dict
 
@@ -285,26 +346,33 @@ def submit_context_proposal(
 @router.post("/complete-workflow-step")
 def complete_workflow_step(
     payload: CompleteWorkflowStepRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
     try:
+        require_minimum_protocol(protocol, "1.1")
         with SqlAlchemyUnitOfWork(session) as uow:
             _ensure_session_member(session, principal, session_id=payload.session_id)
             response = _harness(session, keyword_index, vector_index).complete_workflow_step(
                 **payload.model_dump(),
                 principal=principal,
+                protocol_version=protocol.protocol_version,
             )
             response_dict = response.__dict__
             response_dict["request_id"] = payload.session_id
+            _apply_protocol_metadata(response_dict, protocol)
             uow.commit()
+    except ProtocolNegotiationError as exc:
+        raise _upgrade_required(exc) from exc
     except WorkflowStepError as exc:
         raise _protocol_error(
             exc.code,
             str(exc),
             status_code=400,
+            protocol=protocol,
             next_action_type="complete_current_workflow_step",
         ) from exc
     return response_dict
@@ -313,6 +381,7 @@ def complete_workflow_step(
 @router.post("/submit-skill-candidate", status_code=status.HTTP_201_CREATED)
 def submit_skill_candidate(
     payload: SubmitSkillCandidateRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
@@ -323,9 +392,11 @@ def submit_skill_candidate(
         response = _harness(session, keyword_index, vector_index).submit_skill_candidate(
             **payload.model_dump(),
             principal=principal,
+            protocol_version=protocol.protocol_version,
         )
         response_dict = response.__dict__
         response_dict["request_id"] = payload.session_id
+        _apply_protocol_metadata(response_dict, protocol)
         uow.commit()
     return response_dict
 
@@ -333,6 +404,7 @@ def submit_skill_candidate(
 @router.post("/suggest-skills")
 def suggest_skills(
     payload: SuggestSkillsRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
@@ -343,9 +415,11 @@ def suggest_skills(
         response = _harness(session, keyword_index, vector_index).suggest_skills(
             **payload.model_dump(),
             principal=principal,
+            protocol_version=protocol.protocol_version,
         )
         response_dict = response.__dict__
         response_dict["request_id"] = payload.session_id
+        _apply_protocol_metadata(response_dict, protocol)
         uow.commit()
     return response_dict
 
@@ -353,6 +427,7 @@ def suggest_skills(
 @router.post("/record-evidence", status_code=status.HTTP_201_CREATED)
 def record_evidence(
     payload: RecordEvidenceRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
@@ -363,9 +438,11 @@ def record_evidence(
         response = _harness(session, keyword_index, vector_index).record_evidence(
             **payload.model_dump(),
             principal=principal,
+            protocol_version=protocol.protocol_version,
         )
         response_dict = response.__dict__
         response_dict["request_id"] = payload.session_id
+        _apply_protocol_metadata(response_dict, protocol)
         uow.commit()
     return response_dict
 
@@ -373,6 +450,7 @@ def record_evidence(
 @router.post("/get-quality-status")
 def get_quality_status(
     payload: GetQualityStatusRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
@@ -383,9 +461,11 @@ def get_quality_status(
         response = _harness(session, keyword_index, vector_index).get_quality_status(
             **payload.model_dump(),
             principal=principal,
+            protocol_version=protocol.protocol_version,
         )
         response_dict = response.__dict__
         response_dict["request_id"] = payload.session_id
+        _apply_protocol_metadata(response_dict, protocol)
         uow.commit()
     return response_dict
 
@@ -393,6 +473,7 @@ def get_quality_status(
 @router.post("/get-project-status")
 def get_project_status(
     payload: GetProjectStatusRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
@@ -403,9 +484,11 @@ def get_project_status(
         response = _harness(session, keyword_index, vector_index).get_project_status(
             **payload.model_dump(),
             principal=principal,
+            protocol_version=protocol.protocol_version,
         )
         response_dict = response.__dict__
         response_dict["request_id"] = payload.project_id
+        _apply_protocol_metadata(response_dict, protocol)
         uow.commit()
     return response_dict
 
@@ -413,6 +496,7 @@ def get_project_status(
 @router.post("/close-work")
 def close_work(
     payload: CloseWorkRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
@@ -422,6 +506,7 @@ def close_work(
         with SqlAlchemyUnitOfWork(session) as uow:
             _ensure_session_member(session, principal, session_id=payload.session_id)
             response = _harness(session, keyword_index, vector_index).close_work(**payload.model_dump())
+            _apply_protocol_metadata(response, protocol)
             uow.commit()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -431,6 +516,7 @@ def close_work(
 @router.post("/prepare-writeback")
 def prepare_writeback(
     payload: PrepareWritebackRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
 ):
@@ -459,6 +545,7 @@ def prepare_writeback(
             "content": writeback.content,
             "status": writeback.status,
         }
+        _apply_protocol_metadata(response, protocol)
         uow.commit()
     return response
 
@@ -476,13 +563,14 @@ def _start_work_idempotent(
     *,
     payload: StartWorkRequest,
     idempotency_key: str,
+    protocol: ProtocolContext,
     principal: Principal,
     session: Session,
     keyword_index: FakeKeywordIndex,
     vector_index: FakeVectorIndex,
 ) -> dict:
     operation = "harness.start_work"
-    request_hash = _request_hash(payload)
+    request_hash = _request_hash(payload, protocol=protocol)
     pending_error: HTTPException | None = None
     for _ in range(10):
         pending = False
@@ -498,11 +586,20 @@ def _start_work_idempotent(
                     if record.status == "expired" or _replay_expired(record.replay_expires_at):
                         record.status = "expired"
                         uow.commit()
-                        pending_error = _idempotency_error("IDEMPOTENCY_KEY_EXPIRED", "Idempotency key has expired")
+                        pending_error = _idempotency_error(
+                            "IDEMPOTENCY_KEY_EXPIRED",
+                            "Idempotency key has expired",
+                            protocol=protocol,
+                        )
                     elif record.request_hash != request_hash:
-                        pending_error = _idempotency_error("IDEMPOTENCY_CONFLICT", "Idempotency key payload changed")
+                        pending_error = _idempotency_error(
+                            "IDEMPOTENCY_CONFLICT",
+                            "Idempotency key payload changed",
+                            protocol=protocol,
+                        )
                     elif record.status == "completed" and record.response_json is not None:
-                        response = record.response_json
+                        response = dict(record.response_json)
+                        _apply_protocol_metadata(response, protocol)
                         uow.commit()
                         return response
                     else:
@@ -518,6 +615,7 @@ def _start_work_idempotent(
                     )
                     response = _execute_start_work(
                         payload=payload,
+                        protocol=protocol,
                         principal=principal,
                         session=session,
                         keyword_index=keyword_index,
@@ -538,12 +636,13 @@ def _start_work_idempotent(
         if pending:
             time.sleep(0.05)
             continue
-    raise _idempotency_error("IDEMPOTENCY_REPLAY_PENDING", "Idempotency replay is still pending")
+    raise _idempotency_error("IDEMPOTENCY_REPLAY_PENDING", "Idempotency replay is still pending", protocol=protocol)
 
 
 def _execute_start_work(
     *,
     payload: StartWorkRequest,
+    protocol: ProtocolContext,
     principal: Principal,
     session: Session,
     keyword_index: FakeKeywordIndex,
@@ -561,18 +660,18 @@ def _execute_start_work(
         require_project_member(session, principal, project_id=result.project.id)
     if result.next_action == "ask_user":
         code = "WORK_ITEM_CLARIFICATION_REQUIRED" if result.project is not None else "PROJECT_UNRESOLVED"
-        raise _protocol_error(code, result.clarification or "Clarification required", status_code=404)
-    return _serialize_start_work(result)
+        raise _protocol_error(code, result.clarification or "Clarification required", status_code=404, protocol=protocol)
+    return _serialize_start_work(result, protocol)
 
 
-def _serialize_start_work(result) -> dict:
+def _serialize_start_work(result, protocol: ProtocolContext) -> dict:
     next_action = {
         "type": result.next_action,
         "tool": "agora_prepare_context" if result.next_action == "plan_context" else None,
         "reason": result.clarification,
     }
-    return {
-        "protocol_version": "1.0",
+    return _apply_protocol_metadata({
+        "protocol_version": protocol.protocol_version,
         "request_id": result.session_id,
         "capabilities": {
             "local_repository_observation": True,
@@ -597,11 +696,19 @@ def _serialize_start_work(result) -> dict:
         "context_revision_id": result.context_revision_id,
         "workflow_version_id": result.workflow_version_id,
         "skill_version_id": result.skill_version_id,
-    }
+    }, protocol)
 
 
-def _request_hash(payload: StartWorkRequest) -> str:
-    encoded = json.dumps(payload.model_dump(), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+def _request_hash(payload: StartWorkRequest, *, protocol: ProtocolContext) -> str:
+    encoded = json.dumps(
+        {
+            "payload": payload.model_dump(),
+            "protocol_version": protocol.protocol_version,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
@@ -612,9 +719,9 @@ def _replay_expired(replay_expires_at) -> bool:
     return replay_expires_at <= now
 
 
-def _idempotency_error(code: str, message: str) -> HTTPException:
+def _idempotency_error(code: str, message: str, *, protocol: ProtocolContext | None = None) -> HTTPException:
     mapped_code = "IDEMPOTENCY_CONFLICT" if code.startswith("IDEMPOTENCY") else code
-    return _protocol_error(mapped_code, message, status_code=409, legacy_code=code)
+    return _protocol_error(mapped_code, message, status_code=409, protocol=protocol, legacy_code=code)
 
 
 def _protocol_error(
@@ -622,14 +729,16 @@ def _protocol_error(
     message: str,
     *,
     status_code: int,
+    protocol: ProtocolContext | None = None,
     legacy_code: str | None = None,
     next_action_type: str | None = None,
 ) -> HTTPException:
     action_type = next_action_type or ("clarify" if code in {"PROJECT_UNRESOLVED", "WORK_ITEM_CLARIFICATION_REQUIRED"} else "retry")
+    protocol_version = protocol.protocol_version if protocol is not None else "1.0"
     return HTTPException(
         status_code=status_code,
         detail={
-            "protocol_version": "1.0",
+            "protocol_version": protocol_version,
             "request_id": None,
             "code": legacy_code or code,
             "message": message,

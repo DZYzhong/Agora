@@ -1,13 +1,22 @@
 import re
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apps.api.auth import get_current_principal, require_ci, require_project_member
 from apps.api.dependencies import get_db_session
 from packages.core.auth import Principal
+from packages.core.services.protocol import (
+    HARNESS_PROTOCOL_CURRENT,
+    HARNESS_PROTOCOL_SUPPORTED,
+    MINIMUM_LOCAL_CONNECTOR_VERSION,
+    ProtocolContext,
+    ProtocolNegotiationError,
+    negotiate_protocol,
+    protocol_deprecation,
+)
 from packages.core.services.runtime import CoreRuntime
 from packages.core.uow import SqlAlchemyUnitOfWork
 from packages.harness.service import HarnessService
@@ -71,9 +80,45 @@ class PullRequestSignalRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+def _protocol_context(
+    protocol_version: str | None = Header(default=None, alias="Agora-Protocol-Version"),
+    connector_version: str | None = Header(default=None, alias="Agora-Connector-Version"),
+) -> ProtocolContext:
+    try:
+        return negotiate_protocol(protocol_version, connector_version=connector_version)
+    except ProtocolNegotiationError as exc:
+        raise _upgrade_required(exc) from exc
+
+
+def _upgrade_required(exc: ProtocolNegotiationError) -> HTTPException:
+    return HTTPException(
+        status_code=426,
+        detail={
+            "protocol_version": HARNESS_PROTOCOL_CURRENT,
+            "request_id": None,
+            "code": "UPGRADE_REQUIRED",
+            "message": exc.message,
+            "error": {"code": "UPGRADE_REQUIRED", "message": exc.message},
+            "supported_protocol_versions": HARNESS_PROTOCOL_SUPPORTED,
+            "current_protocol_version": HARNESS_PROTOCOL_CURRENT,
+            "minimum_connector_version": MINIMUM_LOCAL_CONNECTOR_VERSION,
+            "next_actions": [{"type": "upgrade_connector", "reason": exc.message}],
+        },
+    )
+
+
+def _apply_protocol_metadata(response: dict[str, Any], protocol: ProtocolContext) -> dict[str, Any]:
+    response["protocol_version"] = protocol.protocol_version
+    deprecation = protocol_deprecation(protocol)
+    if deprecation is not None:
+        response["deprecation"] = deprecation
+    return response
+
+
 @router.post("/ci/quality-signal", status_code=status.HTTP_201_CREATED)
 def ingest_ci_quality_signal(
     payload: CiQualitySignalRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
 ):
@@ -128,9 +173,10 @@ def ingest_ci_quality_signal(
         project_status = HarnessService(core=runtime, context_engine=None).get_project_status(
             project_id=project.id,
             principal=principal,
+            protocol_version=protocol.protocol_version,
         )
         response = {
-            "protocol_version": "1.0",
+            "protocol_version": protocol.protocol_version,
             "operation": "ingest_ci_quality_signal",
             "project": {
                 "id": project.id,
@@ -148,6 +194,7 @@ def ingest_ci_quality_signal(
             "evidence": _serialize_quality_evidence(evidence),
             "project_status": project_status.__dict__,
         }
+        _apply_protocol_metadata(response, protocol)
         uow.commit()
     return response
 
@@ -155,6 +202,7 @@ def ingest_ci_quality_signal(
 @router.post("/repository/pull-request-signal", status_code=status.HTTP_201_CREATED)
 def ingest_pull_request_signal(
     payload: PullRequestSignalRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
 ):
@@ -236,7 +284,7 @@ def ingest_pull_request_signal(
                 signal_id=pr_signal.id,
             )
         response = {
-            "protocol_version": "1.0",
+            "protocol_version": protocol.protocol_version,
             "operation": "ingest_pull_request_signal",
             "project": {
                 "id": project.id,
@@ -250,6 +298,7 @@ def ingest_pull_request_signal(
             "context_proposal": _serialize_context_proposal(proposal) if proposal is not None else None,
             "next_actions": _pull_request_next_actions(payload.action, context_freshness.get("state")),
         }
+        _apply_protocol_metadata(response, protocol)
         uow.commit()
     return response
 
@@ -257,6 +306,7 @@ def ingest_pull_request_signal(
 @router.post("/repository/revision-signal", status_code=status.HTTP_201_CREATED)
 def ingest_repository_revision_signal(
     payload: RepositoryRevisionSignalRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
 ):
@@ -332,7 +382,7 @@ def ingest_repository_revision_signal(
         else:
             context_freshness = _serialize_context_freshness(freshness_state, branch, head_revision, payload.observed_head_sha)
         response = {
-            "protocol_version": "1.0",
+            "protocol_version": protocol.protocol_version,
             "operation": "ingest_repository_revision_signal",
             "signal": _serialize_repository_revision_signal(signal),
             "context_freshness": context_freshness,
@@ -341,6 +391,7 @@ def ingest_repository_revision_signal(
             "context_proposal": _serialize_context_proposal(proposal) if proposal is not None else None,
             "next_actions": _revision_signal_next_actions(signal_status),
         }
+        _apply_protocol_metadata(response, protocol)
         uow.commit()
     return response
 

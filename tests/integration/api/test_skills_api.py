@@ -14,6 +14,7 @@ from packages.core.uow import SqlAlchemyUnitOfWork
 HUMAN_TOKEN = "skills-human-token"
 AGENT_TOKEN = "skills-agent-token"
 MEMBER_TOKEN = "skills-member-token"
+PROTOCOL_11_HEADERS = {"Agora-Protocol-Version": "1.1", "Agora-Connector-Version": "0.1.0"}
 
 
 def _headers(token: str) -> dict[str, str]:
@@ -288,6 +289,7 @@ def test_reviewer_can_publish_candidate_skill_version_with_review_edits():
     ).json()
     completed = client.post(
         "/harness/complete-workflow-step",
+        headers=PROTOCOL_11_HEADERS,
         json={
             "session_id": started["session_id"],
             "step_key": "analysis",

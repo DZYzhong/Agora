@@ -5,6 +5,8 @@ from apps.api.dependencies import get_engine, get_keyword_index, get_vector_inde
 from apps.api.main import app
 from packages.core.models import HumanConfirmationModel, QualityEvidenceModel, WorkArtifactModel, WorkItemModel
 
+PROTOCOL_11_HEADERS = {"Agora-Protocol-Version": "1.1", "Agora-Connector-Version": "0.1.0"}
+
 
 def _run_git(repo_path, *args):
     import subprocess
@@ -45,6 +47,110 @@ def test_start_work_endpoint_returns_session():
     assert body["capabilities"]["quality_evidence"] is True
 
 
+def test_start_work_negotiates_current_protocol_and_marks_legacy_default():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_protocol_negotiation",
+            "name": "Protocol Negotiation",
+            "slug": "protocol-negotiation",
+            "git_remotes": [],
+        },
+    ).json()
+
+    current = client.post(
+        "/harness/start-work",
+        headers=PROTOCOL_11_HEADERS,
+        json={
+            "project_id": project["id"],
+            "user_message": "帮我做 AG-1501：协议协商",
+            "agent_type": "codex",
+        },
+    )
+    legacy = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "帮我做 AG-1502：兼容旧客户端",
+            "agent_type": "codex",
+        },
+    )
+
+    assert current.status_code == 200
+    assert current.json()["protocol_version"] == "1.1"
+    assert "deprecation" not in current.json()
+    assert legacy.status_code == 200
+    assert legacy.json()["protocol_version"] == "1.0"
+    assert legacy.json()["deprecation"]["legacy_protocol_version"] == "1.0"
+    assert legacy.json()["deprecation"]["current_protocol_version"] == "1.1"
+
+
+def test_harness_rejects_unsupported_protocol_and_old_connector():
+    client = TestClient(app)
+
+    unsupported = client.post(
+        "/harness/start-work",
+        headers={"Agora-Protocol-Version": "2.0", "Agora-Connector-Version": "0.1.0"},
+        json={"user_message": "协议不支持", "agent_type": "codex"},
+    )
+    old_connector = client.post(
+        "/harness/start-work",
+        headers={"Agora-Protocol-Version": "1.1", "Agora-Connector-Version": "0.0.1"},
+        json={"user_message": "Connector 版本太旧", "agent_type": "codex"},
+    )
+    old_connector_without_protocol = client.post(
+        "/harness/start-work",
+        headers={"Agora-Connector-Version": "0.0.1"},
+        json={"user_message": "显式旧 Connector 也不能走 legacy 绕过", "agent_type": "codex"},
+    )
+
+    assert unsupported.status_code == 426
+    assert unsupported.json()["detail"]["error"]["code"] == "UPGRADE_REQUIRED"
+    assert unsupported.json()["detail"]["supported_protocol_versions"] == ["1.0", "1.1"]
+    assert old_connector.status_code == 426
+    assert old_connector.json()["detail"]["minimum_connector_version"] == "0.1.0"
+    assert old_connector_without_protocol.status_code == 426
+    assert old_connector_without_protocol.json()["detail"]["minimum_connector_version"] == "0.1.0"
+
+
+def test_complete_workflow_step_requires_protocol_11_without_advancing_workflow():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_protocol_workflow_gate",
+            "name": "Protocol Workflow Gate",
+            "slug": "protocol-workflow-gate",
+            "git_remotes": [],
+        },
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project["id"],
+            "user_message": "帮我做 AG-1503：工作流协议门禁",
+            "agent_type": "codex",
+        },
+    ).json()
+
+    response = client.post(
+        "/harness/complete-workflow-step",
+        json={
+            "session_id": started["session_id"],
+            "step_key": "analysis",
+            "summary": "旧协议不能完成工作流步骤。",
+        },
+    )
+
+    assert response.status_code == 426
+    detail = response.json()["detail"]
+    assert detail["error"]["code"] == "UPGRADE_REQUIRED"
+    assert detail["minimum_protocol_version"] == "1.1"
+    work_item = client.get(f"/projects/{project['id']}/work-items/{started['work_item_id']}").json()
+    assert work_item["stage"] == "analysis"
+
+
 def test_complete_workflow_step_advances_current_step_and_work_item_stage():
     client = TestClient(app)
     project = client.post(
@@ -67,6 +173,7 @@ def test_complete_workflow_step_advances_current_step_and_work_item_stage():
 
     response = client.post(
         "/harness/complete-workflow-step",
+        headers=PROTOCOL_11_HEADERS,
         json={
             "session_id": started["session_id"],
             "step_key": "analysis",
@@ -111,6 +218,7 @@ def test_complete_workflow_step_captures_artifacts_and_human_confirmation():
 
     response = client.post(
         "/harness/complete-workflow-step",
+        headers=PROTOCOL_11_HEADERS,
         json={
             "session_id": started["session_id"],
             "step_key": "analysis",
@@ -374,6 +482,7 @@ def test_submit_skill_candidate_from_work_session_creates_reviewable_project_ski
     ).json()
     completed = client.post(
         "/harness/complete-workflow-step",
+        headers=PROTOCOL_11_HEADERS,
         json={
             "session_id": started["session_id"],
             "step_key": "analysis",
@@ -510,6 +619,7 @@ def test_submit_skill_candidate_merges_duplicate_slug_into_existing_candidate():
     ).json()
     first_artifact = client.post(
         "/harness/complete-workflow-step",
+        headers=PROTOCOL_11_HEADERS,
         json={
             "session_id": started["session_id"],
             "step_key": "analysis",
@@ -586,6 +696,7 @@ def test_ai_tool_gets_repeated_experience_skill_suggestions_from_work_artifacts(
         ).json()
         completed = client.post(
             "/harness/complete-workflow-step",
+            headers=PROTOCOL_11_HEADERS,
             json={
                 "session_id": started["session_id"],
                 "step_key": "analysis",
@@ -642,6 +753,7 @@ def test_complete_workflow_step_rejects_non_current_step():
 
     response = client.post(
         "/harness/complete-workflow-step",
+        headers=PROTOCOL_11_HEADERS,
         json={
             "session_id": started["session_id"],
             "step_key": "implementation",
@@ -1100,6 +1212,7 @@ def test_prepare_context_endpoint_returns_token_budget_too_small():
 
     response = client.post(
         "/harness/prepare-context",
+        headers=PROTOCOL_11_HEADERS,
         json={
             "session_id": start["session_id"],
             "query": "anything",
@@ -1109,5 +1222,6 @@ def test_prepare_context_endpoint_returns_token_budget_too_small():
 
     assert response.status_code == 400
     detail = response.json()["detail"]
+    assert detail["protocol_version"] == "1.1"
     assert detail["error"]["code"] == "TOKEN_BUDGET_TOO_SMALL"
     assert detail["next_actions"][0]["type"] == "increase_token_budget"

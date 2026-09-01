@@ -297,7 +297,7 @@ git commit -m "fix: remove server-local repository controls and disclosure"
 - Modify: `tests/integration/test_admin_cli.py`
 - Modify: `tests/unit/mcp/test_stdio_server.py`
 
-- [ ] **Step 1: Add failing negotiation/response tests**
+- [x] **Step 1: Add failing negotiation/response tests**
 
 Contract:
 
@@ -309,7 +309,7 @@ Contract:
 - Every Harness/integration response uses the negotiated value, never a hard-coded literal.
 - Admin compatibility check validates both versions and minimum Connector behavior.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 .venv/bin/pytest tests/integration/api/test_harness_api.py tests/integration/api/test_integrations_api.py tests/integration/test_admin_cli.py tests/unit/mcp/test_stdio_server.py -q
@@ -317,7 +317,7 @@ Contract:
 
 Expected: new 1.1/426 assertions fail against hard-coded 1.0 responses.
 
-- [ ] **Step 3: Implement negotiation and response propagation**
+- [x] **Step 3: Implement negotiation and response propagation**
 
 - Add typed `ProtocolContext` in `protocol.py`.
 - Read `Agora-Protocol-Version` and `Agora-Connector-Version` in an API dependency.
@@ -325,7 +325,7 @@ Expected: new 1.1/426 assertions fail against hard-coded 1.0 responses.
 - Pass context to response builders; schema defaults are internal-test fallback only.
 - Preserve legacy 1.0 API behavior with explicit deprecation metadata.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 ```bash
 .venv/bin/pytest tests/integration/api/test_harness_api.py tests/integration/api/test_integrations_api.py tests/integration/test_admin_cli.py tests/unit/mcp/test_stdio_server.py -q
@@ -333,12 +333,21 @@ Expected: new 1.1/426 assertions fail against hard-coded 1.0 responses.
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/core/services/protocol.py packages/domain/schemas.py packages/harness/service.py apps/api/routers/harness.py apps/api/routers/integrations.py scripts/agora_admin.py tests/integration/api/test_harness_api.py tests/integration/api/test_integrations_api.py tests/integration/test_admin_cli.py tests/unit/mcp/test_stdio_server.py
 git commit -m "feat: negotiate harness protocol 1.1"
 ```
+
+**Execution record (2026-09-01):**
+
+- Commit: included with the Task5 code changes as `feat: negotiate harness protocol 1.1`.
+- RED evidence: initial Task5 suite failed with 8 expected failures: current protocol responses remained `1.0`, unsupported/old Connector requests reached business logic instead of HTTP 426, `complete-workflow-step` did not enforce protocol 1.1, compatibility manifests still advertised current `1.0`, and stdio `_post` lacked protocol headers. Review-driven RED then failed on explicit old Connector without protocol header, cross-protocol idempotency replay, and in-process MCP workflow calls missing `protocol_version=1.1`. A final stdio RED failed because `agora_complete_workflow_step` was absent from tool listing and dispatch.
+- Implementation: added `ProtocolContext`, centralized negotiation, legacy deprecation metadata, minimum protocol enforcement, low Connector rejection, negotiated response propagation for Harness and integration responses, protocol-aware idempotency hashing/errors, MCP stdio 1.1 headers, in-process MCP service protocol propagation, compatibility check reporting, and stdio `agora_complete_workflow_step` advertisement/dispatch.
+- GREEN evidence: focused Task5 and review-regression suite `71 passed`; full Python suite `342 passed, 2 skipped`; `pip check`, `npm --prefix apps/web run build`, and `git diff --check` passed.
+- Review evidence: first code review found cross-protocol idempotency replay, low Connector legacy bypass, idempotency error version mismatch, and in-process MCP workflow protocol bypass. All were fixed and covered by regression tests. Second review confirmed those fixes and found the stdio `agora_complete_workflow_step` advertisement/dispatch gap; that gap was fixed and verified. The second reviewer could not run pytest in its isolated environment due missing dependencies, so local verification above is the authoritative test evidence.
+- State: `implemented` and `automated verified`; PR1A black-box and exit criteria remain pending.
 
 ### Task 5B: Move close-work Git capture to Local Connector
 

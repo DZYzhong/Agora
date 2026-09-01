@@ -237,6 +237,41 @@ def test_start_work_idempotency_replays_same_response_and_conflicts_on_payload_c
         db.close()
 
 
+def test_start_work_idempotency_conflicts_across_protocol_versions():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={
+            "org_id": "org_idempotency_protocol",
+            "name": "Idempotency Protocol",
+            "slug": "idempotency-protocol",
+            "git_remotes": [],
+        },
+    ).json()
+    payload = {
+        "project_id": project["id"],
+        "user_message": "帮我做 AG-1510：协议幂等隔离",
+        "agent_type": "codex",
+    }
+
+    legacy = client.post("/harness/start-work", headers={"Idempotency-Key": "protocol-key"}, json=payload)
+    current = client.post(
+        "/harness/start-work",
+        headers={
+            "Idempotency-Key": "protocol-key",
+            "Agora-Protocol-Version": "1.1",
+            "Agora-Connector-Version": "0.1.0",
+        },
+        json=payload,
+    )
+
+    assert legacy.status_code == 200
+    assert current.status_code == 409
+    detail = current.json()["detail"]
+    assert detail["protocol_version"] == "1.1"
+    assert detail["error"]["code"] == "IDEMPOTENCY_CONFLICT"
+
+
 def test_new_idempotency_key_creates_new_work_session_under_same_work_item():
     client = TestClient(app)
     project = client.post(
