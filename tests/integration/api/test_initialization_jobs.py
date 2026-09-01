@@ -298,6 +298,66 @@ def test_authenticated_allowed_git_repository_inside_narrow_root_initializes(
     assert response.json()["asset_count"] > 0
 
 
+def test_production_initialization_history_redacts_local_paths(monkeypatch, tmp_path):
+    _configure_authenticated_runtime(monkeypatch, environment="production")
+    repo_path = tmp_path / "customer" / "payment-service"
+    path_error = f"Repository path does not exist: {repo_path}"
+    credential_remote = "https://alice:secret-token@git.example.com/org/payment-service.git"
+
+    with TestClient(app) as client:
+        project_response = client.post(
+            "/projects",
+            headers=_auth_headers(),
+            json={
+                "org_id": "ignored-org",
+                "name": "Production History Redaction",
+                "slug": "production-history-redaction",
+                "git_remotes": [str(repo_path), credential_remote],
+            },
+        )
+        assert project_response.status_code == 201
+        project = project_response.json()
+        assert project["git_remotes"] == ["git.example.com/org/payment-service"]
+        fetched_project = client.get(f"/projects/{project['id']}", headers=_auth_headers())
+        assert fetched_project.json()["git_remotes"] == ["git.example.com/org/payment-service"]
+        _seed_failed_initialization_job(
+            project_id=project["id"],
+            org_id=project["org_id"],
+            repo_path=str(repo_path),
+        )
+        with sessionmaker(bind=get_engine())() as session:
+            job = InitializationJobRepository(session).list_by_project(project["id"])[0]
+            job.git_remote = credential_remote
+            job.warnings = [f"Skipped {repo_path / 'secret.py'}"]
+            InitializationJobRepository(session).mark_failed(job, error=path_error)
+            session.commit()
+
+        response = client.get(
+            f"/projects/{project['id']}/initialization-jobs",
+            headers=_auth_headers(),
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert "repo_path" not in body[0]
+    assert str(repo_path) not in response.text
+    assert "secret-token" not in response.text
+    assert body[0]["git_remote"] == "git.example.com/org/payment-service"
+    assert body[0]["warnings"] == [
+        {
+            "code": "LOCAL_INIT_WARNING_REDACTED",
+            "message": "Local repository initialization warning redacted",
+        }
+    ]
+    assert body[0]["error"] == {
+        "code": "LOCAL_INIT_ERROR_REDACTED",
+        "message": "Local repository initialization failed",
+    }
+    assert body[0]["status"] == "failed"
+    assert body[0]["asset_count"] == 0
+
+
 def test_initialize_local_records_completed_initialization_job(
     authenticated_client, sample_local_repo
 ):

@@ -315,6 +315,10 @@ button {
   padding: 12px;
 }
 
+.initialization-history-row {
+  grid-template-columns: 120px 100px 100px minmax(180px, 1fr);
+}
+
 .history-row:first-child {
   border-top: 0;
 }

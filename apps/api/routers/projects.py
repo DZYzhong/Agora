@@ -25,6 +25,7 @@ from packages.core.services.skills import ensure_builtin_skills
 from packages.core.uow import SqlAlchemyUnitOfWork
 from packages.domain.schemas import AssetCreate, ProjectCreate, ProjectRead
 from packages.integrations.git.clone import GitCloneError, clone_repository
+from packages.local_connector.sanitization import scrub_remote
 from packages.storage.opensearch.fake import FakeKeywordIndex
 from packages.storage.qdrant.fake import FakeVectorIndex
 
@@ -66,22 +67,61 @@ def _validate_local_initialization_path(policy: RuntimePolicy, candidate: str) -
     return resolved_candidate
 
 
-def _serialize_initialization_job(job) -> dict:
-    return {
+def _serialize_project(project, policy: RuntimePolicy) -> ProjectRead:
+    git_remotes = project.git_remotes or []
+    if policy.environment == "production":
+        git_remotes = [
+            scrubbed
+            for remote in git_remotes
+            if (scrubbed := scrub_remote(remote)) is not None
+        ]
+    return ProjectRead(
+        id=project.id,
+        org_id=project.org_id,
+        name=project.name,
+        slug=project.slug,
+        description=project.description,
+        git_remotes=git_remotes,
+        default_branch=project.default_branch,
+        status=project.status,
+    )
+
+
+def _serialize_initialization_job(job, policy: RuntimePolicy) -> dict:
+    serialized = {
         "id": job.id,
         "org_id": job.org_id,
         "project_id": job.project_id,
-        "repo_path": job.repo_path,
-        "git_remote": job.git_remote,
         "status": job.status,
         "asset_count": job.asset_count,
-        "error": job.error,
-        "warnings": job.warnings,
         "started_at": job.started_at,
         "completed_at": job.completed_at,
         "created_at": job.created_at,
         "updated_at": job.updated_at,
     }
+    if policy.environment == "production":
+        serialized["git_remote"] = scrub_remote(job.git_remote)
+        serialized["warnings"] = [
+            {
+                "code": "LOCAL_INIT_WARNING_REDACTED",
+                "message": "Local repository initialization warning redacted",
+            }
+            for _warning in (job.warnings or [])
+        ]
+        serialized["error"] = (
+            {
+                "code": "LOCAL_INIT_ERROR_REDACTED",
+                "message": "Local repository initialization failed",
+            }
+            if job.error
+            else None
+        )
+    else:
+        serialized["git_remote"] = job.git_remote
+        serialized["warnings"] = job.warnings
+        serialized["repo_path"] = job.repo_path
+        serialized["error"] = job.error
+    return serialized
 
 
 def _serialize_security_audit_event(event) -> dict:
@@ -107,6 +147,7 @@ def create_project(
     payload: ProjectCreate,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
+    runtime_policy: RuntimePolicy = Depends(get_runtime_policy),
 ):
     require_human(principal)
     with SqlAlchemyUnitOfWork(session) as uow:
@@ -116,16 +157,7 @@ def create_project(
         if not principal.is_bypass:
             IdentityRepository(session).grant_membership(project_id=project.id, user_id=principal.user_id, role="owner")
         ensure_builtin_skills(CoreRuntime(session), org_id=project.org_id)
-        response = ProjectRead(
-            id=project.id,
-            org_id=project.org_id,
-            name=project.name,
-            slug=project.slug,
-            description=project.description,
-            git_remotes=project.git_remotes,
-            default_branch=project.default_branch,
-            status=project.status,
-        )
+        response = _serialize_project(project, runtime_policy)
         uow.commit()
     return response
 
@@ -135,6 +167,7 @@ def list_projects(
     include_archived: bool = Query(default=False),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
+    runtime_policy: RuntimePolicy = Depends(get_runtime_policy),
 ):
     repo = ProjectRepository(session)
     projects = (
@@ -142,19 +175,7 @@ def list_projects(
         if principal.is_bypass
         else repo.list_for_user(user_id=principal.user_id, include_archived=include_archived)
     )
-    return [
-        ProjectRead(
-            id=project.id,
-            org_id=project.org_id,
-            name=project.name,
-            slug=project.slug,
-            description=project.description,
-            git_remotes=project.git_remotes,
-            default_branch=project.default_branch,
-            status=project.status,
-        )
-        for project in projects
-    ]
+    return [_serialize_project(project, runtime_policy) for project in projects]
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
@@ -162,21 +183,13 @@ def get_project(
     project_id: str,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
+    runtime_policy: RuntimePolicy = Depends(get_runtime_policy),
 ):
     project = ProjectRepository(session).get(project_id)
     if project is None or (not principal.is_bypass and project.org_id != principal.org_id):
         raise HTTPException(status_code=404, detail="Project not found")
     require_project_member(session, principal, project_id=project.id)
-    return ProjectRead(
-        id=project.id,
-        org_id=project.org_id,
-        name=project.name,
-        slug=project.slug,
-        description=project.description,
-        git_remotes=project.git_remotes,
-        default_branch=project.default_branch,
-        status=project.status,
-    )
+    return _serialize_project(project, runtime_policy)
 
 
 @router.get("/{project_id}/operations-summary")
@@ -211,22 +224,14 @@ def archive_project(
     project_id: str,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
+    runtime_policy: RuntimePolicy = Depends(get_runtime_policy),
 ):
     require_human(principal)
     try:
         with SqlAlchemyUnitOfWork(session) as uow:
             require_project_member(session, principal, project_id=project_id)
             project = ProjectRepository(session).archive(project_id)
-            response = ProjectRead(
-                id=project.id,
-                org_id=project.org_id,
-                name=project.name,
-                slug=project.slug,
-                description=project.description,
-                git_remotes=project.git_remotes,
-                default_branch=project.default_branch,
-                status=project.status,
-            )
+            response = _serialize_project(project, runtime_policy)
             uow.commit()
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -450,6 +455,7 @@ def list_initialization_jobs(
     project_id: str,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
+    runtime_policy: RuntimePolicy = Depends(get_runtime_policy),
 ):
     project = ProjectRepository(session).get(project_id)
     if project is None:
@@ -457,4 +463,4 @@ def list_initialization_jobs(
     require_project_member(session, principal, project_id=project.id)
 
     jobs = InitializationJobRepository(session).list_by_project(project_id)
-    return [_serialize_initialization_job(job) for job in jobs]
+    return [_serialize_initialization_job(job, runtime_policy) for job in jobs]

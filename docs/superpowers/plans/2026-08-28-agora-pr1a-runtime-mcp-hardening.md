@@ -219,7 +219,7 @@ git commit -m "fix: contain legacy repository import paths"
 
 **Execution record (2026-09-01):**
 
-- Commit: pending before this record is committed.
+- Commit: `3c91314`.
 - Recovery note: execution resumed with partial Task3 tests and implementation already present in the worktree, so the original first RED run could not be reconstructed honestly. Additional red-green regressions were added and observed failing before fixes for malformed JSON production disclosure.
 - RED evidence: production malformed JSON against `/projects/{project_id}/initialize-local` returned `422` before middleware interception; review probes also exposed request-header, OpenAPI and non-POST `405 Allow: POST` disclosure risks before fixes.
 - GREEN evidence: focused initialization suite `18 passed`; Task3 affected integration/e2e suite `63 passed`; full Python suite `332 passed, 2 skipped`; `pip check` and `git diff --check` passed.
@@ -237,11 +237,11 @@ git commit -m "fix: contain legacy repository import paths"
 - Modify: `tests/integration/api/test_initialization_jobs.py`
 - Modify: `tests/integration/test_web_config.py`
 
-- [ ] **Step 1: Add failing redaction and Web tests**
+- [x] **Step 1: Add failing redaction and Web tests**
 
 Assert production project/job responses contain no `repo_path`, absolute path or path-bearing error. Assert project page contains no path field, Initialize form, Retry form or route. Legacy history may show status, counts, sanitized remote and timestamps only.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 .venv/bin/pytest tests/integration/api/test_initialization_jobs.py::test_production_initialization_history_redacts_local_paths tests/integration/test_web_config.py::test_project_page_has_no_server_local_repository_controls -q
@@ -249,14 +249,14 @@ Assert production project/job responses contain no `repo_path`, absolute path or
 
 Expected: FAIL because paths and controls are rendered.
 
-- [ ] **Step 3: Implement environment-aware serialization and remove controls**
+- [x] **Step 3: Implement environment-aware serialization and remove controls**
 
 - Production serializer omits `repo_path` and replaces path-bearing errors with stable codes/messages.
 - Development/test may retain path details for fixture diagnostics.
 - Remove both Next.js mutation routes and all controls.
 - Empty state says context will arrive from an authorized AI tool.
 
-- [ ] **Step 4: Run GREEN and Web build**
+- [x] **Step 4: Run GREEN and Web build**
 
 ```bash
 .venv/bin/pytest tests/integration/api/test_initialization_jobs.py tests/integration/test_web_config.py -q
@@ -265,12 +265,20 @@ cd apps/web && NEXT_TELEMETRY_DISABLED=1 npm run build
 
 Expected: PASS and build succeeds.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/routers/projects.py apps/web/app/projects/[projectId]/page.tsx apps/web/app/projects/[projectId]/initialize/route.ts apps/web/app/projects/[projectId]/initialization-jobs/[jobId]/retry/route.ts tests/integration/api/test_initialization_jobs.py tests/integration/test_web_config.py
 git commit -m "fix: remove server-local repository controls and disclosure"
 ```
+
+**Execution record (2026-09-01):**
+
+- Commit: `20c5961`.
+- RED evidence: production initialization history returned `repo_path`; Web project page still contained local repository path controls and Retry action; production project/job responses also exposed absolute-path remotes, credential-bearing remotes and path-bearing warnings before redaction fixes.
+- GREEN evidence: focused Task4 redaction/Web tests passed; initialization/project/Web config suite `50 passed`; full Python suite `334 passed, 2 skipped`; `NEXT_TELEMETRY_DISABLED=1 npm run build` passed; `pip check` and `git diff --check` passed.
+- Review evidence: specification review found project `git_remotes`, job `git_remote` and `warnings` disclosure gaps; quality review found production warning-object rendering and stale five-column history layout risks. Both issue sets were fixed and locally reverified. Final review agent handles were unavailable after context transition, so this record does not claim final subagent approval for Task4.
+- State: `implemented` and `automated verified`; PR1A black-box and exit criteria remain pending.
 
 ## Chunk 3: Honest Harness protocol 1.1
 

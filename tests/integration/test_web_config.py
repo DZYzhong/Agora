@@ -199,6 +199,35 @@ def test_product_context_page_is_read_only_audit_view():
     assert "/harness/start-work" not in context_page
 
 
+def test_project_page_has_no_server_local_repository_controls():
+    page_path = Path("apps/web/app/projects/[projectId]/page.tsx")
+    initialize_route = Path("apps/web/app/projects/[projectId]/initialize/route.ts")
+    retry_route = Path(
+        "apps/web/app/projects/[projectId]/initialization-jobs/[jobId]/retry/route.ts"
+    )
+
+    page = page_path.read_text()
+
+    assert "repo_path" not in page
+    assert "Repository path" not in page
+    assert "Initialize from local repository" not in page
+    assert "Initialize from a local repository" not in page
+    assert "/initialize" not in page
+    assert "/retry" not in page
+    assert "Retry" not in page
+    assert "authorized AI tool" in page
+    assert "string | { code: string; message: string }" in page
+    assert "typeof warning === \"string\"" in page
+    assert "<li key={warning}>{warning}</li>" not in page
+    assert "initialization-history-row" in page
+    assert not initialize_route.exists()
+    assert not retry_route.exists()
+
+    styles = Path("apps/web/app/styles.css").read_text()
+    assert ".initialization-history-row" in styles
+    assert "grid-template-columns: 120px 100px 100px minmax(180px, 1fr);" in styles
+
+
 def test_context_proposal_review_pages_are_available():
     detail_page = Path("apps/web/app/projects/[projectId]/context/proposals/[proposalId]/page.tsx")
     approve_route = Path("apps/web/app/projects/[projectId]/context/proposals/[proposalId]/approve/route.ts")

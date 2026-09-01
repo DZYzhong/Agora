@@ -10,12 +10,11 @@ type Project = {
 
 type InitializationJob = {
   id: string;
-  repo_path: string;
   git_remote: string | null;
   status: "running" | "completed" | "failed" | string;
   asset_count: number;
-  error: string | null;
-  warnings: string[];
+  error: string | { code: string; message: string } | null;
+  warnings: Array<string | { code: string; message: string }>;
   started_at: string | null;
   completed_at: string | null;
 };
@@ -28,7 +27,7 @@ export default async function ProjectDetailPage({
   searchParams: Promise<{ init_error?: string }>;
 }) {
   const { projectId } = await params;
-  const { init_error: initError } = await searchParams;
+  await searchParams;
   const project = await apiGet<Project>(`/projects/${projectId}`);
   let initializationJobs: InitializationJob[] = [];
   try {
@@ -51,7 +50,7 @@ export default async function ProjectDetailPage({
                 <span className={`status-dot status-${latestInitializationJob.status}`} aria-hidden="true" />
                 {latestInitializationJob.status}
               </h2>
-              <p className="muted">{latestInitializationJob.repo_path}</p>
+              <p className="muted">Context assets are supplied by authorized AI tools.</p>
             </>
           ) : (
             <>
@@ -59,7 +58,7 @@ export default async function ProjectDetailPage({
                 <span className="status-dot status-empty" aria-hidden="true" />
                 Not initialized
               </h2>
-              <p className="muted">Initialize from a local repository to build Agora assets.</p>
+              <p className="muted">Context will arrive from an authorized AI tool.</p>
             </>
           )}
         </div>
@@ -79,13 +78,21 @@ export default async function ProjectDetailPage({
             </div>
           </dl>
         ) : null}
-        {latestInitializationJob?.error ? <p className="alert">{latestInitializationJob.error}</p> : null}
+        {latestInitializationJob?.error ? (
+          <p className="alert">
+            {typeof latestInitializationJob.error === "string"
+              ? latestInitializationJob.error
+              : latestInitializationJob.error.message}
+          </p>
+        ) : null}
         {latestInitializationJob?.warnings?.length ? (
           <div className="warning-list">
             <h3>Warnings</h3>
             <ul>
               {latestInitializationJob.warnings.map((warning) => (
-                <li key={warning}>{warning}</li>
+                <li key={typeof warning === "string" ? warning : warning.code}>
+                  {typeof warning === "string" ? warning : warning.message}
+                </li>
               ))}
             </ul>
           </div>
@@ -100,44 +107,23 @@ export default async function ProjectDetailPage({
         <section className="panel">
           <h2>Initialization history</h2>
           <div className="history-list">
-            <div className="history-row history-header">
+            <div className="history-row initialization-history-row history-header">
               <span>Status</span>
               <span>Assets</span>
               <span>Warnings</span>
               <span>Completed</span>
-              <span>Action</span>
             </div>
             {initializationJobs.map((job) => (
-              <div className="history-row" key={job.id}>
+              <div className="history-row initialization-history-row" key={job.id}>
                 <span>{job.status}</span>
                 <span>{job.asset_count}</span>
                 <span>{job.warnings.length}</span>
                 <span>{job.completed_at ? new Date(job.completed_at).toLocaleString() : "In progress"}</span>
-                <span>
-                  {job.status === "failed" ? (
-                    <form className="inline-form compact-form" action={`/projects/${project.id}/initialization-jobs/${job.id}/retry`} method="post">
-                      <button type="submit" className="secondary-button">
-                        Retry
-                      </button>
-                    </form>
-                  ) : (
-                    "None"
-                  )}
-                </span>
               </div>
             ))}
           </div>
         </section>
       ) : null}
-      <form className="panel form" action={`/projects/${project.id}/initialize`} method="post">
-        <h2>Initialize from local repository</h2>
-        {initError ? <p className="alert">{initError}</p> : null}
-        <label>
-          Repository path
-          <input name="repo_path" placeholder="/Users/daniel/Documents/Agora/.worktrees/agora-p0/tests/fixtures/sample_repo" required />
-        </label>
-        <button type="submit">Initialize</button>
-      </form>
       <section className="grid">
         <Link className="panel" href={`/projects/${project.id}/work-items`}>
           <h2>Work items</h2>
