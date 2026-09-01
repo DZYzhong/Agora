@@ -1,9 +1,10 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.openapi.utils import get_openapi
 from sqlalchemy.orm import sessionmaker
 
-from apps.api.middleware import RequestIdMiddleware
+from apps.api.middleware import HideProductionLocalInitializationMiddleware, RequestIdMiddleware
 from apps.api.routers.harness import router as harness_router
 from apps.api.routers.health import router as health_router
 from apps.api.routers.context_governance import router as context_governance_router
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Agora API", lifespan=lifespan)
+app.add_middleware(HideProductionLocalInitializationMiddleware)
 app.add_middleware(RequestIdMiddleware)
 
 app.include_router(health_router)
@@ -52,3 +54,21 @@ app.include_router(context_governance_router)
 app.include_router(integrations_router)
 app.include_router(work_items_router)
 app.include_router(writebacks_router)
+
+
+def custom_openapi():
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        routes=app.routes,
+    )
+    if get_runtime_policy().environment == "production":
+        schema["paths"].pop("/projects/{project_id}/initialize-local", None)
+        schema["paths"].pop(
+            "/projects/{project_id}/initialization-jobs/{job_id}/retry",
+            None,
+        )
+    return schema
+
+
+app.openapi = custom_openapi

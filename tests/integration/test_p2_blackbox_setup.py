@@ -11,6 +11,7 @@ def _run_prepare(root: Path, database_url: str) -> dict:
     env = {
         **os.environ,
         "AGORA_ENV": "development",
+        "AGORA_LOCAL_INIT_ROOT": str(root),
         "AGORA_TEST_AUTH_BYPASS": "0",
         "AGORA_BOOTSTRAP_HUMAN_TOKEN": "p2-human-token",
         "AGORA_BOOTSTRAP_AGENT_TOKEN": "p2-agent-token",

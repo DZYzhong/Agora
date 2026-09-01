@@ -11,9 +11,11 @@ from packages.core.models import IdempotencyRecordModel, TaskSessionModel, WorkI
 from packages.core.uow import SqlAlchemyUnitOfWork
 
 
-def test_session_audit_list_filters_and_detail_payload(tmp_path):
-    client = TestClient(app)
-    repo = tmp_path / "repo"
+def test_session_audit_list_filters_and_detail_payload(
+    authenticated_client, local_init_root
+):
+    client = authenticated_client
+    repo = local_init_root / "repo"
     (repo / "src").mkdir(parents=True)
     (repo / "src" / "payments.py").write_text("Payment retry risk and rollback evidence.", encoding="utf-8")
     project = client.post(

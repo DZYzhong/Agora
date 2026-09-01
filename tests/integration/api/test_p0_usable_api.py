@@ -5,8 +5,13 @@ import subprocess
 from apps.api.main import app
 
 
-def test_api_p0_usable_loop_initializes_assets_plans_context_and_accepts_writeback():
-    client = TestClient(app)
+def test_api_p0_usable_loop_initializes_assets_plans_context_and_accepts_writeback(
+    authenticated_client,
+    local_init_root,
+):
+    repo = local_init_root / "sample_repo"
+    shutil.copytree("tests/fixtures/sample_repo", repo)
+    client = authenticated_client
     project = client.post(
         "/projects",
         json={
@@ -19,7 +24,7 @@ def test_api_p0_usable_loop_initializes_assets_plans_context_and_accepts_writeba
 
     init_response = client.post(
         f"/projects/{project['id']}/initialize-local",
-        json={"repo_path": "tests/fixtures/sample_repo"},
+        json={"repo_path": str(repo)},
     )
 
     assert init_response.status_code == 200
@@ -77,8 +82,10 @@ def test_api_p0_usable_loop_initializes_assets_plans_context_and_accepts_writeba
     assert "幂等" in later_context["summary"]
 
 
-def test_initialize_local_clones_project_remote_when_repo_path_is_missing(tmp_path):
-    source_repo = tmp_path / "source_repo"
+def test_initialize_local_clones_project_remote_when_repo_path_is_missing(
+    authenticated_client, local_init_root
+):
+    source_repo = local_init_root / "source_repo"
     shutil.copytree("tests/fixtures/sample_repo", source_repo)
     subprocess.run(["git", "init"], cwd=source_repo, check=True)
     subprocess.run(["git", "add", "."], cwd=source_repo, check=True)
@@ -88,8 +95,8 @@ def test_initialize_local_clones_project_remote_when_repo_path_is_missing(tmp_pa
         check=True,
     )
 
-    target_repo = tmp_path / "cloned_repo"
-    client = TestClient(app)
+    target_repo = local_init_root / "cloned_repo"
+    client = authenticated_client
     project = client.post(
         "/projects",
         json={
@@ -111,8 +118,10 @@ def test_initialize_local_clones_project_remote_when_repo_path_is_missing(tmp_pa
     assert (target_repo / "README.md").exists()
 
 
-def test_initialize_local_requires_git_remote_when_repo_path_is_missing(tmp_path):
-    client = TestClient(app)
+def test_initialize_local_requires_git_remote_when_repo_path_is_missing(
+    authenticated_client, local_init_root
+):
+    client = authenticated_client
     project = client.post(
         "/projects",
         json={
@@ -125,7 +134,7 @@ def test_initialize_local_requires_git_remote_when_repo_path_is_missing(tmp_path
 
     init_response = client.post(
         f"/projects/{project['id']}/initialize-local",
-        json={"repo_path": str(tmp_path / "missing_repo")},
+        json={"repo_path": str(local_init_root / "missing_repo")},
     )
 
     assert init_response.status_code == 400

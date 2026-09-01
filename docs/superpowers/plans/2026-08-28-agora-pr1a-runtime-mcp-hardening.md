@@ -176,13 +176,13 @@ git commit -m "fix: refuse unsafe startup and return truthful readiness"
 - Modify: `tests/integration/api/test_work_items_api.py`
 - Modify: `scripts/prepare_p2_blackbox.py`
 
-- [ ] **Step 1: Add failing security tests with valid authentication setup**
+- [x] **Step 1: Add failing security tests with valid authentication setup**
 
 Production/development tests explicitly remove autouse bypass, configure distinct bootstrap credentials, enter `TestClient(app)` lifespan and authenticate.
 
 Prove production returns route-equivalent 404 for initialize/retry; development/test without root returns `LOCAL_INIT_DISABLED`; outside-root, `..` and symlink escapes return `LOCAL_INIT_PATH_FORBIDDEN`; retry revalidates its stored path; and an allowed Git repository still initializes.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 .venv/bin/pytest tests/integration/api/test_initialization_jobs.py -q
@@ -190,7 +190,7 @@ Prove production returns route-equivalent 404 for initialize/retry; development/
 
 Expected: policy tests fail because arbitrary readable paths are accepted.
 
-- [ ] **Step 3: Enforce policy before job creation or retry**
+- [x] **Step 3: Enforce policy before job creation or retry**
 
 - Resolve root and candidate with `Path.resolve(strict=False)`.
 - Require candidate equal root or root in candidate parents.
@@ -198,11 +198,11 @@ Expected: policy tests fail because arbitrary readable paths are accepted.
 - Production returns 404 for initialize and retry.
 - Do not persist rejected candidates or include them in errors.
 
-- [ ] **Step 4: Update all callers and fixtures**
+- [x] **Step 4: Update all callers and fixtures**
 
 Every listed test/script that intentionally imports a local fixture sets `AGORA_ENV=test|development` and `AGORA_LOCAL_INIT_ROOT` to the narrow temporary/fixture root. No global root is added.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 ```bash
 .venv/bin/pytest tests/integration/api/test_initialization_jobs.py tests/integration/test_p2_blackbox_setup.py tests/e2e/test_p2_harness_loop.py tests/integration/api/test_context_governance_api.py tests/integration/api/test_harness_api.py tests/integration/api/test_p0_usable_api.py tests/integration/api/test_sessions_api.py tests/integration/api/test_work_items_api.py -q
@@ -210,12 +210,21 @@ Every listed test/script that intentionally imports a local fixture sets `AGORA_
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/api/routers/projects.py tests/integration/api/test_initialization_jobs.py tests/integration/test_p2_blackbox_setup.py tests/e2e/test_p2_harness_loop.py tests/integration/api/test_context_governance_api.py tests/integration/api/test_harness_api.py tests/integration/api/test_p0_usable_api.py tests/integration/api/test_sessions_api.py tests/integration/api/test_work_items_api.py scripts/prepare_p2_blackbox.py
 git commit -m "fix: contain legacy repository import paths"
 ```
+
+**Execution record (2026-09-01):**
+
+- Commit: pending before this record is committed.
+- Recovery note: execution resumed with partial Task3 tests and implementation already present in the worktree, so the original first RED run could not be reconstructed honestly. Additional red-green regressions were added and observed failing before fixes for malformed JSON production disclosure.
+- RED evidence: production malformed JSON against `/projects/{project_id}/initialize-local` returned `422` before middleware interception; review probes also exposed request-header, OpenAPI and non-POST `405 Allow: POST` disclosure risks before fixes.
+- GREEN evidence: focused initialization suite `18 passed`; Task3 affected integration/e2e suite `63 passed`; full Python suite `332 passed, 2 skipped`; `pip check` and `git diff --check` passed.
+- Review evidence: specification review approved after fixing body-parse ordering, request-id response parity and production OpenAPI enumeration; code-quality review approved after expanding hidden legacy path interception from POST-only to all HTTP methods.
+- State: `implemented` and `automated verified`; PR1A black-box and exit criteria remain pending.
 
 ### Task 4: Remove path controls and path disclosure from Web/API
 

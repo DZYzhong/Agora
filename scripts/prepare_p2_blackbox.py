@@ -207,8 +207,12 @@ def _ensure_initialized(client: Any, *, project_id: str, repo_path: Path, human_
 
 
 def prepare(root: Path, database_url: str) -> dict:
+    root = root.expanduser().resolve()
     human_token = _require_env("AGORA_BOOTSTRAP_HUMAN_TOKEN")
     _require_env("AGORA_BOOTSTRAP_AGENT_TOKEN")
+    os.environ["AGORA_ENV"] = "development"
+    os.environ.pop("AGORA_TEST_AUTH_BYPASS", None)
+    os.environ["AGORA_LOCAL_INIT_ROOT"] = str(root)
     os.environ.setdefault("AGORA_BOOTSTRAP_ORG_ID", "local-org")
     os.environ["AGORA_DATABASE_URL"] = database_url
 
@@ -221,6 +225,8 @@ def prepare(root: Path, database_url: str) -> dict:
         "\n".join(
             [
                 f"AGORA_DATABASE_URL={database_url}",
+                "AGORA_ENV=development",
+                f"AGORA_LOCAL_INIT_ROOT={root}",
                 f"AGORA_BOOTSTRAP_ORG_ID={os.environ['AGORA_BOOTSTRAP_ORG_ID']}",
                 f"AGORA_BOOTSTRAP_HUMAN_TOKEN={human_token}",
                 f"AGORA_BOOTSTRAP_AGENT_TOKEN={os.environ['AGORA_BOOTSTRAP_AGENT_TOKEN']}",

@@ -6,13 +6,19 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from apps.api.auth import get_current_principal, require_human, require_project_member
-from apps.api.dependencies import get_db_session, get_keyword_index, get_vector_index
+from apps.api.dependencies import (
+    get_db_session,
+    get_keyword_index,
+    get_runtime_policy,
+    get_vector_index,
+)
 from apps.workers.workflows.initialize_project import initialize_project_from_local_repo
 from packages.core.repositories.assets import AssetRepository
 from packages.core.repositories.identities import IdentityRepository
 from packages.core.repositories.initialization_jobs import InitializationJobRepository
 from packages.core.repositories.projects import ProjectRepository
 from packages.core.auth import Principal
+from packages.core.settings import RuntimePolicy
 from packages.core.services.project_summary import build_project_summary
 from packages.core.services.runtime import CoreRuntime
 from packages.core.services.skills import ensure_builtin_skills
@@ -28,6 +34,36 @@ logger = logging.getLogger(__name__)
 
 class InitializeLocalProjectRequest(BaseModel):
     repo_path: str
+
+
+def _hide_local_initialization_in_production(
+    policy: RuntimePolicy = Depends(get_runtime_policy),
+) -> None:
+    if policy.environment == "production":
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+def _validate_local_initialization_path(policy: RuntimePolicy, candidate: str) -> Path:
+    root = policy.local_init_root
+    if root is None:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "LOCAL_INIT_DISABLED",
+                "message": "Local repository initialization is disabled",
+            },
+        )
+
+    resolved_candidate = Path(candidate).resolve(strict=False)
+    if resolved_candidate != root and root not in resolved_candidate.parents:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "LOCAL_INIT_PATH_FORBIDDEN",
+                "message": "Repository path is outside the allowed local initialization root",
+            },
+        )
+    return resolved_candidate
 
 
 def _serialize_initialization_job(job) -> dict:
@@ -197,7 +233,10 @@ def archive_project(
     return response
 
 
-@router.post("/{project_id}/initialize-local")
+@router.post(
+    "/{project_id}/initialize-local",
+    dependencies=[Depends(_hide_local_initialization_in_production)],
+)
 def initialize_local_project(
     project_id: str,
     payload: InitializeLocalProjectRequest,
@@ -205,6 +244,7 @@ def initialize_local_project(
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
+    runtime_policy: RuntimePolicy = Depends(get_runtime_policy),
 ):
     require_human(principal)
     with SqlAlchemyUnitOfWork(session) as uow:
@@ -212,13 +252,14 @@ def initialize_local_project(
         if project is None:
             raise HTTPException(status_code=404, detail="Project not found")
         require_project_member(session, principal, project_id=project.id)
+        repo_path = _validate_local_initialization_path(runtime_policy, payload.repo_path)
 
         job_repo = InitializationJobRepository(session)
         git_remote = project.git_remotes[0] if project.git_remotes else None
         job = job_repo.create(
             org_id=project.org_id,
             project_id=project.id,
-            repo_path=payload.repo_path,
+            repo_path=str(repo_path),
             git_remote=git_remote,
         )
         job_id = job.id
@@ -232,7 +273,10 @@ def initialize_local_project(
     )
 
 
-@router.post("/{project_id}/initialization-jobs/{job_id}/retry")
+@router.post(
+    "/{project_id}/initialization-jobs/{job_id}/retry",
+    dependencies=[Depends(_hide_local_initialization_in_production)],
+)
 def retry_initialization_job(
     project_id: str,
     job_id: str,
@@ -240,6 +284,7 @@ def retry_initialization_job(
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
+    runtime_policy: RuntimePolicy = Depends(get_runtime_policy),
 ):
     require_human(principal)
     with SqlAlchemyUnitOfWork(session) as uow:
@@ -254,11 +299,12 @@ def retry_initialization_job(
             raise HTTPException(status_code=404, detail="Initialization job not found")
         if previous_job.status != "failed":
             raise HTTPException(status_code=400, detail="Only failed initialization jobs can be retried")
+        repo_path = _validate_local_initialization_path(runtime_policy, previous_job.repo_path)
 
         retry_job = job_repo.create(
             org_id=project.org_id,
             project_id=project.id,
-            repo_path=previous_job.repo_path,
+            repo_path=str(repo_path),
             git_remote=previous_job.git_remote,
         )
         retry_job_id = retry_job.id

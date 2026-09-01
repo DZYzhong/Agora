@@ -930,9 +930,11 @@ def test_close_work_endpoint_can_prepare_development_update_from_repo_diff(tmp_p
     assert "调整发布风险策略" in context["summary"]
 
 
-def test_fetch_context_ref_returns_traceable_asset_content(tmp_path):
-    client = TestClient(app)
-    repo = tmp_path / "repo"
+def test_fetch_context_ref_returns_traceable_asset_content(
+    authenticated_client, local_init_root
+):
+    client = authenticated_client
+    repo = local_init_root / "repo"
     (repo / "docs").mkdir(parents=True)
     (repo / "README.md").write_text("# Fetch Ref\n\nReference project.", encoding="utf-8")
     (repo / "docs/ref.md").write_text("Reference detail line one.\nReference detail line two.", encoding="utf-8")
@@ -977,9 +979,11 @@ def test_fetch_context_ref_returns_traceable_asset_content(tmp_path):
     assert "Reference detail line one." in body["content"]
 
 
-def test_plan_context_persists_context_pack_on_session_timeline(tmp_path):
-    client = TestClient(app)
-    repo = tmp_path / "repo"
+def test_plan_context_persists_context_pack_on_session_timeline(
+    authenticated_client, local_init_root
+):
+    client = authenticated_client
+    repo = local_init_root / "repo"
     (repo / "src").mkdir(parents=True)
     (repo / "src/service.py").write_text("Refund retry idempotency implementation.", encoding="utf-8")
     project = client.post(
@@ -1025,9 +1029,11 @@ def test_plan_context_persists_context_pack_on_session_timeline(tmp_path):
     assert sessions[0]["events"][0]["payload"]["context_pack_id"] == context["id"]
 
 
-def test_prepare_context_endpoint_returns_budgeted_provisional_bundle(tmp_path):
-    client = TestClient(app)
-    repo = tmp_path / "repo"
+def test_prepare_context_endpoint_returns_budgeted_provisional_bundle(
+    authenticated_client, local_init_root
+):
+    client = authenticated_client
+    repo = local_init_root / "repo"
     (repo / "src").mkdir(parents=True)
     (repo / "src/refund.py").write_text("Refund retry idempotency implementation.", encoding="utf-8")
     project = client.post(

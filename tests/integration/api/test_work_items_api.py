@@ -76,9 +76,11 @@ def test_start_work_creates_listable_work_item_for_authorized_project():
     assert work_item["workflow_execution"]["steps"][1]["status"] == "pending"
 
 
-def test_work_item_detail_projects_sessions_and_latest_context_without_secrets(tmp_path):
-    client = TestClient(app)
-    repo = tmp_path / "repo"
+def test_work_item_detail_projects_sessions_and_latest_context_without_secrets(
+    authenticated_client, local_init_root
+):
+    client = authenticated_client
+    repo = local_init_root / "repo"
     (repo / "src").mkdir(parents=True)
     (repo / "src/refund.py").write_text("Refund retry idempotency implementation.", encoding="utf-8")
     project = client.post(
@@ -123,7 +125,9 @@ def test_work_item_detail_projects_sessions_and_latest_context_without_secrets(t
 
     assert list_response.status_code == 200
     listed_item = list_response.json()[0]
-    assert listed_item["participants"] == ["auth-bypass-user"]
+    assert len(listed_item["participants"]) == 1
+    assert listed_item["participants"] != ["auth-bypass-user"]
+    assert HUMAN_TOKEN not in str(listed_item["participants"])
     assert listed_item["latest_context_state"]["context_pack_id"] == context["context_pack_id"]
     assert listed_item["latest_context_state"]["provisional"] is True
 
@@ -132,7 +136,7 @@ def test_work_item_detail_projects_sessions_and_latest_context_without_secrets(t
     assert detail["id"] == started["work_item_id"]
     assert detail["external_key"] == "AG-900"
     assert detail["title"] == "实现退款幂等"
-    assert detail["participants"] == ["auth-bypass-user"]
+    assert detail["participants"] == listed_item["participants"]
     assert detail["capability_pins"]["workflow_version_id"] == started["workflow_version_id"]
     assert detail["workflow_execution"]["status"] == "running"
     assert detail["workflow_execution"]["steps"][0]["step_key"] == "analysis"

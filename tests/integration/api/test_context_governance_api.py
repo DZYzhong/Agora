@@ -267,9 +267,11 @@ def test_multiple_same_head_context_proposals_cannot_overwrite_stream_head(monke
     assert streams[0]["head_revision_id"] == approved[0].json()["revision"]["id"]
 
 
-def test_prepare_context_uses_accepted_revision_after_approval(monkeypatch, tmp_path):
+def test_prepare_context_uses_accepted_revision_after_approval(
+    monkeypatch, local_init_root
+):
     _production_auth(monkeypatch)
-    repo = tmp_path / "repo"
+    repo = local_init_root / "repo"
     (repo / "src").mkdir(parents=True)
     (repo / "src/payments.py").write_text("payment state machine", encoding="utf-8")
     with TestClient(app) as client:

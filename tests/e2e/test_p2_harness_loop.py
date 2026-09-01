@@ -11,13 +11,15 @@ def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_p2_canonical_harness_loop_uses_authenticated_public_operations(monkeypatch, tmp_path):
+def test_p2_canonical_harness_loop_uses_authenticated_public_operations(
+    monkeypatch, local_init_root
+):
     monkeypatch.delenv("AGORA_TEST_AUTH_BYPASS", raising=False)
     monkeypatch.setenv("AGORA_BOOTSTRAP_HUMAN_TOKEN", HUMAN_TOKEN)
     monkeypatch.setenv("AGORA_BOOTSTRAP_AGENT_TOKEN", AGENT_TOKEN)
     monkeypatch.setenv("AGORA_BOOTSTRAP_ORG_ID", "org_p2_loop")
 
-    repo = tmp_path / "repo"
+    repo = local_init_root / "repo"
     (repo / "src").mkdir(parents=True)
     (repo / "src" / "refund.py").write_text("Refund retry idempotency and rollback evidence.", encoding="utf-8")
 

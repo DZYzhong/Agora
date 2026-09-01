@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -19,6 +20,76 @@ def isolate_agora_api_runtime(monkeypatch, tmp_path):
     dependencies.get_engine.cache_clear()
     dependencies.get_keyword_index.cache_clear()
     dependencies.get_vector_index.cache_clear()
+
+
+@pytest.fixture
+def local_init_root(monkeypatch, tmp_path) -> Path:
+    root = tmp_path / "local-init"
+    root.mkdir()
+    monkeypatch.setenv("AGORA_ENV", "test")
+    monkeypatch.setenv("AGORA_LOCAL_INIT_ROOT", str(root))
+    return root
+
+
+class AuthenticatedTestClient:
+    def __init__(self, client, token: str):
+        self._client = client
+        self._token = token
+
+    def __getattr__(self, name):
+        return getattr(self._client, name)
+
+    def get(self, url, *args, headers=None, **kwargs):
+        return self._client.get(url, *args, headers=self._headers(headers), **kwargs)
+
+    def post(self, url, *args, headers=None, **kwargs):
+        return self._client.post(url, *args, headers=self._headers(headers), **kwargs)
+
+    def put(self, url, *args, headers=None, **kwargs):
+        return self._client.put(url, *args, headers=self._headers(headers), **kwargs)
+
+    def delete(self, url, *args, headers=None, **kwargs):
+        return self._client.delete(url, *args, headers=self._headers(headers), **kwargs)
+
+    def _headers(self, headers):
+        merged = {"Authorization": f"Bearer {self._token}"}
+        if headers:
+            merged.update(headers)
+        return merged
+
+
+@pytest.fixture
+def authenticated_client(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from apps.api.main import app
+
+    token = "test-human-token-secret-value"
+    monkeypatch.setenv("AGORA_ENV", "test")
+    monkeypatch.delenv("AGORA_TEST_AUTH_BYPASS", raising=False)
+    monkeypatch.setenv("AGORA_BOOTSTRAP_HUMAN_TOKEN", token)
+    monkeypatch.setenv("AGORA_BOOTSTRAP_AGENT_TOKEN", "test-agent-token-secret-value")
+    monkeypatch.setenv("AGORA_BOOTSTRAP_CI_TOKEN", "test-ci-token-secret-value")
+    monkeypatch.setenv("AGORA_BOOTSTRAP_ORG_ID", "test-org")
+    with TestClient(app) as client:
+        yield AuthenticatedTestClient(client, token)
+
+
+@pytest.fixture
+def authenticated_client_no_raise(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from apps.api.main import app
+
+    token = "test-human-token-secret-value"
+    monkeypatch.setenv("AGORA_ENV", "test")
+    monkeypatch.delenv("AGORA_TEST_AUTH_BYPASS", raising=False)
+    monkeypatch.setenv("AGORA_BOOTSTRAP_HUMAN_TOKEN", token)
+    monkeypatch.setenv("AGORA_BOOTSTRAP_AGENT_TOKEN", "test-agent-token-secret-value")
+    monkeypatch.setenv("AGORA_BOOTSTRAP_CI_TOKEN", "test-ci-token-secret-value")
+    monkeypatch.setenv("AGORA_BOOTSTRAP_ORG_ID", "test-org")
+    with TestClient(app, raise_server_exceptions=False) as client:
+        yield AuthenticatedTestClient(client, token)
 
 
 @dataclass
