@@ -100,3 +100,57 @@ def test_postgres_enforces_idempotency_key_uniqueness():
     finally:
         session.rollback()
         session.close()
+
+
+def test_postgres_audit_actor_credential_is_polymorphic():
+    """Web-session and grant actors audit with ids outside credentials.id.
+
+    security_audit_events.actor_credential_id must not be foreign-key
+    constrained to credentials.id because web sessions and one-time approval
+    grants are separate tables. SQLite does not enforce foreign keys by
+    default, so this only fails on PostgreSQL (regression for 20260902_0017).
+    """
+    from packages.core.repositories.security import SecurityRepository
+
+    session = _session()
+    marker = f"pg-audit-{utc_now().timestamp()}"
+    try:
+        with SqlAlchemyUnitOfWork(session) as uow:
+            user = UserModel(org_id=marker, display_name="Audit Actor User")
+            session.add(user)
+            session.flush()
+            SecurityRepository(session).create_audit_event(
+                org_id=marker,
+                project_id=None,
+                actor_user_id=user.id,
+                # A web-session actor id: present in web_sessions, not credentials.
+                actor_credential_id="web-session-not-a-credential-id",
+                actor_credential_kind="web_session",
+                action="user.create",
+                target_type="user",
+                target_id=user.id,
+                decision="allow",
+                reason="polymorphic actor regression check",
+            )
+            uow.commit()
+    finally:
+        session.close()
+
+
+def test_postgres_schema_fingerprint_matches_canonical():
+    """The live PostgreSQL schema must hash identically to the canonical
+    SQLite replay of the same migration head (cross-backend normalization)."""
+    from packages.core.schema_manager import (
+        _canonical_signature,
+        _schema_signature,
+        get_alembic_heads,
+    )
+
+    engine = create_app_engine(POSTGRES_URL)
+    try:
+        heads = get_alembic_heads()
+        assert len(heads) == 1
+        with engine.connect() as connection:
+            assert _schema_signature(connection) == _canonical_signature(heads[0])
+    finally:
+        engine.dispose()

@@ -6,6 +6,7 @@ from functools import lru_cache
 import hashlib
 import json
 from pathlib import Path
+import re
 import sqlite3
 import tempfile
 from typing import Any
@@ -72,12 +73,66 @@ def _normalized_type(column_type: Any) -> str:
     return " ".join(str(column_type).upper().split())
 
 
+# PostgreSQL renders index/check predicate text through pg_get_expr, which
+# rewrites the DDL: `x IN ('a', 'b')` becomes `x = ANY (ARRAY['a', 'b'])`,
+# literals get `::character varying`-style casts, and columns get a `::text`
+# cast. SQLite keeps the predicate text verbatim. These helpers fold the
+# PostgreSQL renderings back into the portable form so signatures agree across
+# backends. The cast vocabulary is bounded to PostgreSQL's fixed type names so
+# a cast can never run past the following token.
+_PG_CAST_RE = re.compile(
+    r"::(?:CHARACTER VARYING|DOUBLE PRECISION|TIMESTAMP(?: WITH(?:OUT)? TIME ZONE)?|"
+    r"CHARACTER|VARCHAR(?:\(\d+\))?|BIGINT|SMALLINT|INTEGER|BOOLEAN|NUMERIC|"
+    r"TEXT|JSONB|JSON|UUID|BYTEA|INTERVAL|REAL|CHAR(?:\(\d+\))?|INT|DATE|TIME)(?:\[\])?"
+)
+_PG_ANY_ARRAY_RE = re.compile(r"(\S+?) = ANY \(ARRAY\[([^\]]*)\]\)")
+_PG_ALL_ARRAY_RE = re.compile(r"(\S+?) (?:<>|!=) ALL \(ARRAY\[([^\]]*)\]\)")
+_DOUBLE_WRAPPED_ARRAY_RE = re.compile(r"\(\(ARRAY\[([^\]]*)\]\)\)")
+_BARE_IDENTIFIER_PARENS_RE = re.compile(r"^\(([A-Z0-9_]+)\)(?=\s|$)")
+
+
+def _fold_any_array(match: re.Match[str]) -> str:
+    return f"{match.group(1)} IN ({match.group(2)})"
+
+
+def _fold_all_array(match: re.Match[str]) -> str:
+    return f"{match.group(1)} NOT IN ({match.group(2)})"
+
+
+def _strip_outer_parens(text: str) -> str:
+    """Strip one redundant outer parenthesis pair at a time, but only when the
+    opening parenthesis at position 0 is closed by the final character (i.e. the
+    pair truly wraps the whole expression)."""
+    while text.startswith("("):
+        depth = 0
+        wrapped = False
+        for index, char in enumerate(text):
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    if index == len(text) - 1:
+                        text = text[1:-1].strip()
+                        wrapped = True
+                    break
+        if not wrapped:
+            break
+    return text
+
+
 def _normalized_predicate(value: Any) -> str | None:
     if value is None:
         return None
     predicate = " ".join(str(value).strip().upper().replace('"', "").split())
-    while predicate.startswith("(") and predicate.endswith(")"):
-        predicate = predicate[1:-1].strip()
+    predicate = _PG_CAST_RE.sub("", predicate)
+    # pg_get_expr wraps the ARRAY constructor in an extra pair of parentheses
+    # when it carries a type cast; collapse that back to a single wrap.
+    predicate = _DOUBLE_WRAPPED_ARRAY_RE.sub(r"(ARRAY[\1])", predicate)
+    predicate = _PG_ANY_ARRAY_RE.sub(_fold_any_array, predicate)
+    predicate = _PG_ALL_ARRAY_RE.sub(_fold_all_array, predicate)
+    predicate = _strip_outer_parens(predicate)
+    predicate = _BARE_IDENTIFIER_PARENS_RE.sub(r"\1", predicate)
     return predicate
 
 
@@ -104,16 +159,27 @@ def _schema_signature(bind: Engine | Connection) -> dict[str, Any]:
     table_names = sorted(name for name in inspector.get_table_names() if name != "alembic_version")
     tables: dict[str, Any] = {}
     for table_name in table_names:
-        columns = [
-            {
-                "name": column["name"],
-                "type": _normalized_type(column["type"]),
-                "nullable": bool(column["nullable"]),
-                "primary_key": int(column.get("primary_key", 0)),
-                "default": None if column.get("default") is None else str(column["default"]),
-            }
-            for column in inspector.get_columns(table_name)
-        ]
+        pk_columns = set(inspector.get_pk_constraint(table_name).get("constrained_columns") or ())
+        columns = []
+        for column in inspector.get_columns(table_name):
+            column_type = _normalized_type(column["type"])
+            default = None if column.get("default") is None else str(column["default"])
+            # PostgreSQL reports boolean server defaults as `true`/`false` while
+            # SQLite stores them as `1`/`0`; normalize so signatures agree.
+            if column_type == "BOOLEAN" and default is not None:
+                default = {"TRUE": "1", "FALSE": "0", "1": "1", "0": "0"}.get(default.upper(), default)
+            columns.append(
+                {
+                    "name": column["name"],
+                    "type": column_type,
+                    "nullable": bool(column["nullable"]),
+                    # SQLite reports per-column primary_key from get_columns while
+                    # PostgreSQL does not; derive from the table PK constraint so
+                    # signatures are identical across backends.
+                    "primary_key": int(column["name"] in pk_columns),
+                    "default": default,
+                }
+            )
         foreign_keys = sorted(
             (
                 tuple(foreign_key["constrained_columns"]),

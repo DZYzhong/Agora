@@ -64,6 +64,14 @@ def _alembic_config(database_url: str) -> Config:
     return config
 
 
+def _expected_schema_revision() -> str:
+    from packages.core.schema_manager import get_alembic_heads
+
+    heads = get_alembic_heads()
+    assert len(heads) == 1
+    return heads[0]
+
+
 def test_alembic_upgrade_head_creates_current_schema(tmp_path):
     database_url = f"sqlite+pysqlite:///{tmp_path / 'agora.db'}"
 
@@ -79,7 +87,7 @@ def test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine(data
 
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT count(*) FROM assets")) == 0
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260902_0016"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == _expected_schema_revision()
 
 
 def test_p8_pull_request_signals_schema_links_project_work_item_and_actor(tmp_path):
@@ -191,8 +199,11 @@ def test_p7_security_audit_schema_links_actor_and_project(tmp_path):
         "metadata",
         "created_at",
     } <= columns
+    # Actor identity is polymorphic (credentials, web sessions, one-time
+    # grants) since 20260902_0017, so actor_credential_id is intentionally not
+    # foreign-key constrained to credentials.id.
     referred_tables = {foreign_key["referred_table"] for foreign_key in inspector.get_foreign_keys("security_audit_events")}
-    assert {"projects", "users", "credentials"} <= referred_tables
+    assert referred_tables == {"projects", "users"}
 
 
 def test_p6_quality_evidence_schema_links_to_work_item_session_and_user(tmp_path):

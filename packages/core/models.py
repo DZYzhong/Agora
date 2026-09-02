@@ -462,7 +462,10 @@ class SecurityAuditEventModel(Base):
     org_id: Mapped[str] = mapped_column(String, index=True)
     project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
     actor_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
-    actor_credential_id: Mapped[str | None] = mapped_column(ForeignKey("credentials.id"), nullable=True, index=True)
+    # Actor identity is polymorphic: bearer credentials (credentials.id),
+    # web sessions (web_sessions.id) or one-time approval grants may audit an
+    # action, so this column must not be foreign-key constrained.
+    actor_credential_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     actor_credential_kind: Mapped[str] = mapped_column(String, index=True)
     action: Mapped[str] = mapped_column(String, index=True)
     target_type: Mapped[str] = mapped_column(String, index=True)
