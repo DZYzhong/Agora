@@ -78,6 +78,19 @@ PR1 exit gate:
 
 Separate implementation plan required after PR1 exit.
 
+### PR2A: Compose deployability fixes (HIGH-2, HIGH-3)
+
+Plan: `docs/superpowers/plans/2026-09-01-agora-pr2a-compose-deployability.md`
+
+Current execution state (2026-09-01): Tasks 1-2 implemented and automated-verified; PR2A exit criteria pending black-box on a real Compose host.
+
+Outcomes covered:
+
+- Compose variables match API, Web and Connector runtime variables (`AGORA_API_URL` single convention).
+- PostgreSQL data persists across container recreation via named volume.
+
+PR2A does not claim the full PR2 exit gate (TLS, worker, DR, measured RPO/RTO), which remains open and gated behind PR1 exit.
+
 Outcomes:
 
 - Compose variables match API, Web and Connector runtime variables.

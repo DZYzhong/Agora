@@ -12,7 +12,7 @@ export AGORA_BOOTSTRAP_HUMAN_TOKEN=p4-human-token
 export AGORA_BOOTSTRAP_AGENT_TOKEN=p4-agent-token
 export AGORA_BOOTSTRAP_ORG_ID=local-org
 export AGORA_WEB_HUMAN_TOKEN=p4-human-token
-export NEXT_PUBLIC_AGORA_API_URL=http://127.0.0.1:18120
+export AGORA_API_URL=http://127.0.0.1:18120
 
 .venv/bin/uvicorn apps.api.main:app --host 127.0.0.1 --port 18120
 ```
@@ -21,7 +21,7 @@ export NEXT_PUBLIC_AGORA_API_URL=http://127.0.0.1:18120
 
 ```bash
 cd apps/web
-NEXT_PUBLIC_AGORA_API_URL=http://127.0.0.1:18120 AGORA_WEB_HUMAN_TOKEN=p4-human-token npm run dev -- --hostname 127.0.0.1 --port 13120
+AGORA_API_URL=http://127.0.0.1:18120 AGORA_WEB_HUMAN_TOKEN=p4-human-token npm run dev -- --hostname 127.0.0.1 --port 13120
 ```
 
 AI 工具 MCP 侧使用：

@@ -487,3 +487,76 @@ def test_runtime_environment_examples_use_supported_values():
 
     for production_source in (env_example, compose, p9_guide):
         assert "AGORA_LOCAL_INIT_ROOT" not in production_source
+
+
+def _compose_service_environment_map(compose: str) -> dict[str, dict[str, str]]:
+    document = yaml.safe_load(compose) or {}
+    if not isinstance(document, dict) or not isinstance(document.get("services"), dict):
+        return {}
+
+    discovered: dict[str, dict[str, str]] = {}
+    for service_name, service_config in document["services"].items():
+        if not isinstance(service_config, dict):
+            continue
+        environment = service_config.get("environment")
+        values: dict[str, str] = {}
+        if isinstance(environment, dict):
+            for name, value in environment.items():
+                if isinstance(name, str) and value is not None:
+                    values[name] = str(value)
+        elif isinstance(environment, list):
+            for item in environment:
+                if not isinstance(item, str):
+                    continue
+                name, separator, value = item.partition("=")
+                if separator and name:
+                    values[name] = value
+        if values:
+            discovered[str(service_name)] = values
+    return discovered
+
+
+def test_compose_web_and_connector_set_single_runtime_api_url():
+    compose = Path("infra/docker-compose.yml").read_text()
+    environments = _compose_service_environment_map(compose)
+
+    assert environments["web"].get("AGORA_API_URL") == "http://api:8000"
+    assert environments["local-connector"].get("AGORA_API_URL") == "http://api:8000"
+    assert "AGORA_API_BASE_URL" not in compose
+    for service, env in environments.items():
+        assert "AGORA_API_BASE_URL" not in env, service
+
+
+def test_web_api_client_reads_runtime_api_url_variable():
+    api_path = Path("apps/web/lib/api.ts")
+    api = api_path.read_text()
+
+    assert "AGORA_API_URL" in api
+    assert "NEXT_PUBLIC_AGORA_API_URL" not in api
+    assert "AGORA_API_BASE_URL" not in api
+
+
+def test_local_development_docs_and_scripts_use_single_api_url_variable():
+    candidates = [
+        *Path("docs/development").glob("*.md"),
+        *Path("docs/manual").glob("*.md"),
+        *Path("scripts").glob("*.py"),
+    ]
+    offenders = [
+        str(path)
+        for path in candidates
+        if "NEXT_PUBLIC_AGORA_API_URL" in path.read_text()
+    ]
+    assert offenders == []
+
+
+def test_compose_postgres_persists_data_with_named_volume():
+    compose_text = Path("infra/docker-compose.yml").read_text()
+    document = yaml.safe_load(compose_text)
+
+    postgres = document["services"]["postgres"]
+    volumes = postgres.get("volumes", [])
+    assert "agora-postgres-data:/var/lib/postgresql/data" in volumes
+
+    declared = document.get("volumes", {})
+    assert "agora-postgres-data" in declared

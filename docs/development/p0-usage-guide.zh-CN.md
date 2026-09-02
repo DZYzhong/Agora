@@ -35,7 +35,7 @@ curl http://127.0.0.1:8011/health
 
 ```bash
 cd /Users/daniel/Documents/Agora/.worktrees/agora-p0/apps/web
-NEXT_PUBLIC_AGORA_API_URL=http://127.0.0.1:8011 npm run dev -- -p 3000
+AGORA_API_URL=http://127.0.0.1:8011 npm run dev -- -p 3000
 ```
 
 浏览器打开：

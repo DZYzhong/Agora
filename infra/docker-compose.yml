@@ -27,7 +27,7 @@ services:
       - ../.env.example
     environment:
       AGORA_ENV: production
-      AGORA_API_BASE_URL: http://api:8000
+      AGORA_API_URL: http://api:8000
     ports:
       - "3000:3000"
     depends_on:
@@ -42,7 +42,7 @@ services:
       - ../.env.example
     environment:
       AGORA_ENV: production
-      AGORA_API_BASE_URL: http://api:8000
+      AGORA_API_URL: http://api:8000
     depends_on:
       api:
         condition: service_healthy
@@ -60,6 +60,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+    volumes:
+      - agora-postgres-data:/var/lib/postgresql/data
 
   redis:
     image: redis:7
@@ -87,3 +89,6 @@ services:
     ports:
       - "7474:7474"
       - "7687:7687"
+
+volumes:
+  agora-postgres-data:

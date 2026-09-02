@@ -34,7 +34,7 @@ Web：
 
 ```bash
 cd apps/web
-NEXT_PUBLIC_AGORA_API_URL=http://127.0.0.1:8011 AGORA_WEB_HUMAN_TOKEN="$AGORA_WEB_HUMAN_TOKEN" npm run dev -- -p 3000
+AGORA_API_URL=http://127.0.0.1:8011 AGORA_WEB_HUMAN_TOKEN="$AGORA_WEB_HUMAN_TOKEN" npm run dev -- -p 3000
 ```
 
 MCP/AI 工具侧需要使用 `AGORA_AGENT_TOKEN` 指向同一个 API。

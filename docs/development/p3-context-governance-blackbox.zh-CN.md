@@ -12,10 +12,10 @@ export AGORA_BOOTSTRAP_HUMAN_TOKEN=p3-human-token
 export AGORA_BOOTSTRAP_AGENT_TOKEN=p3-agent-token
 export AGORA_BOOTSTRAP_ORG_ID=local-org
 export AGORA_WEB_HUMAN_TOKEN=p3-human-token
-export NEXT_PUBLIC_AGORA_API_URL=http://127.0.0.1:18100
+export AGORA_API_URL=http://127.0.0.1:18100
 
 .venv/bin/uvicorn apps.api.main:app --host 127.0.0.1 --port 18100
-cd apps/web && NEXT_PUBLIC_AGORA_API_URL=http://127.0.0.1:18100 AGORA_WEB_HUMAN_TOKEN=p3-human-token npm run dev -- --hostname 127.0.0.1 --port 13100
+cd apps/web && AGORA_API_URL=http://127.0.0.1:18100 AGORA_WEB_HUMAN_TOKEN=p3-human-token npm run dev -- --hostname 127.0.0.1 --port 13100
 ```
 
 Worker 可按需单次运行：

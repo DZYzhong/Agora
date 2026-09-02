@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_AGORA_API_URL ?? "http://localhost:8000";
+const API_BASE_URL = process.env.AGORA_API_URL ?? "http://localhost:8000";
 const WEB_HUMAN_TOKEN = process.env.AGORA_WEB_HUMAN_TOKEN;
 
 export async function apiGet<T>(path: string): Promise<T> {

@@ -232,7 +232,7 @@ def prepare(root: Path, database_url: str) -> dict:
                 f"AGORA_BOOTSTRAP_AGENT_TOKEN={os.environ['AGORA_BOOTSTRAP_AGENT_TOKEN']}",
                 f"AGORA_WEB_HUMAN_TOKEN={human_token}",
                 f"AGORA_AGENT_TOKEN={os.environ['AGORA_BOOTSTRAP_AGENT_TOKEN']}",
-                "NEXT_PUBLIC_AGORA_API_URL=http://127.0.0.1:8011",
+                "AGORA_API_URL=http://127.0.0.1:8011",
                 "",
             ]
         ),

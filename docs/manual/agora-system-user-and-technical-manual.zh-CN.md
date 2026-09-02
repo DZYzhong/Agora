@@ -273,7 +273,7 @@ curl http://127.0.0.1:8000/ready
 ```bash
 cd /Users/daniel/Documents/Agora/.worktrees/agora-p0/apps/web
 
-export NEXT_PUBLIC_AGORA_API_URL='http://127.0.0.1:8000'
+export AGORA_API_URL='http://127.0.0.1:8000'
 export AGORA_WEB_HUMAN_TOKEN='替换成人工token'
 
 npm run dev -- --hostname 127.0.0.1 --port 3000
@@ -792,7 +792,7 @@ curl http://127.0.0.1:8000/health
 curl http://127.0.0.1:8000/ready
 ```
 
-确认 Web 启动时设置了 `NEXT_PUBLIC_AGORA_API_URL` 和 `AGORA_WEB_HUMAN_TOKEN`。
+确认 Web 启动时设置了 `AGORA_API_URL` 和 `AGORA_WEB_HUMAN_TOKEN`。
 
 ### API 提示 token 缺失
 
