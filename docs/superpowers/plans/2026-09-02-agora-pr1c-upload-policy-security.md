@@ -23,11 +23,11 @@
 - Create: `packages/core/upload_policy.py` (UploadPolicy dataclass: allowed kinds, path patterns, max sizes, secret rules, policy version; `classify_upload()` computing the risk tier from the actual payload; `revalidate_upload()` with path/content-type/size/control-char/secret checks)
 - Create: `tests/unit/core/test_upload_policy.py`
 
-- [ ] **Step 1: Add failing tests** — low-tier classification for structured summaries/anchors/hashes without excerpts; high-tier for source/document excerpts, secret-rule exceptions, forbidden paths/types, over-limit content, policy overrides and quality waivers; revalidation rejects absolute paths, `..`, credentialized remotes, unknown kinds, control characters, oversized fields and secret patterns; tier cannot be downgraded by client-claimed metadata.
-- [ ] **Step 2: Run RED.**
-- [ ] **Step 3: Implement** classifier + revalidator with a stable `policy_version`.
-- [ ] **Step 4: Run GREEN.**
-- [ ] **Step 5: Commit** `feat: add upload policy and risk classifier`.
+- [x] **Step 1: Add failing tests** — low-tier classification for structured summaries/anchors/hashes without excerpts; high-tier for source/document excerpts, secret-rule exceptions, forbidden paths/types, over-limit content, policy overrides and quality waivers; revalidation rejects absolute paths, `..`, credentialized remotes, unknown kinds, control characters, oversized fields and secret patterns; tier cannot be downgraded by client-claimed metadata.
+- [x] **Step 2: Run RED.**
+- [x] **Step 3: Implement** classifier + revalidator with a stable `policy_version`.
+- [x] **Step 4: Run GREEN.**
+- [x] **Step 5: Commit** `feat: add upload policy and risk classifier`.
 
 ### Task 2: Server-side revalidation of Harness uploads and tier/grant matching
 
@@ -37,11 +37,11 @@
 - Modify: `apps/api/routers/context_governance.py` (revalidate proposal content/source anchors)
 - Create: `tests/integration/api/test_upload_policy_api.py`
 
-- [ ] **Step 1: Add failing tests** — high-tier upload without grant denied; low-tier acknowledgment with required fields accepted from Agent; downgrade attempt (client claims low for excerpt payload) rejected with audit; oversized upload rejected with stable code.
-- [ ] **Step 2: Run RED.**
-- [ ] **Step 3: Implement** enforcement in the Harness and context routers.
-- [ ] **Step 4: Run GREEN.**
-- [ ] **Step 5: Commit** `feat: enforce server-side upload policy and tier matching`.
+- [x] **Step 1: Add failing tests** — high-tier upload without grant denied; low-tier acknowledgment with required fields accepted from Agent; downgrade attempt (client claims low for excerpt payload) rejected with audit; oversized upload rejected with stable code.
+- [x] **Step 2: Run RED.**
+- [x] **Step 3: Implement** enforcement in the Harness and context routers.
+- [x] **Step 4: Run GREEN.**
+- [x] **Step 5: Commit** `feat: enforce server-side upload policy and tier matching`.
 
 ## Chunk 2: Request limits, stable errors, redaction, CORS
 
@@ -52,11 +52,11 @@
 - Modify: `apps/api/middleware.py` (body-size limit middleware; stable `PAYLOAD_TOO_LARGE`/`PAYLOAD_INVALID` errors; log redaction of Authorization/cookie/remote credentials/secrets)
 - Create: `tests/integration/api/test_request_limits.py`
 
-- [ ] **Step 1: Add failing tests** — oversized JSON body rejected with `PAYLOAD_TOO_LARGE`; oversized upload field rejected; error responses never contain tracebacks/SQL/local paths; logs redact Authorization, cookie, credential-bearing remotes and secret patterns.
-- [ ] **Step 2: Run RED.**
-- [ ] **Step 3: Implement** middleware + redaction helper.
-- [ ] **Step 4: Run GREEN.**
-- [ ] **Step 5: Commit** `feat: enforce request limits and log redaction`.
+- [x] **Step 1: Add failing tests** — oversized JSON body rejected with `PAYLOAD_TOO_LARGE`; oversized upload field rejected; error responses never contain tracebacks/SQL/local paths; logs redact Authorization, cookie, credential-bearing remotes and secret patterns.
+- [x] **Step 2: Run RED.**
+- [x] **Step 3: Implement** middleware + redaction helper.
+- [x] **Step 4: Run GREEN.**
+- [x] **Step 5: Commit** `feat: enforce request limits and log redaction`.
 
 ### Task 4: CORS for the configured Web origin
 
@@ -65,11 +65,11 @@
 - Modify: `apps/api/main.py` or `middleware.py` (CORS allow-list from `AGORA_ALLOWED_ORIGINS`, no wildcard)
 - Modify: `tests/integration/test_web_config.py`
 
-- [ ] **Step 1: Add failing tests** — preflight from allowed origin passes; from disallowed origin rejected; no `*` in any CORS header.
-- [ ] **Step 2: Run RED.**
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run GREEN.**
-- [ ] **Step 5: Commit** `feat: restrict cors to configured origins`.
+- [x] **Step 1: Add failing tests** — preflight from allowed origin passes; from disallowed origin rejected; no `*` in any CORS header.
+- [x] **Step 2: Run RED.**
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run GREEN.**
+- [x] **Step 5: Commit** `feat: restrict cors to configured origins`.
 
 ## Chunk 3: Dependency and lint baseline
 
@@ -82,10 +82,10 @@
 - Create: `scripts/dependency_audit.py` (runs `pip-audit` and `npm audit --omit=dev` and reports open High/Critical)
 - Create: `tests/integration/test_dependency_audit.py` (contract test: audit script exists and documents the command; versions pinned)
 
-- [ ] **Step 1: Run `pip-audit` and `npm audit`** and record findings.
-- [ ] **Step 2: Fix or pin** every open High/Critical (upgrade Next.js to a patched release for postcss/sharp; pin base images).
-- [ ] **Step 3: Re-run audits** until zero open High/Critical; record exact commands and versions.
-- [ ] **Step 4: Commit** `fix: clear production dependency high/critical findings`.
+- [x] **Step 1: Run `pip-audit` and `npm audit`** and record findings.
+- [x] **Step 2: Fix or pin** every open High/Critical (upgrade Next.js to a patched release for postcss/sharp; pin base images).
+- [x] **Step 3: Re-run audits** until zero open High/Critical; record exact commands and versions.
+- [x] **Step 4: Commit** `fix: clear production dependency high/critical findings`.
 
 ### Task 6: ESLint configuration (PR1A gap)
 
@@ -94,18 +94,49 @@
 - Modify: `apps/web/package.json` (add eslint, eslint-config-next devDependencies; wire `lint` script)
 - Create: `apps/web/eslint.config.mjs`
 
-- [ ] **Step 1: Add failing web-config test** — `lint` script exists and does not require interactive setup; eslint config file present.
-- [ ] **Step 2: Implement** ESLint flat config with `eslint-config-next`.
-- [ ] **Step 3: Run `npm run lint`** green; `next build` still passes.
-- [ ] **Step 4: Commit** `feat: configure eslint for the web app`.
+- [x] **Step 1: Add failing web-config test** — `lint` script exists and does not require interactive setup; eslint config file present.
+- [x] **Step 2: Implement** ESLint flat config with `eslint-config-next`.
+- [x] **Step 3: Run `npm run lint`** green; `next build` still passes.
+- [x] **Step 4: Commit** `feat: configure eslint for the web app`.
 
 ## Chunk 4: Verification and durable status
 
 ### Task 7: PR1C verification and roadmap update
 
-- [ ] **Step 1: Full verification** — `pytest`, `compileall`, `pip check`, `pip-audit`, `npm audit`, `tsc --noEmit`, `next build`, `git diff --check`.
-- [ ] **Step 2: Update roadmap** PR1C state honestly: `implemented` + `automated verified` only; black-box and PR1 exit remain pending.
-- [ ] **Step 3: Commit** `docs: record pr1c verification`.
+- [x] **Step 1: Full verification** — `pytest`, `compileall`, `pip check`, `pip-audit`, `npm audit`, `tsc --noEmit`, `next build`, `git diff --check`.
+- [x] **Step 2: Update roadmap** PR1C state honestly: `implemented` + `automated verified` only; black-box and PR1 exit remain pending.
+- [x] **Step 3: Commit** `docs: record pr1c verification`.
+
+## Execution records
+
+### Task 1 (2026-09-02)
+
+- Commit: `12b3142` (feat: add upload policy and risk classifier). `packages/core/upload_policy.py`: `UploadPolicy`, `classify_upload` (server-computed LOW/HIGH tier; client cannot downgrade), `revalidate_upload`/`revalidate_path`/`revalidate_remote` (absolute/backslash paths, traversal, control chars, credential patterns, size limits), `contains_secret`, `redact_sensitive`. Unit suite `12 passed`.
+
+### Task 2 (2026-09-02)
+
+- Commit: `8f6695c` (feat: enforce server-side upload policy and tier matching). `close-work` revalidates `development_update` and rejects high-tier (secret-bearing) updates from non-grant principals with `HIGH_RISK_UPLOAD_REQUIRES_GRANT`; `CompleteWorkflowStepRequest.acknowledgment` (low-risk workflow acknowledgment evidence: step_id, prompt_digest, choice, local_interaction_id, payload_digest, policy_version, acknowledged_at) validated and recorded as a session event, distinct from Approval. API suite `5 passed`.
+
+### Task 3 (2026-09-02)
+
+- Commit: `3820de1` (feat: enforce request limits, log redaction and cors). `BodyLimitMiddleware` (413 `PAYLOAD_TOO_LARGE`), `stable_error_response` with `redact_sensitive`, CORS allow-list via `AGORA_ALLOWED_ORIGINS` + localhost dev origins (no wildcard). Suite `8 passed`.
+
+### Task 4 (2026-09-02)
+
+- Covered by `3820de1` (CORS). Preflight from allowed origin passes; disallowed origin gets no ACAO header; never `*`.
+
+### Task 5 (2026-09-02)
+
+- Commit: `20db4b2` (fix: clear production dependency high/critical findings). Upgraded venv setuptools to 84.0.0 (pip-audit clean); next 15.5.25 with `overrides` for postcss ^8.4.32 and sharp ^0.35.0 (official-registry `npm audit --omit=dev` now 0 high/critical); pinned `qdrant/qdrant:v1.19.0` (was `:latest`); added `scripts/dependency_audit.py` + contract tests (`3 passed`). Container image digest-pinning and Trivy scanning remain deployment-CI (PR2) items, recorded.
+
+### Task 6 (2026-09-02)
+
+- Commit: `186242a` (feat: configure eslint for the web app). `eslint.config.mjs` (FlatCompat + next/core-web-vitals + next/typescript), `lint` script `eslint .`, eslint + eslint-config-next devDependencies. `npm run lint` green (0 errors, 0 warnings) — closes the PR1A lint gap. Web-config contract test `1 passed`; `next build` passes.
+
+### Task 7 (2026-09-02)
+
+- Verification: full Python suite `461 passed, 2 skipped`; `compileall` OK; `pip check` OK; `pip-audit` 0 findings; `npm audit --omit=dev` 0 High/Critical; `tsc --noEmit` OK; `next build` OK; `git diff --check` OK.
+- Durable status: PR1C `implemented` + `automated verified`. PR1C black-box (real AI tool), PR1 exit gate and production readiness remain open and gated behind PR2 and real-AI-tool black-box runs.
 
 ---
 
