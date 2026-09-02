@@ -722,3 +722,18 @@ def test_pr_web_reauth_page_and_login_next_exist():
     login_page = Path("apps/web/app/login/page.tsx").read_text()
     assert "next" in login_submit
     assert "next" in login_page
+
+
+def test_pr_web_nav_shows_sign_in_out_and_middleware_guards_production():
+    nav = Path("apps/web/components/Nav.tsx").read_text()
+    assert 'cookies()' in nav or 'cookieStore' in nav
+    assert "agora_session" in nav
+    assert "Sign out" in nav
+    assert "Sign in" in nav
+    assert '/logout' in nav
+
+    middleware = Path("apps/web/middleware.ts").read_text()
+    assert "AGORA_ENV" in middleware
+    assert '"/login"' in middleware
+    assert "next" in middleware
+    assert "/projects" in middleware
