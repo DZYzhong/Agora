@@ -16,7 +16,7 @@ export class AgoraApiError extends Error {
 export async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     cache: "no-store",
-    headers: authHeaders(),
+    headers: { ...authHeaders(), ...(await browserCookieHeaders()) },
   });
   if (!response.ok) {
     throw await apiError(response);
@@ -27,7 +27,11 @@ export async function apiGet<T>(path: string): Promise<T> {
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json", ...authHeaders() },
+    headers: {
+      "content-type": "application/json",
+      ...authHeaders(),
+      ...(await browserWriteHeaders()),
+    },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -39,7 +43,11 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "PATCH",
-    headers: { "content-type": "application/json", ...authHeaders() },
+    headers: {
+      "content-type": "application/json",
+      ...authHeaders(),
+      ...(await browserWriteHeaders()),
+    },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -50,6 +58,39 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
 
 function authHeaders(): Record<string, string> {
   return WEB_HUMAN_TOKEN ? { Authorization: `Bearer ${WEB_HUMAN_TOKEN}` } : {};
+}
+
+async function browserCookieString(): Promise<string | null> {
+  try {
+    const { cookies } = await import("next/headers");
+    const store = await cookies();
+    const serialized = store.toString();
+    return serialized || null;
+  } catch {
+    return null;
+  }
+}
+
+async function browserCookieHeaders(): Promise<Record<string, string>> {
+  const cookie = await browserCookieString();
+  return cookie ? { Cookie: cookie, Origin: WEB_ORIGIN } : {};
+}
+
+async function browserWriteHeaders(): Promise<Record<string, string>> {
+  const cookie = await browserCookieString();
+  if (!cookie) {
+    return {};
+  }
+  const csrf = cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${CSRF_COOKIE}=`))
+    ?.split("=").slice(1).join("=");
+  return {
+    Cookie: cookie,
+    Origin: WEB_ORIGIN,
+    ...(csrf ? { "X-CSRF-Token": csrf } : {}),
+  };
 }
 
 export const SESSION_COOKIE = "agora_session";
