@@ -797,6 +797,7 @@ class HarnessService:
         *,
         session_id: str,
         status: str = "closed",
+        development_update: dict | None = None,
         repo_path: str | None = None,
         base_ref: str = "HEAD",
         head_ref: str | None = None,
@@ -809,7 +810,10 @@ class HarnessService:
         session.status = status
         session.closed_at = utc_now()
         writeback = None
-        if repo_path or agent_summary or test_result:
+        if development_update is not None:
+            agent_summary = development_update.get("agent_summary") or agent_summary
+            test_result = development_update.get("test_result") or test_result
+        if development_update is not None or repo_path or agent_summary or test_result:
             change = capture_development_change(
                 repo_path=repo_path,
                 base_ref=base_ref,
@@ -817,6 +821,9 @@ class HarnessService:
                 agent_summary=agent_summary,
                 test_result=test_result,
                 session_intent=session.intent,
+                changed_files=development_update.get("changed_files") if development_update is not None else None,
+                dirty=development_update.get("dirty", False) if development_update is not None else False,
+                diff_stat=development_update.get("diff_stat") if development_update is not None else None,
             )
             writeback = self.core.create_writeback(
                 org_id=session.org_id,

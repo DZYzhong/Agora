@@ -9,6 +9,7 @@ from mcp.server.lowlevel import NotificationOptions, Server
 from mcp.server.stdio import stdio_server
 
 from packages.core.services.protocol import HARNESS_PROTOCOL_CURRENT, MCP_SERVER_NAME, MCP_SERVER_VERSION, build_protocol_manifest
+from packages.local_connector.development_capture import capture_local_development_change
 from packages.local_connector.git_observer import observe_git_workspace
 
 AGORA_API_URL = os.environ.get("AGORA_API_URL", "http://127.0.0.1:8000")
@@ -183,15 +184,12 @@ TOOLS = [
     ),
     _tool(
         "agora_close_work",
-        "Close an Agora work session. When repo_path or agent_summary is provided, Agora captures a development_update draft for human review.",
+        "Close an Agora work session. When agent_summary or test_result is provided, the Local Connector captures a bounded development update (relative changed paths and diff-stat counters only) for human review. Server-local repository paths are never accepted.",
         {
             "session_id": {"type": "string"},
             "status": {"type": "string", "default": "closed"},
-            "repo_path": {"type": "string", "description": "Optional local git repository path used to summarize the development diff."},
-            "base_ref": {"type": "string", "default": "HEAD", "description": "Git base ref for diff capture. Defaults to HEAD versus working tree."},
-            "head_ref": {"type": "string", "description": "Optional git head ref. If omitted, Agora compares base_ref to the working tree."},
-            "agent_summary": {"type": "string", "description": "Agent's concise summary of the completed development work."},
-            "test_result": {"type": "string", "description": "Tests or checks run by the agent."},
+            "agent_summary": {"type": "string", "description": "Agent's concise summary of the completed development work (max 8 KiB)."},
+            "test_result": {"type": "string", "description": "Tests or checks run by the agent (max 8 KiB)."},
         },
         ["session_id"],
     ),
@@ -372,16 +370,21 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         )
         return _with_tool_deprecation(result, legacy_tool=name, canonical_tool=None)
     if name == "agora_close_work":
+        agent_summary = arguments.get("agent_summary")
+        test_result = arguments.get("test_result")
+        development_update = None
+        if agent_summary or test_result:
+            development_update = {
+                **capture_local_development_change(),
+                "agent_summary": agent_summary,
+                "test_result": test_result,
+            }
         return await _post(
             "/harness/close-work",
             {
                 "session_id": arguments["session_id"],
                 "status": arguments.get("status", "closed"),
-                "repo_path": arguments.get("repo_path"),
-                "base_ref": arguments.get("base_ref", "HEAD"),
-                "head_ref": arguments.get("head_ref"),
-                "agent_summary": arguments.get("agent_summary"),
-                "test_result": arguments.get("test_result"),
+                "development_update": development_update,
             },
         )
     if name == "agora_search_knowledge":

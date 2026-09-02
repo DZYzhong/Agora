@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from pathlib import Path
 import subprocess
 
+from packages.local_connector.development_capture import ALLOWED_STATUSES
+
 
 @dataclass(frozen=True)
 class DevelopmentChangeSummary:
@@ -19,17 +21,31 @@ class ChangedFile:
 
 def capture_development_change(
     *,
-    repo_path: str | None = None,
-    base_ref: str = "HEAD",
-    head_ref: str | None = None,
     agent_summary: str | None = None,
     test_result: str | None = None,
     session_intent: str | None = None,
+    changed_files: list[dict] | None = None,
+    dirty: bool = False,
+    diff_stat: dict | None = None,
+    repo_path: str | None = None,
+    base_ref: str = "HEAD",
+    head_ref: str | None = None,
 ) -> DevelopmentChangeSummary:
+    """Build a development-update summary.
+
+    Two capture paths:
+
+    - Structured (default): `changed_files`/`dirty`/`diff_stat` come from the
+      Local Connector and are already validated server-side; no filesystem
+      access happens here.
+    - Legacy: `repo_path` triggers a server-side `git diff`. This is the
+      deprecated 1.0 behavior and is only reachable through the API's
+      explicit root-containment gate in development/test environments.
+    """
     sections: list[str] = []
     title_seed = agent_summary or session_intent or "开发变更"
     title = _title_from_summary(title_seed)
-    changed_files: list[ChangedFile] = []
+    files: list[ChangedFile] = []
 
     if agent_summary:
         sections.append(f"## 功能变更\n{agent_summary.strip()}")
@@ -37,17 +53,21 @@ def capture_development_change(
         sections.append(f"## 功能变更\n本次开发任务：{session_intent.strip()}")
 
     if repo_path:
-        changed_files, diff = _collect_git_diff(Path(repo_path), base_ref=base_ref, head_ref=head_ref)
-        sections.append(_format_impact(changed_files))
+        files, diff = _collect_git_diff(Path(repo_path), base_ref=base_ref, head_ref=head_ref)
+        sections.append(_format_impact(files))
         sections.append(diff)
+    elif changed_files:
+        files = _files_from_structured(changed_files)
+        sections.append(_format_impact(files))
+        sections.append(_format_diff_stat(diff_stat or {}, dirty=dirty))
 
     if test_result:
         sections.append(f"## 测试结果\n{test_result.strip()}")
-    elif repo_path:
+    elif repo_path or changed_files:
         sections.append("## 测试结果\nAgent 未提供测试结果，请审核时确认是否已完成必要验证。")
 
-    risks = _risk_items(changed_files) if repo_path else []
-    if repo_path:
+    risks = _risk_items(files) if (repo_path or changed_files) else []
+    if repo_path or changed_files:
         sections.append("## 风险与注意事项\n" + "\n".join(f"- {risk}" for risk in risks))
 
     if not sections:
@@ -61,14 +81,46 @@ def capture_development_change(
         structured={
             "summary": (agent_summary or f"本次开发任务：{session_intent}" if session_intent else "本次会话已关闭，但 Agent 未提供变更摘要。").strip(),
             "changed_files": [
-                {"path": file.path, "status": file.status, "category": file.category}
-                for file in changed_files
+                {"path": file.path, "status": _english_status(file.status), "category": file.category}
+                for file in files
             ],
             "tests": _parse_test_result(test_result),
             "risks": risks,
             "follow_ups": follow_ups,
         },
     )
+
+
+def _files_from_structured(changed_files: list[dict]) -> list[ChangedFile]:
+    files: list[ChangedFile] = []
+    for item in changed_files:
+        path = item.get("path", "")
+        status = item.get("status", "modified")
+        if status not in ALLOWED_STATUSES:
+            status = "modified"
+        files.append(
+            ChangedFile(
+                path=path,
+                status=_status_display(status),
+                category=_category(path),
+            )
+        )
+    return files
+
+
+def _format_diff_stat(diff_stat: dict, *, dirty: bool) -> str:
+    files = int(diff_stat.get("files_changed", 0))
+    insertions = int(diff_stat.get("insertions", 0))
+    deletions = int(diff_stat.get("deletions", 0))
+    lines = [
+        "## Git Diff 摘要",
+        f"- 变更文件数：{files}",
+        f"- 新增行：+{insertions}，删除行：-{deletions}",
+        f"- 工作区状态：{'有未提交变更' if dirty else '干净'}",
+    ]
+    if not files:
+        lines.append("- 未发现相对目标版本的代码差异。")
+    return "\n".join(lines)
 
 
 def _collect_git_diff(repo_path: Path, *, base_ref: str, head_ref: str | None) -> tuple[list[ChangedFile], str]:
@@ -191,6 +243,26 @@ def _status_label(status: str) -> str:
     if status.startswith("R"):
         return "重命名"
     return status
+
+
+def _status_display(status: str) -> str:
+    mapping = {
+        "added": "新增",
+        "modified": "修改",
+        "deleted": "删除",
+        "renamed": "重命名",
+    }
+    return mapping.get(status, status)
+
+
+def _english_status(status: str) -> str:
+    mapping = {
+        "新增": "added",
+        "修改": "modified",
+        "删除": "deleted",
+        "重命名": "renamed",
+    }
+    return mapping.get(status, status)
 
 
 def _title_from_summary(summary: str) -> str:

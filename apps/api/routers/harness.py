@@ -2,6 +2,7 @@ from typing import Any
 from datetime import timedelta
 import hashlib
 import json
+import re
 import time
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
@@ -10,10 +11,12 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from apps.api.auth import get_current_principal, require_project_member
-from apps.api.dependencies import get_db_session, get_keyword_index, get_vector_index
+from apps.api.dependencies import get_db_session, get_keyword_index, get_runtime_policy, get_vector_index
+from apps.api.routers.projects import _validate_local_initialization_path
 from packages.core.auth import Principal
 from packages.core.models import utc_now
 from packages.core.repositories.workflows import WorkflowStepError
+from packages.core.settings import RuntimePolicy
 from packages.core.services.protocol import (
     HARNESS_PROTOCOL_CURRENT,
     HARNESS_PROTOCOL_SUPPORTED,
@@ -131,9 +134,81 @@ class GetProjectStatusRequest(BaseModel):
     project_id: str
 
 
+DEVELOPMENT_STATUSES = ("added", "modified", "deleted", "renamed")
+MAX_CHANGED_FILES = 500
+MAX_PATH_BYTES = 512
+MAX_AGENT_SUMMARY_BYTES = 8 * 1024
+MAX_TEST_RESULT_BYTES = 8 * 1024
+MAX_DIFF_STAT_JSON_BYTES = 4 * 1024
+_PATH_SECRET_PATTERN = re.compile(r"://|[\s]|[a-zA-Z][^/@\s]*:[^/@\s]*@")
+
+
+class ChangedFilePathInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    path: str
+    status: str
+
+    @field_validator("path")
+    @classmethod
+    def reject_unsafe_path(cls, value: str) -> str:
+        if not value or value.startswith("/") or "\\" in value:
+            raise ValueError("changed file path must be POSIX relative")
+        parts = value.split("/")
+        if any(part in ("", "..", ".") for part in parts):
+            raise ValueError("changed file path must not contain traversal or empty segments")
+        if any(ord(character) < 32 for character in value):
+            raise ValueError("changed file path must not contain control characters")
+        if len(value.encode("utf-8")) > MAX_PATH_BYTES:
+            raise ValueError("changed file path exceeds 512 bytes")
+        if _PATH_SECRET_PATTERN.search(value):
+            raise ValueError("changed file path must not contain credentials or secret patterns")
+        return value
+
+    @field_validator("status")
+    @classmethod
+    def allowlist_status(cls, value: str) -> str:
+        if value not in DEVELOPMENT_STATUSES:
+            raise ValueError(f"unsupported change status: {value}")
+        return value
+
+
+class DevelopmentUpdateInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    changed_files: list[ChangedFilePathInput] = Field(default_factory=list, max_length=MAX_CHANGED_FILES)
+    dirty: bool = False
+    diff_stat: dict[str, int] = Field(default_factory=dict)
+    agent_summary: str | None = None
+    test_result: str | None = None
+
+    @field_validator("agent_summary")
+    @classmethod
+    def bound_agent_summary(cls, value: str | None) -> str | None:
+        if value is not None and len(value.encode("utf-8")) > MAX_AGENT_SUMMARY_BYTES:
+            raise ValueError("agent_summary exceeds 8 KiB limit")
+        return value
+
+    @field_validator("test_result")
+    @classmethod
+    def bound_test_result(cls, value: str | None) -> str | None:
+        if value is not None and len(value.encode("utf-8")) > MAX_TEST_RESULT_BYTES:
+            raise ValueError("test_result exceeds 8 KiB limit")
+        return value
+
+    @field_validator("diff_stat")
+    @classmethod
+    def bound_diff_stat(cls, value: dict[str, int]) -> dict[str, int]:
+        encoded = json.dumps(value, sort_keys=True).encode("utf-8")
+        if len(encoded) > MAX_DIFF_STAT_JSON_BYTES:
+            raise ValueError("diff_stat exceeds 4 KiB limit")
+        return value
+
+
 class CloseWorkRequest(BaseModel):
     session_id: str
     status: str = "closed"
+    development_update: DevelopmentUpdateInput | None = None
     repo_path: str | None = None
     base_ref: str = "HEAD"
     head_ref: str | None = None
@@ -501,16 +576,60 @@ def close_work(
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
+    runtime_policy: RuntimePolicy = Depends(get_runtime_policy),
 ):
     try:
         with SqlAlchemyUnitOfWork(session) as uow:
             _ensure_session_member(session, principal, session_id=payload.session_id)
-            response = _harness(session, keyword_index, vector_index).close_work(**payload.model_dump())
+            _validate_close_work_capture(payload, protocol, runtime_policy)
+            response = _harness(session, keyword_index, vector_index).close_work(
+                session_id=payload.session_id,
+                status=payload.status,
+                development_update=payload.development_update.model_dump() if payload.development_update is not None else None,
+                repo_path=payload.repo_path,
+                base_ref=payload.base_ref,
+                head_ref=payload.head_ref,
+                agent_summary=payload.agent_summary,
+                test_result=payload.test_result,
+            )
             _apply_protocol_metadata(response, protocol)
             uow.commit()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return response
+
+
+def _validate_close_work_capture(
+    payload: CloseWorkRequest,
+    protocol: ProtocolContext,
+    runtime_policy: RuntimePolicy,
+) -> None:
+    """Gate development capture: protocol 1.1 and production never touch server paths.
+
+    Structured `development_update` from the Local Connector is always accepted
+    (it is bounded and validated by the request model). Legacy `repo_path` is
+    rejected under protocol 1.1, rejected in production before any Git access,
+    and otherwise confined to an explicit local-init root.
+    """
+    if payload.repo_path is None:
+        return
+    if not protocol.legacy:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "LOCAL_REPO_PATH_REJECTED",
+                "message": "Protocol 1.1 requires the Local Connector to capture the development update; server-local repository paths are not accepted",
+            },
+        )
+    if runtime_policy.environment == "production":
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "LOCAL_REPO_PATH_FORBIDDEN",
+                "message": "Server-local repository capture is disabled in production",
+            },
+        )
+    _validate_local_initialization_path(runtime_policy, payload.repo_path)
 
 
 @router.post("/prepare-writeback")

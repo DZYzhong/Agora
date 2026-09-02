@@ -945,22 +945,8 @@ def test_prepare_writeback_persists_draft_without_indexing():
     assert get_vector_index()._assets == []
 
 
-def test_close_work_endpoint_can_prepare_development_update_from_repo_diff(tmp_path):
+def test_close_work_endpoint_can_prepare_development_update_from_structured_capture(tmp_path):
     client = TestClient(app)
-    repo_path = tmp_path / "repo"
-    repo_path.mkdir()
-    _run_git(repo_path, "init")
-    _run_git(repo_path, "config", "user.email", "dev@example.com")
-    _run_git(repo_path, "config", "user.name", "Dev")
-    source = repo_path / "src" / "risk.py"
-    source.parent.mkdir()
-    source.write_text("RISK = 'old'\n", encoding="utf-8")
-    _run_git(repo_path, "add", ".")
-    _run_git(repo_path, "commit", "-m", "initial")
-    source.write_text("RISK = 'new'\n", encoding="utf-8")
-    test_file = repo_path / "tests" / "test_risk.py"
-    test_file.parent.mkdir()
-    test_file.write_text("def test_risk_policy():\n    assert True\n", encoding="utf-8")
 
     project = client.post(
         "/projects",
@@ -982,24 +968,33 @@ def test_close_work_endpoint_can_prepare_development_update_from_repo_diff(tmp_p
 
     response = client.post(
         "/harness/close-work",
+        headers=PROTOCOL_11_HEADERS,
         json={
             "session_id": start["session_id"],
             "status": "closed",
-            "repo_path": str(repo_path),
-            "agent_summary": "修复迭代缺陷 AG-128：调整发布风险策略，补充回归测试。",
-            "test_result": "pytest tests/test_risk.py - passed",
+            "development_update": {
+                "changed_files": [
+                    {"path": "src/risk.py", "status": "modified"},
+                    {"path": "tests/test_risk.py", "status": "added"},
+                ],
+                "dirty": True,
+                "diff_stat": {"files_changed": 2, "insertions": 10, "deletions": 2},
+                "agent_summary": "修复迭代缺陷 AG-128：调整发布风险策略，补充回归测试。",
+                "test_result": "pytest tests/test_risk.py - passed",
+            },
         },
     )
 
     assert response.status_code == 200
     body = response.json()
+    assert body["protocol_version"] == "1.1"
     assert body["writeback"]["status"] == "draft"
     assert body["writeback"]["type"] == "development_update"
     assert "src/risk.py" in body["writeback"]["content"]
     assert body["development_update"]["summary"] == "修复迭代缺陷 AG-128：调整发布风险策略，补充回归测试。"
     assert body["development_update"]["changed_files"] == [
-        {"path": "src/risk.py", "status": "修改", "category": "源码"},
-        {"path": "tests/test_risk.py", "status": "新增", "category": "测试"},
+        {"path": "src/risk.py", "status": "modified", "category": "源码"},
+        {"path": "tests/test_risk.py", "status": "added", "category": "测试"},
     ]
     assert body["development_update"]["tests"] == [
         {"command": "pytest tests/test_risk.py", "status": "passed", "raw": "pytest tests/test_risk.py - passed"}
@@ -1040,6 +1035,154 @@ def test_close_work_endpoint_can_prepare_development_update_from_repo_diff(tmp_p
 
     assert context["source_refs"][0]["source_uri"] == f"writebacks/{body['writeback']['id']}"
     assert "调整发布风险策略" in context["summary"]
+
+
+def _start_session(client, *, project_id: str, message: str = "调整风险策略") -> str:
+    start = client.post(
+        "/harness/start-work",
+        json={
+            "project_id": project_id,
+            "user_message": message,
+            "agent_type": "codex",
+        },
+    ).json()
+    return start["session_id"]
+
+
+def test_close_work_protocol_11_rejects_server_repo_path(tmp_path):
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={"org_id": "org_1", "name": "Gate", "slug": "gate", "git_remotes": []},
+    ).json()
+    session_id = _start_session(client, project_id=project["id"])
+
+    response = client.post(
+        "/harness/close-work",
+        headers=PROTOCOL_11_HEADERS,
+        json={"session_id": session_id, "repo_path": str(tmp_path / "repo")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "LOCAL_REPO_PATH_REJECTED"
+
+
+def test_close_work_production_rejects_legacy_repo_path_before_git(authenticated_client, tmp_path, monkeypatch):
+    client = authenticated_client
+    project = client.post(
+        "/projects",
+        json={"org_id": "org_prod", "name": "Prod", "slug": "prod", "git_remotes": []},
+    ).json()
+    session_id = _start_session(client, project_id=project["id"])
+
+    monkeypatch.setenv("AGORA_ENV", "production")
+    response = client.post(
+        "/harness/close-work",
+        json={
+            "session_id": session_id,
+            "repo_path": str(tmp_path / "repo"),
+            "agent_summary": "summary",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "LOCAL_REPO_PATH_FORBIDDEN"
+
+
+def test_close_work_legacy_repo_path_requires_explicit_root(local_init_root, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from apps.api.main import app
+
+    client = TestClient(app)
+    repo = local_init_root / "repo"
+    repo.mkdir()
+    _run_git(repo, "init")
+    _run_git(repo, "config", "user.email", "dev@example.com")
+    _run_git(repo, "config", "user.name", "Dev")
+    (repo / "app.py").write_text("x = 1\n", encoding="utf-8")
+    _run_git(repo, "add", ".")
+    _run_git(repo, "commit", "-m", "initial")
+
+    project = client.post(
+        "/projects",
+        json={"org_id": "org_root", "name": "Root", "slug": "root", "git_remotes": []},
+    ).json()
+    session_id = _start_session(client, project_id=project["id"])
+
+    inside = client.post(
+        "/harness/close-work",
+        json={"session_id": session_id, "repo_path": str(repo), "agent_summary": "ok"},
+    )
+    assert inside.status_code == 200
+
+    outside = tmp_path / "elsewhere" / "repo"
+    outside.mkdir(parents=True)
+    response = client.post(
+        "/harness/close-work",
+        json={"session_id": session_id, "repo_path": str(outside), "agent_summary": "bad"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "LOCAL_INIT_PATH_FORBIDDEN"
+
+
+def test_close_work_rejects_unsafe_structured_paths():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={"org_id": "org_val", "name": "Validate", "slug": "validate", "git_remotes": []},
+    ).json()
+    session_id = _start_session(client, project_id=project["id"])
+
+    unsafe_updates = [
+        {"changed_files": [{"path": "/etc/passwd", "status": "modified"}]},
+        {"changed_files": [{"path": "../secret", "status": "modified"}]},
+        {"changed_files": [{"path": "a/../b", "status": "modified"}]},
+        {"changed_files": [{"path": "src/\x00null.py", "status": "modified"}]},
+        {"changed_files": [{"path": "src/evil.py", "status": "unknown"}]},
+        {"changed_files": [{"path": "https://user:pass@example.com/secret", "status": "modified"}]},
+        {"changed_files": [{"path": "src/ok.py", "status": "modified"}], "content": "diff body"},
+    ]
+    for update in unsafe_updates:
+        response = client.post(
+            "/harness/close-work",
+            headers=PROTOCOL_11_HEADERS,
+            json={"session_id": session_id, "development_update": update},
+        )
+        assert response.status_code == 422, update
+
+
+def test_close_work_rejects_over_limit_structured_payloads():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={"org_id": "org_lim", "name": "Limit", "slug": "limit", "git_remotes": []},
+    ).json()
+    session_id = _start_session(client, project_id=project["id"])
+
+    too_many_files = {
+        "changed_files": [
+            {"path": f"src/file_{index:04d}.py", "status": "modified"}
+            for index in range(501)
+        ]
+    }
+    response = client.post(
+        "/harness/close-work",
+        headers=PROTOCOL_11_HEADERS,
+        json={"session_id": session_id, "development_update": too_many_files},
+    )
+    assert response.status_code == 422
+
+    oversized_summary = {
+        "changed_files": [],
+        "agent_summary": "x" * (8 * 1024 + 1),
+    }
+    response = client.post(
+        "/harness/close-work",
+        headers=PROTOCOL_11_HEADERS,
+        json={"session_id": session_id, "development_update": oversized_summary},
+    )
+    assert response.status_code == 422
 
 
 def test_fetch_context_ref_returns_traceable_asset_content(

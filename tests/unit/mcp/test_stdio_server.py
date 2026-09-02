@@ -353,3 +353,74 @@ def test_legacy_plan_context_dispatch_is_accepted_but_marked_deprecated(monkeypa
     assert result["path"] == "/harness/plan-context"
     assert result["deprecation"]["legacy_tool"] == "agora_plan_context"
     assert result["deprecation"]["canonical_tool"] == "agora_prepare_context"
+
+
+def test_stdio_close_work_schema_excludes_server_repository_paths():
+    result = asyncio.run(list_tools(None, None))
+    tool = next(item for item in result.tools if item.name == "agora_close_work")
+
+    properties = tool.input_schema["properties"]
+    assert "session_id" in tool.input_schema["required"]
+    assert "agent_summary" in properties
+    assert "test_result" in properties
+    assert "repo_path" not in properties
+    assert "base_ref" not in properties
+    assert "head_ref" not in properties
+
+
+def test_stdio_close_work_builds_local_development_capture(monkeypatch):
+    captured = {}
+
+    async def fake_post(path, payload):
+        captured["path"] = path
+        captured["payload"] = payload
+        return {"protocol_version": "1.1", "session_id": "sess_1", "status": "closed"}
+
+    def fake_capture():
+        return {
+            "changed_files": [{"path": "src/app.py", "status": "modified"}],
+            "dirty": True,
+            "diff_stat": {"files_changed": 1, "insertions": 2, "deletions": 1},
+        }
+
+    monkeypatch.setattr("apps.mcp.server.capture_local_development_change", fake_capture)
+    monkeypatch.setattr("apps.mcp.server._post", fake_post)
+
+    result = asyncio.run(
+        _dispatch(
+            "agora_close_work",
+            {
+                "session_id": "sess_1",
+                "agent_summary": "完成新功能",
+                "test_result": "pytest passed",
+            },
+        )
+    )
+
+    assert result["session_id"] == "sess_1"
+    assert captured["path"] == "/harness/close-work"
+    assert captured["payload"]["session_id"] == "sess_1"
+    assert captured["payload"]["development_update"]["agent_summary"] == "完成新功能"
+    assert captured["payload"]["development_update"]["test_result"] == "pytest passed"
+    assert captured["payload"]["development_update"]["changed_files"] == [
+        {"path": "src/app.py", "status": "modified"}
+    ]
+    assert "repo_path" not in captured["payload"]
+    assert "base_ref" not in captured["payload"]
+    assert "head_ref" not in captured["payload"]
+
+
+def test_stdio_close_work_without_summary_sends_no_development_update(monkeypatch):
+    captured = {}
+
+    async def fake_post(path, payload):
+        captured["path"] = path
+        captured["payload"] = payload
+        return {"protocol_version": "1.1", "session_id": "sess_1", "status": "closed"}
+
+    monkeypatch.setattr("apps.mcp.server._post", fake_post)
+
+    result = asyncio.run(_dispatch("agora_close_work", {"session_id": "sess_1"}))
+
+    assert result["status"] == "closed"
+    assert captured["payload"]["development_update"] is None

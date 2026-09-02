@@ -135,12 +135,31 @@ def test_mcp_close_work_passes_development_capture_arguments():
     assert fake_harness.closed_with == {
         "session_id": "sess_1",
         "status": "closed",
+        "development_update": None,
         "repo_path": "/tmp/repo",
         "base_ref": "HEAD",
         "head_ref": None,
         "agent_summary": "完成新功能",
         "test_result": "pytest passed",
     }
+
+
+def test_mcp_close_work_forwards_structured_development_update():
+    fake_harness = FakeHarness()
+    tools = AgoraMcpTools(harness=fake_harness)
+
+    development_update = {
+        "changed_files": [{"path": "src/app.py", "status": "modified"}],
+        "dirty": True,
+        "diff_stat": {"files_changed": 1, "insertions": 2, "deletions": 1},
+        "agent_summary": "完成新功能",
+        "test_result": "pytest passed",
+    }
+    result = tools.agora_close_work(session_id="sess_1", development_update=development_update)
+
+    assert result["writeback"]["id"] == "wb_1"
+    assert fake_harness.closed_with["development_update"] == development_update
+    assert "repo_path" not in fake_harness.closed_with["development_update"]
 
 
 def test_mcp_fetch_context_ref_delegates_to_harness():

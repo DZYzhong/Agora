@@ -129,7 +129,7 @@ def test_close_work_can_capture_development_update_from_git_diff(tmp_path, fake_
     assert event["payload"]["development_update"]["summary"] == "实现支付状态流转"
     assert event["payload"]["development_update"]["changed_files"][0] == {
         "path": "src/payment.py",
-        "status": "修改",
+        "status": "modified",
         "category": "源码",
     }
 

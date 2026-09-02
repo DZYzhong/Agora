@@ -365,11 +365,11 @@ git commit -m "feat: negotiate harness protocol 1.1"
 - Modify: `tests/unit/mcp/test_stdio_server.py`
 - Modify: `tests/integration/api/test_harness_api.py`
 
-- [ ] **Step 1: Add failing server-path, local-capture and hostile-summary tests**
+- [x] **Step 1: Add failing server-path, local-capture and hostile-summary tests**
 
 Prove protocol 1.1 rejects `repo_path`/base/head; production rejects legacy path close before Git; development/test legacy path uses explicit root containment; Connector emits bounded relative metadata; and API rejects absolute/traversal/control-character paths, unknown change statuses, over-limit counts/strings, secret patterns and content-like diff bodies.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 .venv/bin/pytest tests/unit/local_connector/test_development_capture.py tests/unit/mcp/test_tools.py tests/unit/mcp/test_stdio_server.py tests/integration/api/test_harness_api.py -q
@@ -377,7 +377,7 @@ Prove protocol 1.1 rejects `repo_path`/base/head; production rejects legacy path
 
 Expected: server accepts `repo_path` and unvalidated client summaries.
 
-- [ ] **Step 3: Implement local capture plus narrow server validation**
+- [x] **Step 3: Implement local capture plus narrow server validation**
 
 - Connector emits only relative changed paths, allowlisted status (`added|modified|deleted|renamed`), dirty state and bounded diff-stat counters; never diff/file content.
 - API normalizes POSIX relative paths; rejects empty, absolute, `..`, control characters and credentials/secret patterns.
@@ -385,7 +385,7 @@ Expected: server accepts `repo_path` and unvalidated client summaries.
 - Harness stores validated structure without filesystem access.
 - Legacy 1.0 path behavior exists only for contained development/test fixtures and is deprecated.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 ```bash
 .venv/bin/pytest tests/unit/local_connector/test_development_capture.py tests/unit/mcp/test_tools.py tests/unit/mcp/test_stdio_server.py tests/integration/api/test_harness_api.py -q
@@ -393,12 +393,21 @@ Expected: server accepts `repo_path` and unvalidated client summaries.
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/local_connector/development_capture.py packages/harness/development_capture.py packages/harness/service.py apps/api/routers/harness.py apps/mcp/schemas.py apps/mcp/tools.py apps/mcp/server.py tests/unit/local_connector/test_development_capture.py tests/unit/mcp/test_tools.py tests/unit/mcp/test_stdio_server.py tests/integration/api/test_harness_api.py
 git commit -m "fix: keep close-work repository capture local"
 ```
+
+**Execution record (2026-09-01):**
+
+- Commit: `fix: keep close-work repository capture local` (single commit covers Steps 1-5).
+- RED evidence: before implementation the server accepted `repo_path` and unvalidated client summaries; the new boundary tests could not pass against the previous code.
+- Implementation: added `packages/local_connector/development_capture.py` emitting only bounded relative metadata (allowlisted `added|modified|deleted|renamed` statuses, dirty flag, diff-stat counters; never diff/file content); refactored `packages/harness/development_capture.py` to accept validated structured files with the legacy server-side git path retained for contained development/test fixtures; `close_work` now accepts a validated `development_update`; API gating rejects `repo_path` under protocol 1.1 (`LOCAL_REPO_PATH_REJECTED`) and in production before any Git access (`LOCAL_REPO_PATH_FORBIDDEN`), and confines legacy paths to an explicit local-init root; MCP stdio schema and dispatch build the capture locally (`AGORA_WORKSPACE_ROOT`/cwd) and never send server paths.
+- GREEN evidence: focused Task5B suites — connector capture `5 passed`, MCP tools/stdio and harness API suites all passed; full Python suite `346 passed, 2 skipped` (counts recorded after the final commit).
+- Note: `tests/unit/local_connector/__init__.py` and `tests/unit/harness/__init__.py` were added to resolve a pytest basename collision between the two `test_development_capture.py` modules.
+- State: `implemented` and `automated verified`; PR1A black-box and exit criteria remain pending.
 
 ### Task 6: Canonical immutable tool/handler registry
 

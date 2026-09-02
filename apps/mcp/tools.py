@@ -240,6 +240,7 @@ class AgoraMcpTools:
         *,
         session_id: str,
         status: str = "closed",
+        development_update: dict | None = None,
         repo_path: str | None = None,
         base_ref: str = "HEAD",
         head_ref: str | None = None,
@@ -250,6 +251,7 @@ class AgoraMcpTools:
             self.harness.close_work(
                 session_id=session_id,
                 status=status,
+                development_update=development_update,
                 repo_path=repo_path,
                 base_ref=base_ref,
                 head_ref=head_ref,
