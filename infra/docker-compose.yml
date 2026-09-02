@@ -24,6 +24,12 @@ services:
     environment:
       AGORA_ENV: production
       AGORA_DATABASE_URL: postgresql+psycopg://agora:agora@postgres:5432/agora
+      # Real bootstrap secrets come from infra/.env (gitignored); the
+      # .env.example placeholders must never reach the container.
+      AGORA_BOOTSTRAP_ORG_ID: local-org
+      AGORA_BOOTSTRAP_HUMAN_TOKEN: ${AGORA_BOOTSTRAP_HUMAN_TOKEN:?set in infra/.env}
+      AGORA_BOOTSTRAP_AGENT_TOKEN: ${AGORA_BOOTSTRAP_AGENT_TOKEN:?set in infra/.env}
+      AGORA_BOOTSTRAP_CI_TOKEN: ${AGORA_BOOTSTRAP_CI_TOKEN:?set in infra/.env}
     ports:
     - 8000:8000
     depends_on:
@@ -49,6 +55,10 @@ services:
     environment:
       AGORA_ENV: production
       AGORA_API_URL: http://api:8000
+      # The web UI authenticates with the browser cookie session; the static
+      # human-token placeholder must not be sent as a Bearer credential.
+      AGORA_WEB_HUMAN_TOKEN: ""
+      AGORA_WEB_ORIGIN: http://127.0.0.1:3000
     ports:
     - 3000:3000
     depends_on:
@@ -63,6 +73,9 @@ services:
     environment:
       AGORA_ENV: production
       AGORA_API_URL: http://api:8000
+      # The MCP connector authenticates as the env-bootstrapped agent; share
+      # the same real secret the API registered.
+      AGORA_AGENT_TOKEN: ${AGORA_BOOTSTRAP_AGENT_TOKEN:?set in infra/.env}
     depends_on:
       api:
         condition: service_healthy
