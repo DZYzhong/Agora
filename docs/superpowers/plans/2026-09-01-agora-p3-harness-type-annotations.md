@@ -68,7 +68,7 @@ git commit -m "refactor: annotate harness core types"
 
 ## Execution record (2026-09-01)
 
-- Commit: `refactor: annotate harness core types` (single commit covers Steps 1-6).
+- Commit: `b7503f3` (refactor: annotate harness core types; single commit covers Steps 1-6).
 - Implementation: `CoreRuntime` facade (74 defs) annotated with concrete SQLAlchemy model return types; the Harness package (76 defs across service.py, context_planner.py, context_bundle.py, development_capture.py, memory_writeback.py, project_resolver.py, session_recorder.py, skill_orchestrator.py, task_resolver.py, work_resolver.py, token_budget.py) annotated against the typed facade and the pre-existing result dataclasses. `from __future__ import annotations` added where needed. Variadic facade pass-throughs kept as `**kwargs: Any`; genuinely dynamic payloads typed as `dict[str, Any]` — no invented concrete types.
 - Verification: AST pass confirms all 156 defs in scope have return annotations; `compileall` passes; full Python suite `379 passed, 2 skipped`; `npx tsc --noEmit` passes; `git diff --check` passes.
 - State: `implemented` and `automated verified`.
