@@ -27,14 +27,14 @@
 - Create: `tests/unit/core/test_passwords.py`
 - Modify: `tests/unit/core/test_repositories.py`
 
-- [ ] **Step 1: Add failing password tests**
+- [x] **Step 1: Add failing password tests**
 
 Hash/verify round-trip; wrong password fails; parameters embedded in the hash string; verify upgrades the hash when parameters differ; `None`/blank rejected; no plaintext retained.
 
-- [ ] **Step 2: Run RED** — `pytest tests/unit/core/test_passwords.py -q` fails on missing module.
-- [ ] **Step 3: Implement** `packages/core/passwords.py` using `argon2-cffi` (Argon2id, PHC string format, `verify_and_upgrade`).
-- [ ] **Step 4: Run GREEN**; add `argon2-cffi` to `pyproject.toml` dependencies; `pip install -e '.[test]'` re-links.
-- [ ] **Step 5: Commit** `feat: add argon2id password hashing`.
+- [x] **Step 2: Run RED** — `pytest tests/unit/core/test_passwords.py -q` fails on missing module.
+- [x] **Step 3: Implement** `packages/core/passwords.py` using `argon2-cffi` (Argon2id, PHC string format, `verify_and_upgrade`).
+- [x] **Step 4: Run GREEN**; add `argon2-cffi` to `pyproject.toml` dependencies; `pip install -e '.[test]'` re-links.
+- [x] **Step 5: Commit** `feat: add argon2id password hashing`.
 
 ### Task 2: Admin bootstrap and user/credential lifecycle repository
 
@@ -46,11 +46,11 @@ Hash/verify round-trip; wrong password fails; parameters embedded in the hash st
 - Create: `tests/unit/core/test_auth_admin.py`
 - Modify: `tests/unit/core/test_repositories.py`
 
-- [ ] **Step 1: Add failing admin/bootstrap tests** — one-time bootstrap succeeds once (unique constraint + lock), bootstrap secret unusable afterwards, activation credential single-use/expiring, reset credential 15-min single-use and revokes sessions, revocation makes credentials inactive, all actions audited.
-- [ ] **Step 2: Run RED** — missing module/columns.
-- [ ] **Step 3: Implement** repository + service + migration (`20260902_0013_pr1b_identity` adds `username`, `password_hash`; extends credential `single_use`, `kind` values).
-- [ ] **Step 4: Run GREEN** — focused unit tests + `alembic upgrade head` on a scratch DB.
-- [ ] **Step 5: Commit** `feat: add admin bootstrap and credential lifecycle`.
+- [x] **Step 1: Add failing admin/bootstrap tests** — one-time bootstrap succeeds once (unique constraint + lock), bootstrap secret unusable afterwards, activation credential single-use/expiring, reset credential 15-min single-use and revokes sessions, revocation makes credentials inactive, all actions audited.
+- [x] **Step 2: Run RED** — missing module/columns.
+- [x] **Step 3: Implement** repository + service + migration (`20260902_0013_pr1b_identity` adds `username`, `password_hash`; extends credential `single_use`, `kind` values).
+- [x] **Step 4: Run GREEN** — focused unit tests + `alembic upgrade head` on a scratch DB.
+- [x] **Step 5: Commit** `feat: add admin bootstrap and credential lifecycle`.
 
 ### Task 3: Admin bootstrap CLI and user management API
 
@@ -124,6 +124,23 @@ Hash/verify round-trip; wrong password fails; parameters embedded in the hash st
 - [ ] **Step 1: Full verification** — `pytest` full suite, `compileall`, `pip check`, `npx tsc --noEmit`, `next build`, `git diff --check`.
 - [ ] **Step 2: Update roadmap** (`2026-08-28-agora-production-readiness-implementation.md` PR1B state) honestly: `implemented` + `automated verified` only; black-box and PR1 exit remain pending.
 - [ ] **Step 3: Commit** `docs: record pr1b verification`.
+
+
+## Execution records
+
+### Task 1 (2026-09-02)
+
+- Commit: `0c99a64` (feat: add argon2id password hashing).
+- Implementation: `packages/core/passwords.py` with Argon2id PHC-string hashing, timing-uniform dummy hash for accounts without a password, and `verify_and_upgrade` for cost-parameter upgrades on login. `argon2-cffi>=25.1.0` added to `pyproject.toml`.
+- GREEN: `tests/unit/core/test_passwords.py` `9 passed`; full suite `379 passed, 2 skipped` at commit time.
+- State: `implemented` and `automated verified`.
+
+### Task 2 (2026-09-02)
+
+- Commit: `5072f2e` (feat: add admin bootstrap and credential lifecycle).
+- Implementation: migration `20260902_0013_pr1b_identity` adds `users.username`/`users.password_hash`, `credentials.single_use`/`consumed_at`, makes `security_audit_events.project_id` nullable, creates `organization_memberships` with a partial unique index enforcing one admin per org. `IdentityRepository` gained user/credential/org-membership lifecycle helpers. `packages/core/auth_admin.py` (moved out of services to match `auth.py`'s own-uow pattern) implements one-time `bootstrap_admin`, `create_user_with_activation` (30-min single-use hashed-only token), `activate_user`, `issue_reset_credential` (15-min), `reset_password`, `set_user_enabled` (disabling revokes all credentials) and `revoke_credential`, each audited via `SecurityRepository` with `project_id=None` for org-scoped events.
+- GREEN: `test_auth_admin.py` + `test_passwords.py` `22 passed`; migration/core/repository suites `31 passed`; full suite `401 passed, 2 skipped`.
+- State: `implemented` and `automated verified`.
 
 ---
 

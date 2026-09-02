@@ -12,6 +12,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 from apps.api.dependencies import create_app_engine
+from packages.core.auth_admin import AdminActionError, bootstrap_admin
 from packages.core.models import (
     ApprovalDecisionModel,
     AssetModel,
@@ -59,6 +60,40 @@ def rebuild_indexes(database_url: str) -> int:
     session = sessionmaker(bind=engine)()
     try:
         return rebuild_indexes_from_assets(session, FakeKeywordIndex(), FakeVectorIndex())
+    finally:
+        session.close()
+
+
+def bootstrap_admin_command(
+    *,
+    database_url: str,
+    org_id: str,
+    admin_username: str,
+    admin_password: str,
+    display_name: str,
+) -> dict:
+    """One-time Admin bootstrap. Fails deterministically if an admin exists."""
+    ensure_schema(database_url)
+    engine = create_app_engine(database_url)
+    session = sessionmaker(bind=engine)()
+    try:
+        try:
+            user = bootstrap_admin(
+                session,
+                org_id=org_id,
+                admin_username=admin_username,
+                admin_password=admin_password,
+                display_name=display_name,
+            )
+        except AdminActionError as exc:
+            return {"ok": False, "code": exc.code, "message": exc.message}
+        return {
+            "ok": True,
+            "org_id": user.org_id,
+            "user_id": user.id,
+            "username": user.username,
+            "display_name": user.display_name,
+        }
     finally:
         session.close()
 
@@ -395,6 +430,13 @@ def build_parser() -> argparse.ArgumentParser:
     rebuild = subparsers.add_parser("rebuild-indexes", help="Rebuild local search indexes from persisted assets")
     rebuild.add_argument("--database-url", required=True)
 
+    bootstrap = subparsers.add_parser("bootstrap-admin", help="One-time admin bootstrap for an organization")
+    bootstrap.add_argument("--database-url", required=True)
+    bootstrap.add_argument("--org-id", default="local-org")
+    bootstrap.add_argument("--admin-username", required=True)
+    bootstrap.add_argument("--admin-password", required=True)
+    bootstrap.add_argument("--display-name", default="Administrator")
+
     reset = subparsers.add_parser("reset-local", help="Reset a file-backed local SQLite database")
     reset.add_argument("--database-url", required=True)
     reset.add_argument("--yes", action="store_true", help="Confirm destructive local reset")
@@ -466,6 +508,19 @@ def main() -> int:
     if args.command == "rebuild-indexes":
         count = rebuild_indexes(args.database_url)
         print(f"Rebuilt indexes from {count} persisted assets")
+        return 0
+    if args.command == "bootstrap-admin":
+        result = bootstrap_admin_command(
+            database_url=args.database_url,
+            org_id=args.org_id,
+            admin_username=args.admin_username,
+            admin_password=args.admin_password,
+            display_name=args.display_name,
+        )
+        if not result["ok"]:
+            print(f"{result['code']}: {result['message']}", file=sys.stderr)
+            return 1
+        print(f"Admin {result['username']} bootstrapped for org {result['org_id']}")
         return 0
     if args.command == "reset-local":
         reset_local(args.database_url, yes=args.yes)

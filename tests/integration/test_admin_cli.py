@@ -831,3 +831,61 @@ def test_admin_cli_smoke_checks_api_readiness_metrics_and_web(tmp_path):
     assert "API readiness: ready" in result.stdout
     assert "Metrics: ok" in result.stdout
     assert "Web: ok" in result.stdout
+
+
+def test_admin_cli_bootstrap_admin_is_one_time(tmp_path):
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'agora.db'}"
+
+    first = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.agora_admin",
+            "bootstrap-admin",
+            "--database-url",
+            database_url,
+            "--org-id",
+            "org_cli",
+            "--admin-username",
+            "root",
+            "--admin-password",
+            "s3cret!",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert first.returncode == 0, first.stderr
+    assert "Admin root bootstrapped for org org_cli" in first.stdout
+
+    second = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.agora_admin",
+            "bootstrap-admin",
+            "--database-url",
+            database_url,
+            "--org-id",
+            "org_cli",
+            "--admin-username",
+            "root2",
+            "--admin-password",
+            "s3cret2!",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert second.returncode == 1
+    assert "ADMIN_ALREADY_BOOTSTRAPPED" in second.stderr
+
+    engine = create_app_engine(database_url)
+    session = sessionmaker(bind=engine)()
+    try:
+        from packages.core.repositories.identities import IdentityRepository
+
+        admins = IdentityRepository(session).list_org_admins("org_cli")
+        assert len(admins) == 1
+        assert admins[0].username == "root"
+        assert admins[0].password_hash.startswith("$argon2id$")
+    finally:
+        session.close()
