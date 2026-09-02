@@ -122,7 +122,7 @@ git commit -m "fix: persist postgres data with named volume"
 
 ## Execution record (2026-09-01)
 
-- Commit: `fix: unify compose API URL variable and persist postgres data` (single commit covers Task 1 and Task 2).
+- Commit: `feedc64` (fix: unify compose API URL variable and persist postgres data; single commit covers Task 1 and Task 2).
 - RED evidence: new contract tests failed before implementation — `test_compose_web_and_connector_set_single_runtime_api_url`, `test_web_api_client_reads_runtime_api_url_variable`, `test_local_development_docs_and_scripts_use_single_api_url_variable`, `test_compose_postgres_persists_data_with_named_volume` (4 failed, 28 passed).
 - GREEN evidence: focused web-config suite `32 passed`; full Python suite `346 passed, 2 skipped`; `next build` passed; PyYAML compose validation passed; `git diff --check` passed.
 - Review evidence: spec review confirmed single `AGORA_API_URL` runtime convention is safe because every `lib/api` consumer is a server component or route handler (no `use client` importers), so the variable is read at runtime and not inlined by the Next.js build.
