@@ -944,17 +944,16 @@ def test_prepare_writeback_persists_draft_without_indexing():
     draft = response.json()
     assert draft["status"] == "draft"
     stored = client.get(f"/projects/{project['id']}/writebacks").json()
-    assert stored == [
-        {
-            "id": draft["id"],
-            "project_id": project["id"],
-            "type": "development_summary",
-            "title": "Prepared draft",
-            "content": "This draft must not be indexed before acceptance.",
-            "status": "draft",
-            "accepted_asset_id": None,
-        }
-    ]
+    assert len(stored) == 1
+    entry = stored[0]
+    assert entry["id"] == draft["id"]
+    assert entry["project_id"] == project["id"]
+    assert entry["type"] == "development_summary"
+    assert entry["title"] == "Prepared draft"
+    assert entry["content"] == "This draft must not be indexed before acceptance."
+    assert entry["status"] == "draft"
+    assert entry["accepted_asset_id"] is None
+    assert entry["created_at"] is not None
     assert get_keyword_index().list_assets(org_id=project["org_id"], project_id=project["id"]) == []
     assert get_vector_index()._assets == []
 
