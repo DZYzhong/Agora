@@ -62,11 +62,11 @@ Hash/verify round-trip; wrong password fails; parameters embedded in the hash st
 - Create: `tests/integration/api/test_users_api.py`
 - Modify: `tests/integration/test_admin_cli.py`
 
-- [ ] **Step 1: Add failing API/CLI tests** — non-admin denied; admin creates user and receives one-time activation secret only once; activate sets password; disabled user cannot authenticate; reset revokes sessions and issues 15-min credential; audit rows exist.
-- [ ] **Step 2: Run RED**.
-- [ ] **Step 3: Implement** router + CLI wiring (`require_admin` principal helper).
-- [ ] **Step 4: Run GREEN** — API tests + CLI test.
-- [ ] **Step 5: Commit** `feat: manage users and credentials via admin api`.
+- [x] **Step 1: Add failing API/CLI tests** — non-admin denied; admin creates user and receives one-time activation secret only once; activate sets password; disabled user cannot authenticate; reset revokes sessions and issues 15-min credential; audit rows exist.
+- [x] **Step 2: Run RED**.
+- [x] **Step 3: Implement** router + CLI wiring (`require_admin` principal helper).
+- [x] **Step 4: Run GREEN** — API tests + CLI test.
+- [x] **Step 5: Commit** `feat: manage users and credentials via admin api`.
 
 ## Chunk 2: Cookie sessions, CSRF and reauthentication
 
@@ -82,7 +82,7 @@ Hash/verify round-trip; wrong password fails; parameters embedded in the hash st
 - Create: `tests/integration/api/test_auth_sessions.py`
 
 - [ ] **Step 1: Add failing tests** — login sets Secure/HttpOnly/SameSite=Strict cookie; session id never returned in body; wrong password rate-limited; logout revokes; CSRF token required for state change; Origin mismatch rejected; idle 30min / max 12h expiry enforced; reauth verifies password and issues fresh grant session.
-- [ ] **Step 2: Run RED**.
+- [x] **Step 2: Run RED**.
 - [ ] **Step 3: Implement**.
 - [ ] **Step 4: Run GREEN**.
 - [ ] **Step 5: Commit** `feat: add cookie sessions and csrf protection`.
@@ -101,7 +101,7 @@ Hash/verify round-trip; wrong password fails; parameters embedded in the hash st
 - Create: `tests/integration/api/test_approval_grants.py`
 
 - [ ] **Step 1: Add failing tests** — Agent token cannot approve; CI token cannot approve; Personal token cannot approve; Web human session can approve; grant is single-use, 5-min expiry, payload-digest bound; reuse/expired/mismatched digest rejected; low-risk workflow acknowledgment from Agent token remains allowed and is distinct from Approval.
-- [ ] **Step 2: Run RED**.
+- [x] **Step 2: Run RED**.
 - [ ] **Step 3: Implement** grant issuance/consumption + denial matrix.
 - [ ] **Step 4: Run GREEN**.
 - [ ] **Step 5: Commit** `feat: enforce approval grants and credential denial matrix`.
@@ -140,6 +140,14 @@ Hash/verify round-trip; wrong password fails; parameters embedded in the hash st
 - Commit: `5072f2e` (feat: add admin bootstrap and credential lifecycle).
 - Implementation: migration `20260902_0013_pr1b_identity` adds `users.username`/`users.password_hash`, `credentials.single_use`/`consumed_at`, makes `security_audit_events.project_id` nullable, creates `organization_memberships` with a partial unique index enforcing one admin per org. `IdentityRepository` gained user/credential/org-membership lifecycle helpers. `packages/core/auth_admin.py` (moved out of services to match `auth.py`'s own-uow pattern) implements one-time `bootstrap_admin`, `create_user_with_activation` (30-min single-use hashed-only token), `activate_user`, `issue_reset_credential` (15-min), `reset_password`, `set_user_enabled` (disabling revokes all credentials) and `revoke_credential`, each audited via `SecurityRepository` with `project_id=None` for org-scoped events.
 - GREEN: `test_auth_admin.py` + `test_passwords.py` `22 passed`; migration/core/repository suites `31 passed`; full suite `401 passed, 2 skipped`.
+- State: `implemented` and `automated verified`.
+
+### Task 3 (2026-09-02)
+
+- Commit: `8d11551` (feat: manage users and credentials via admin api).
+- Implementation: `scripts.agora_admin bootstrap-admin` (one-time, deterministic `ADMIN_ALREADY_BOOTSTRAPPED` on repeat); `apps/api/routers/users.py` with admin-only create-user -> one-time activation token, activate, admin-issued 15-min reset credential, reset-password, disable/enable (disable revokes all credentials), credential revoke, and user listing. Org-admin denial returns 403 `ORG_ADMIN_REQUIRED`; every action is audited via `SecurityRepository` (org-scoped events use `project_id=None`).
+- GREEN: `test_users_api.py` `8 passed`; CLI bootstrap test `1 passed`; full suite `410 passed, 2 skipped`.
+- Note: API-level org-admin denial is covered at unit level (`test_create_user_requires_org_admin`); HTTP-session-based denial testing lands with Task 4.
 - State: `implemented` and `automated verified`.
 
 ---
