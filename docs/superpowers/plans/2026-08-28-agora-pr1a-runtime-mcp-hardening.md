@@ -467,11 +467,11 @@ git commit -m "refactor: unify mcp definitions and dispatch"
 - Modify: `tests/integration/api/test_harness_api.py`
 - Modify: `tests/unit/mcp/test_stdio_server.py`
 
-- [ ] **Step 1: Add failing parameterized tests**
+- [x] **Step 1: Add failing parameterized tests**
 
 Cover `start_work`, `prepare_context`, `submit_context_proposal`, `complete_workflow_step`, `submit_skill_candidate`, `record_evidence`, `close_work`: 1.1 without key fails; same key/payload replays original status/body without duplicate ContextPacks, rows or events; changed payload conflicts; 1.0 remains temporarily accepted only for tools whose `minimum_protocol_version` is 1.0; 1.0 workflow completion receives 426; MCP requires `idempotency_key` and forwards it as header only. The protocol version is included in the idempotency operation scope and request hash; reusing one key across 1.0 and 1.1 cannot replay a response from the other version and must return a deterministic conflict or independent version-scoped record.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 .venv/bin/pytest tests/integration/api/test_harness_api.py tests/unit/mcp/test_stdio_server.py -q
@@ -479,15 +479,15 @@ Cover `start_work`, `prepare_context`, `submit_context_proposal`, `complete_work
 
 Expected: only start-work has partial idempotency and MCP forwards no key.
 
-- [ ] **Step 3: Extract generic API idempotency executor**
+- [x] **Step 3: Extract generic API idempotency executor**
 
 Reuse existing record/repository methods. Executor owns request hash, pending/completed replay, conflict and response status/body. Endpoints supply operation and transaction-safe callback. Preserve start behavior while removing its duplicate helper.
 
-- [ ] **Step 4: Require and forward MCP keys**
+- [x] **Step 4: Require and forward MCP keys**
 
 All MCP requests also send protocol and Connector version headers.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 ```bash
 .venv/bin/pytest tests/integration/api/test_harness_api.py tests/unit/mcp/test_stdio_server.py tests/unit/mcp/test_tools.py -q
@@ -495,12 +495,20 @@ All MCP requests also send protocol and Connector version headers.
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/api/idempotency.py apps/api/routers/harness.py apps/mcp/server.py packages/core/services/mcp_tools.py tests/integration/api/test_harness_api.py tests/unit/mcp/test_stdio_server.py
 git commit -m "feat: require idempotency for protocol 1.1 writes"
 ```
+
+**Execution record (2026-09-01):**
+
+- Commit: `feat: require idempotency for protocol 1.1 writes` (single commit covers Steps 1-6).
+- Implementation: added `apps/api/idempotency.py` with a generic protocol-aware executor (request hash includes protocol version; pending/completed replay; deterministic `IDEMPOTENCY_CONFLICT` on changed payload or cross-protocol reuse; `IDEMPOTENCY_KEY_REQUIRED` for protocol 1.1 writes without a key). The seven write endpoints (`start_work`, `prepare_context`, `submit_context_proposal`, `complete_workflow_step`, `submit_skill_candidate`, `record_evidence`, `close_work`) now run through the executor, replacing the start-work-only helper; responses are normalized to JSON-storable structures before persistence (datetimes to ISO strings). The MCP registry requires `idempotency_key` on the seven write tools and `_dispatch` forwards it as an `Idempotency-Key` header only, never in the body.
+- GREEN evidence: focused idempotency suite `5 passed`; API integration suite `112 passed`; full Python suite counts recorded after the final commit.
+- Note: existing 1.1-header API tests were updated to send unique `Idempotency-Key` values; the transaction-boundaries test now accepts routes that delegate their committing UoW to `execute_idempotent`.
+- State: `implemented` and `automated verified`; PR1A black-box and exit criteria remain pending.
 
 ## Chunk 4: MCP workflow transport without false approval
 

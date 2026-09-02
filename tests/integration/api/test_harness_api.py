@@ -8,6 +8,10 @@ from packages.core.models import HumanConfirmationModel, QualityEvidenceModel, W
 PROTOCOL_11_HEADERS = {"Agora-Protocol-Version": "1.1", "Agora-Connector-Version": "0.1.0"}
 
 
+def _idem(key: str) -> dict:
+    return {**PROTOCOL_11_HEADERS, "Idempotency-Key": key}
+
+
 def _run_git(repo_path, *args):
     import subprocess
 
@@ -61,7 +65,7 @@ def test_start_work_negotiates_current_protocol_and_marks_legacy_default():
 
     current = client.post(
         "/harness/start-work",
-        headers=PROTOCOL_11_HEADERS,
+        headers=_idem("key-start-negotiation"),
         json={
             "project_id": project["id"],
             "user_message": "帮我做 AG-1501：协议协商",
@@ -173,7 +177,7 @@ def test_complete_workflow_step_advances_current_step_and_work_item_stage():
 
     response = client.post(
         "/harness/complete-workflow-step",
-        headers=PROTOCOL_11_HEADERS,
+        headers=_idem("key-complete-advance"),
         json={
             "session_id": started["session_id"],
             "step_key": "analysis",
@@ -218,7 +222,7 @@ def test_complete_workflow_step_captures_artifacts_and_human_confirmation():
 
     response = client.post(
         "/harness/complete-workflow-step",
-        headers=PROTOCOL_11_HEADERS,
+        headers=_idem("key-complete-artifacts"),
         json={
             "session_id": started["session_id"],
             "step_key": "analysis",
@@ -482,7 +486,7 @@ def test_submit_skill_candidate_from_work_session_creates_reviewable_project_ski
     ).json()
     completed = client.post(
         "/harness/complete-workflow-step",
-        headers=PROTOCOL_11_HEADERS,
+        headers=_idem("key-complete-skill"),
         json={
             "session_id": started["session_id"],
             "step_key": "analysis",
@@ -619,7 +623,7 @@ def test_submit_skill_candidate_merges_duplicate_slug_into_existing_candidate():
     ).json()
     first_artifact = client.post(
         "/harness/complete-workflow-step",
-        headers=PROTOCOL_11_HEADERS,
+        headers=_idem("key-complete-first"),
         json={
             "session_id": started["session_id"],
             "step_key": "analysis",
@@ -696,7 +700,7 @@ def test_ai_tool_gets_repeated_experience_skill_suggestions_from_work_artifacts(
         ).json()
         completed = client.post(
             "/harness/complete-workflow-step",
-            headers=PROTOCOL_11_HEADERS,
+            headers=_idem(f"key-complete-{task_id}"),
             json={
                 "session_id": started["session_id"],
                 "step_key": "analysis",
@@ -753,7 +757,7 @@ def test_complete_workflow_step_rejects_non_current_step():
 
     response = client.post(
         "/harness/complete-workflow-step",
-        headers=PROTOCOL_11_HEADERS,
+        headers=_idem("key-complete-implementation"),
         json={
             "session_id": started["session_id"],
             "step_key": "implementation",
@@ -968,7 +972,7 @@ def test_close_work_endpoint_can_prepare_development_update_from_structured_capt
 
     response = client.post(
         "/harness/close-work",
-        headers=PROTOCOL_11_HEADERS,
+        headers=_idem("key-close-structured"),
         json={
             "session_id": start["session_id"],
             "status": "closed",
@@ -1059,7 +1063,7 @@ def test_close_work_protocol_11_rejects_server_repo_path(tmp_path):
 
     response = client.post(
         "/harness/close-work",
-        headers=PROTOCOL_11_HEADERS,
+        headers=_idem("key-close-reject"),
         json={"session_id": session_id, "repo_path": str(tmp_path / "repo")},
     )
 
@@ -1146,7 +1150,7 @@ def test_close_work_rejects_unsafe_structured_paths():
     for update in unsafe_updates:
         response = client.post(
             "/harness/close-work",
-            headers=PROTOCOL_11_HEADERS,
+            headers=_idem("key-close-unsafe"),
             json={"session_id": session_id, "development_update": update},
         )
         assert response.status_code == 422, update
@@ -1168,7 +1172,7 @@ def test_close_work_rejects_over_limit_structured_payloads():
     }
     response = client.post(
         "/harness/close-work",
-        headers=PROTOCOL_11_HEADERS,
+        headers=_idem("key-close-limit"),
         json={"session_id": session_id, "development_update": too_many_files},
     )
     assert response.status_code == 422
@@ -1179,7 +1183,7 @@ def test_close_work_rejects_over_limit_structured_payloads():
     }
     response = client.post(
         "/harness/close-work",
-        headers=PROTOCOL_11_HEADERS,
+        headers=_idem("key-close-oversize"),
         json={"session_id": session_id, "development_update": oversized_summary},
     )
     assert response.status_code == 422
@@ -1355,7 +1359,7 @@ def test_prepare_context_endpoint_returns_token_budget_too_small():
 
     response = client.post(
         "/harness/prepare-context",
-        headers=PROTOCOL_11_HEADERS,
+        headers=_idem("key-prepare-budget"),
         json={
             "session_id": start["session_id"],
             "query": "anything",
@@ -1368,3 +1372,165 @@ def test_prepare_context_endpoint_returns_token_budget_too_small():
     assert detail["protocol_version"] == "1.1"
     assert detail["error"]["code"] == "TOKEN_BUDGET_TOO_SMALL"
     assert detail["next_actions"][0]["type"] == "increase_token_budget"
+
+
+# --- Task 7: protocol 1.1 idempotency for create/complete/submit/close tools ---
+
+IDEMPOTENCY_WRITE_CASES = [
+    ("/harness/start-work", {"project_id": None, "user_message": "幂等任务", "agent_type": "codex"}),
+    ("/harness/prepare-context", {"session_id": None}),
+    ("/harness/submit-context-proposal", {"session_id": None, "type": "task_update", "title": "t", "summary": "m", "content": {}}),
+    ("/harness/complete-workflow-step", {"session_id": None, "step_key": "analysis", "summary": "m"}),
+    ("/harness/submit-skill-candidate", {"session_id": None, "slug": "x", "name": "n", "summary": "m", "instructions": "i"}),
+    ("/harness/record-evidence", {"session_id": None, "evidence_type": "local_test", "source": "ai_tool", "status": "passed", "conclusion": "c"}),
+    ("/harness/close-work", {"session_id": None}),
+]
+
+
+def test_protocol_11_writes_without_idempotency_key_are_rejected():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={"org_id": "org_idem", "name": "Idem", "slug": "idem", "git_remotes": []},
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={"project_id": project["id"], "user_message": "启动幂等会话", "agent_type": "codex"},
+    ).json()
+
+    for path, payload in IDEMPOTENCY_WRITE_CASES:
+        body = {**payload}
+        if body.get("session_id") is None:
+            body["session_id"] = started["session_id"]
+        if path == "/harness/start-work":
+            body["project_id"] = project["id"]
+        response = client.post(path, headers=PROTOCOL_11_HEADERS, json=body)
+        assert response.status_code == 400, path
+        assert response.json()["detail"]["code"] == "IDEMPOTENCY_KEY_REQUIRED", path
+
+
+def test_protocol_10_legacy_writes_remain_accepted_without_key():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={"org_id": "org_legacy", "name": "Legacy", "slug": "legacy", "git_remotes": []},
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={"project_id": project["id"], "user_message": "旧协议写入", "agent_type": "codex"},
+    ).json()
+
+    prepared = client.post(
+        "/harness/prepare-context",
+        json={"session_id": started["session_id"]},
+    )
+    assert prepared.status_code == 200
+
+
+def test_idempotency_same_key_replays_response_without_duplicate_rows():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={"org_id": "org_replay", "name": "Replay", "slug": "replay", "git_remotes": []},
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={"project_id": project["id"], "user_message": "幂等重放", "agent_type": "codex"},
+    ).json()
+    evidence_payload = {
+        "session_id": started["session_id"],
+        "evidence_type": "local_test",
+        "source": "ai_tool",
+        "status": "passed",
+        "conclusion": "重放不产生重复证据。",
+    }
+
+    first = client.post("/harness/record-evidence", headers=_idem("key-replay-evidence"), json=evidence_payload)
+    second = client.post("/harness/record-evidence", headers=_idem("key-replay-evidence"), json=evidence_payload)
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert first.json() == second.json()
+    assert first.json()["evidence"]["id"] == second.json()["evidence"]["id"]
+
+    quality = client.post(
+        "/harness/get-quality-status",
+        json={"session_id": started["session_id"]},
+    ).json()
+    evidence_ids = [item["id"] for item in quality["evidence"]]
+    assert evidence_ids.count(first.json()["evidence"]["id"]) == 1
+
+
+def test_idempotency_changed_payload_conflicts():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={"org_id": "org_conflict", "name": "Conflict", "slug": "conflict", "git_remotes": []},
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={"project_id": project["id"], "user_message": "幂等冲突", "agent_type": "codex"},
+    ).json()
+
+    first = client.post(
+        "/harness/record-evidence",
+        headers=_idem("key-conflict-evidence"),
+        json={
+            "session_id": started["session_id"],
+            "evidence_type": "local_test",
+            "source": "ai_tool",
+            "status": "passed",
+            "conclusion": "第一次结论",
+        },
+    )
+    second = client.post(
+        "/harness/record-evidence",
+        headers=_idem("key-conflict-evidence"),
+        json={
+            "session_id": started["session_id"],
+            "evidence_type": "local_test",
+            "source": "ai_tool",
+            "status": "failed",
+            "conclusion": "结论被修改",
+        },
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 409
+    detail = second.json()["detail"]
+    assert detail["protocol_version"] == "1.1"
+    assert detail["error"]["code"] == "IDEMPOTENCY_CONFLICT"
+
+
+def test_idempotency_key_scope_includes_protocol_version():
+    client = TestClient(app)
+    project = client.post(
+        "/projects",
+        json={"org_id": "org_crossproto", "name": "CrossProto", "slug": "crossproto", "git_remotes": []},
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={"project_id": project["id"], "user_message": "跨协议幂等", "agent_type": "codex"},
+    ).json()
+    evidence_payload = {
+        "session_id": started["session_id"],
+        "evidence_type": "local_test",
+        "source": "ai_tool",
+        "status": "passed",
+        "conclusion": "同一 key 跨协议必须冲突。",
+    }
+
+    legacy = client.post(
+        "/harness/record-evidence",
+        headers={"Idempotency-Key": "key-crossproto"},
+        json=evidence_payload,
+    )
+    current = client.post(
+        "/harness/record-evidence",
+        headers=_idem("key-crossproto"),
+        json=evidence_payload,
+    )
+
+    assert legacy.status_code == 201
+    assert current.status_code == 409
+    assert current.json()["detail"]["error"]["code"] == "IDEMPOTENCY_CONFLICT"

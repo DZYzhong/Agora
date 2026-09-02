@@ -409,7 +409,9 @@ def test_http_mutation_routes_own_an_explicit_unit_of_work():
         if route.path in READ_ONLY_POST_PATHS:
             continue
         source = inspect.getsource(route.endpoint)
-        if "SqlAlchemyUnitOfWork" not in source or "uow.commit()" not in source:
+        owns_uow = "SqlAlchemyUnitOfWork" in source and "uow.commit()" in source
+        delegates_idempotent = "execute_idempotent(" in source
+        if not (owns_uow or delegates_idempotent):
             offenders.append(f"{sorted(methods)} {route.path}")
 
     assert offenders == [], f"Mutation routes without an explicit committing UoW: {offenders}"

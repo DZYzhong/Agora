@@ -124,7 +124,7 @@ def test_stdio_post_sends_current_protocol_and_connector_headers(monkeypatch):
 def test_stdio_submit_context_proposal_dispatches_to_harness(monkeypatch):
     captured = {}
 
-    async def fake_post(path, payload):
+    async def fake_post(path, payload, *, idempotency_key=None):
         captured["path"] = path
         captured["payload"] = payload
         return {"protocol_version": "1.0", "operation": "submit_context_proposal", "proposal": {"id": "proposal_1"}}
@@ -156,7 +156,7 @@ def test_stdio_submit_context_proposal_dispatches_to_harness(monkeypatch):
 def test_stdio_complete_workflow_step_dispatches_to_harness(monkeypatch):
     captured = {}
 
-    async def fake_post(path, payload):
+    async def fake_post(path, payload, *, idempotency_key=None):
         captured["path"] = path
         captured["payload"] = payload
         return {"protocol_version": "1.1", "operation": "complete_workflow_step", "completed_step": {"step_key": "analysis"}}
@@ -186,7 +186,7 @@ def test_stdio_complete_workflow_step_dispatches_to_harness(monkeypatch):
 def test_stdio_submit_skill_candidate_dispatches_to_harness(monkeypatch):
     captured = {}
 
-    async def fake_post(path, payload):
+    async def fake_post(path, payload, *, idempotency_key=None):
         captured["path"] = path
         captured["payload"] = payload
         return {"protocol_version": "1.0", "operation": "submit_skill_candidate", "skill": {"id": "skill_1"}}
@@ -217,7 +217,7 @@ def test_stdio_submit_skill_candidate_dispatches_to_harness(monkeypatch):
 def test_stdio_suggest_skills_dispatches_to_harness(monkeypatch):
     captured = {}
 
-    async def fake_post(path, payload):
+    async def fake_post(path, payload, *, idempotency_key=None):
         captured["path"] = path
         captured["payload"] = payload
         return {"protocol_version": "1.0", "operation": "suggest_skills", "suggestions": [{"slug": "release-risk-review"}]}
@@ -242,7 +242,7 @@ def test_stdio_suggest_skills_dispatches_to_harness(monkeypatch):
 def test_stdio_record_evidence_dispatches_to_harness(monkeypatch):
     captured = {}
 
-    async def fake_post(path, payload):
+    async def fake_post(path, payload, *, idempotency_key=None):
         captured["path"] = path
         captured["payload"] = payload
         return {"protocol_version": "1.0", "operation": "record_evidence", "evidence": {"id": "evidence_1"}}
@@ -274,7 +274,7 @@ def test_stdio_record_evidence_dispatches_to_harness(monkeypatch):
 def test_stdio_quality_and_project_status_dispatch_to_harness(monkeypatch):
     captured = []
 
-    async def fake_post(path, payload):
+    async def fake_post(path, payload, *, idempotency_key=None):
         captured.append((path, payload))
         return {"protocol_version": "1.0", "operation": path.rsplit("/", 1)[-1].replace("-", "_")}
 
@@ -310,7 +310,7 @@ def test_stdio_start_work_observes_local_workspace_when_not_supplied(monkeypatch
                 "observer": "agora-mcp",
             }
 
-    async def fake_post(path, payload):
+    async def fake_post(path, payload, *, idempotency_key=None):
         captured["path"] = path
         captured["payload"] = payload
         return {"protocol_version": "1.0", "session_id": "sess_1"}
@@ -335,7 +335,7 @@ def test_stdio_start_work_observes_local_workspace_when_not_supplied(monkeypatch
 
 
 def test_legacy_plan_context_dispatch_is_accepted_but_marked_deprecated(monkeypatch):
-    async def fake_post(path, payload):
+    async def fake_post(path, payload, *, idempotency_key=None):
         return {
             "operation": "prepare_context",
             "path": path,
@@ -378,7 +378,7 @@ def test_stdio_close_work_schema_excludes_server_repository_paths():
 def test_stdio_close_work_builds_local_development_capture(monkeypatch):
     captured = {}
 
-    async def fake_post(path, payload):
+    async def fake_post(path, payload, *, idempotency_key=None):
         captured["path"] = path
         captured["payload"] = payload
         return {"protocol_version": "1.1", "session_id": "sess_1", "status": "closed"}
@@ -420,7 +420,7 @@ def test_stdio_close_work_builds_local_development_capture(monkeypatch):
 def test_stdio_close_work_without_summary_sends_no_development_update(monkeypatch):
     captured = {}
 
-    async def fake_post(path, payload):
+    async def fake_post(path, payload, *, idempotency_key=None):
         captured["path"] = path
         captured["payload"] = payload
         return {"protocol_version": "1.1", "session_id": "sess_1", "status": "closed"}
@@ -492,30 +492,76 @@ def test_registry_every_definition_exposes_minimum_protocol_version():
 
 
 MINIMAL_DISPATCH_ARGUMENTS = {
-    "agora_start_work": {"user_message": "task", "agent_type": "codex", "local_observation": {"dirty": False}},
-    "agora_prepare_context": {"session_id": "sess_1"},
+    "agora_start_work": {"user_message": "task", "agent_type": "codex", "local_observation": {"dirty": False}, "idempotency_key": "key-start"},
+    "agora_prepare_context": {"session_id": "sess_1", "idempotency_key": "key-prepare"},
     "agora_fetch_context_ref": {"session_id": "sess_1", "asset_id": "asset_1"},
-    "agora_submit_context_proposal": {"session_id": "sess_1", "title": "t", "summary": "m", "content": {}},
-    "agora_complete_workflow_step": {"session_id": "sess_1", "step_key": "analysis", "summary": "m"},
+    "agora_submit_context_proposal": {"session_id": "sess_1", "title": "t", "summary": "m", "content": {}, "idempotency_key": "key-proposal"},
+    "agora_complete_workflow_step": {"session_id": "sess_1", "step_key": "analysis", "summary": "m", "idempotency_key": "key-complete"},
     "agora_suggest_skills": {"session_id": "sess_1"},
-    "agora_submit_skill_candidate": {"session_id": "sess_1", "slug": "x", "name": "n", "summary": "m", "instructions": "i"},
-    "agora_record_evidence": {"session_id": "sess_1", "evidence_type": "local_test", "source": "ai_tool", "status": "passed", "conclusion": "c"},
+    "agora_submit_skill_candidate": {"session_id": "sess_1", "slug": "x", "name": "n", "summary": "m", "instructions": "i", "idempotency_key": "key-skill"},
+    "agora_record_evidence": {"session_id": "sess_1", "evidence_type": "local_test", "source": "ai_tool", "status": "passed", "conclusion": "c", "idempotency_key": "key-evidence"},
     "agora_get_quality_status": {"session_id": "sess_1"},
     "agora_get_project_status": {"project_id": "project_1"},
-    "agora_close_work": {"session_id": "sess_1"},
+    "agora_close_work": {"session_id": "sess_1", "idempotency_key": "key-close"},
     "agora_plan_context": {"session_id": "sess_1"},
     "agora_record_event": {"session_id": "sess_1", "event_type": "e", "payload": {}},
     "agora_prepare_writeback": {"session_id": "sess_1", "title": "t", "content": "c"},
     "agora_search_knowledge": {"session_id": "sess_1", "query": "q"},
 }
 
+IDEMPOTENCY_REQUIRED_TOOLS = frozenset(
+    {
+        "agora_start_work",
+        "agora_prepare_context",
+        "agora_submit_context_proposal",
+        "agora_complete_workflow_step",
+        "agora_submit_skill_candidate",
+        "agora_record_evidence",
+        "agora_close_work",
+    }
+)
+
+
+def test_registry_write_tools_require_idempotency_key_in_schema():
+    result = asyncio.run(list_tools(None, None))
+    tools_by_name = {tool.name: tool for tool in result.tools}
+    for name in IDEMPOTENCY_REQUIRED_TOOLS:
+        tool = tools_by_name[name]
+        assert "idempotency_key" in tool.input_schema["required"], name
+        assert "idempotency_key" in tool.input_schema["properties"], name
+
+
+def test_registry_dispatch_forwards_idempotency_key_as_header_only(monkeypatch):
+    captured = {}
+
+    async def fake_post(path, payload, *, idempotency_key=None):
+        captured["path"] = path
+        captured["payload"] = payload
+        captured["idempotency_key"] = idempotency_key
+        return {"ok": True}
+
+    monkeypatch.setattr("apps.mcp.server._post", fake_post)
+
+    result = asyncio.run(
+        _dispatch(
+            "agora_complete_workflow_step",
+            {"session_id": "sess_1", "step_key": "analysis", "summary": "m", "idempotency_key": "key-complete"},
+        )
+    )
+
+    assert result["ok"] is True
+    assert captured["path"] == "/harness/complete-workflow-step"
+    assert captured["idempotency_key"] == "key-complete"
+    assert "idempotency_key" not in captured["payload"]
+
 
 def test_registry_parameterized_dispatch_posts_every_remote_definition_to_declared_path(monkeypatch):
     captured = {}
 
-    async def fake_post(path, payload):
+    async def fake_post(path, payload, *, idempotency_key=None):
         captured["path"] = path
         captured["payload"] = payload
+        captured["idempotency_key"] = idempotency_key
         return {"ok": True}
 
     monkeypatch.setattr("apps.mcp.server._post", fake_post)
@@ -528,6 +574,8 @@ def test_registry_parameterized_dispatch_posts_every_remote_definition_to_declar
 
         assert captured["path"] == definition.api_path, definition.name
         assert result["ok"] is True
+        if definition.name in IDEMPOTENCY_REQUIRED_TOOLS:
+            assert captured["idempotency_key"] == MINIMAL_DISPATCH_ARGUMENTS[definition.name]["idempotency_key"], definition.name
         if definition.deprecated:
             assert result["deprecation"]["legacy_tool"] == definition.name
             assert result["deprecation"]["canonical_tool"] == definition.canonical_tool

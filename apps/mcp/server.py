@@ -32,11 +32,13 @@ TOOLS = [
 ]
 
 
-async def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
+async def _post(path: str, payload: dict[str, Any], *, idempotency_key: str | None = None) -> dict[str, Any]:
     headers = {
         "Agora-Protocol-Version": HARNESS_PROTOCOL_CURRENT,
         "Agora-Connector-Version": MCP_SERVER_VERSION,
     }
+    if idempotency_key:
+        headers["Idempotency-Key"] = idempotency_key
     if AGORA_AGENT_TOKEN:
         headers["Authorization"] = f"Bearer {AGORA_AGENT_TOKEN}"
     async with httpx.AsyncClient(base_url=AGORA_API_URL, timeout=30) as client:
@@ -70,6 +72,7 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
             return build_protocol_manifest()
         raise ValueError(f"Tool has no remote handler: {name}")
 
+    idempotency_key = arguments.pop("idempotency_key", None)
     if name == "agora_start_work" and not arguments.get("local_observation"):
         arguments["local_observation"] = observe_git_workspace().model_dump()
     if name == "agora_close_work":
@@ -83,7 +86,7 @@ async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
             }
 
     payload = build_remote_payload(definition, arguments)
-    result = await _post(definition.api_path, payload)
+    result = await _post(definition.api_path, payload, idempotency_key=idempotency_key)
     if definition.deprecated:
         result = _with_tool_deprecation(result, legacy_tool=definition.name, canonical_tool=definition.canonical_tool)
     return result

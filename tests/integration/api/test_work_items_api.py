@@ -13,6 +13,10 @@ AGENT_TOKEN = "test-agent-token-secret-value"
 PROTOCOL_11_HEADERS = {"Agora-Protocol-Version": "1.1", "Agora-Connector-Version": "0.1.0"}
 
 
+def _idem(key: str) -> dict:
+    return {**PROTOCOL_11_HEADERS, "Idempotency-Key": key}
+
+
 def _auth_headers(token: str, extra: dict[str, str] | None = None) -> dict[str, str]:
     headers = {"Authorization": f"Bearer {token}"}
     if extra:
@@ -176,7 +180,7 @@ def test_work_item_detail_includes_workflow_artifacts_and_confirmations():
     ).json()
     client.post(
         "/harness/complete-workflow-step",
-        headers=PROTOCOL_11_HEADERS,
+        headers=_idem("key-workitem-complete"),
         json={
             "session_id": started["session_id"],
             "step_key": "analysis",

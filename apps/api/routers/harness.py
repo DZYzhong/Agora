@@ -1,20 +1,16 @@
 from typing import Any
-from datetime import timedelta
-import hashlib
 import json
 import re
-import time
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from apps.api.auth import get_current_principal, require_project_member
 from apps.api.dependencies import get_db_session, get_keyword_index, get_runtime_policy, get_vector_index
+from apps.api.idempotency import execute_idempotent
 from apps.api.routers.projects import _validate_local_initialization_path
 from packages.core.auth import Principal
-from packages.core.models import utc_now
 from packages.core.repositories.workflows import WorkflowStepError
 from packages.core.settings import RuntimePolicy
 from packages.core.services.protocol import (
@@ -275,29 +271,23 @@ def start_work(
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
-    if idempotency_key:
-        return _start_work_idempotent(
-            payload=payload,
-            idempotency_key=idempotency_key,
-            protocol=protocol,
-            principal=principal,
-            session=session,
-            keyword_index=keyword_index,
-            vector_index=vector_index,
-        )
-
-    with SqlAlchemyUnitOfWork(session) as uow:
-        response = _execute_start_work(
+    return execute_idempotent(
+        session=session,
+        principal=principal,
+        protocol=protocol,
+        operation="harness.start_work",
+        idempotency_key=idempotency_key,
+        request_payload=payload.model_dump(),
+        callback=lambda initial_request_id: _execute_start_work(
             payload=payload,
             protocol=protocol,
             principal=principal,
             session=session,
             keyword_index=keyword_index,
             vector_index=vector_index,
-            initial_request_id=None,
-        )
-        uow.commit()
-    return response
+            initial_request_id=initial_request_id,
+        ),
+    )
 
 
 @router.post("/plan-context")
@@ -337,6 +327,7 @@ def plan_context(
 @router.post("/prepare-context")
 def prepare_context(
     payload: PlanContextRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
@@ -344,11 +335,22 @@ def prepare_context(
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
     try:
-        with SqlAlchemyUnitOfWork(session) as uow:
-            _ensure_session_member(session, principal, session_id=payload.session_id)
-            response = _harness(session, keyword_index, vector_index).prepare_context(**payload.model_dump())
-            _apply_protocol_metadata(response, protocol)
-            uow.commit()
+        return execute_idempotent(
+            session=session,
+            principal=principal,
+            protocol=protocol,
+            operation="harness.prepare_context",
+            idempotency_key=idempotency_key,
+            request_payload=payload.model_dump(),
+            callback=lambda _initial_request_id: _prepare_context_once(
+                payload=payload,
+                protocol=protocol,
+                principal=principal,
+                session=session,
+                keyword_index=keyword_index,
+                vector_index=vector_index,
+            ),
+        )
     except TokenBudgetTooSmall as exc:
         raise _protocol_error(
             "TOKEN_BUDGET_TOO_SMALL",
@@ -357,6 +359,20 @@ def prepare_context(
             protocol=protocol,
             next_action_type="increase_token_budget",
         ) from exc
+
+
+def _prepare_context_once(
+    *,
+    payload: PlanContextRequest,
+    protocol: ProtocolContext,
+    principal: Principal,
+    session: Session,
+    keyword_index: FakeKeywordIndex,
+    vector_index: FakeVectorIndex,
+) -> dict:
+    _ensure_session_member(session, principal, session_id=payload.session_id)
+    response = _harness(session, keyword_index, vector_index).prepare_context(**payload.model_dump())
+    _apply_protocol_metadata(response, protocol)
     return response
 
 
@@ -398,29 +414,56 @@ def fetch_context_ref(
 @router.post("/submit-context-proposal", status_code=status.HTTP_201_CREATED)
 def submit_context_proposal(
     payload: SubmitContextProposalRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
-    with SqlAlchemyUnitOfWork(session) as uow:
-        task_session = _ensure_session_member(session, principal, session_id=payload.session_id)
-        response = _harness(session, keyword_index, vector_index).submit_context_proposal(
-            **payload.model_dump(),
+    return execute_idempotent(
+        session=session,
+        principal=principal,
+        protocol=protocol,
+        operation="harness.submit_context_proposal",
+        idempotency_key=idempotency_key,
+        request_payload=payload.model_dump(),
+        callback=lambda _initial_request_id: _submit_context_proposal_once(
+            payload=payload,
+            protocol=protocol,
             principal=principal,
-            protocol_version=protocol.protocol_version,
-        )
-        response_dict = response.__dict__
-        response_dict["request_id"] = task_session.id
-        _apply_protocol_metadata(response_dict, protocol)
-        uow.commit()
+            session=session,
+            keyword_index=keyword_index,
+            vector_index=vector_index,
+        ),
+    )
+
+
+def _submit_context_proposal_once(
+    *,
+    payload: SubmitContextProposalRequest,
+    protocol: ProtocolContext,
+    principal: Principal,
+    session: Session,
+    keyword_index: FakeKeywordIndex,
+    vector_index: FakeVectorIndex,
+) -> dict:
+    task_session = _ensure_session_member(session, principal, session_id=payload.session_id)
+    response = _harness(session, keyword_index, vector_index).submit_context_proposal(
+        **payload.model_dump(),
+        principal=principal,
+        protocol_version=protocol.protocol_version,
+    )
+    response_dict = response.__dict__
+    response_dict["request_id"] = task_session.id
+    _apply_protocol_metadata(response_dict, protocol)
     return response_dict
 
 
 @router.post("/complete-workflow-step")
 def complete_workflow_step(
     payload: CompleteWorkflowStepRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
@@ -429,17 +472,22 @@ def complete_workflow_step(
 ):
     try:
         require_minimum_protocol(protocol, "1.1")
-        with SqlAlchemyUnitOfWork(session) as uow:
-            _ensure_session_member(session, principal, session_id=payload.session_id)
-            response = _harness(session, keyword_index, vector_index).complete_workflow_step(
-                **payload.model_dump(),
+        return execute_idempotent(
+            session=session,
+            principal=principal,
+            protocol=protocol,
+            operation="harness.complete_workflow_step",
+            idempotency_key=idempotency_key,
+            request_payload=payload.model_dump(),
+            callback=lambda _initial_request_id: _complete_workflow_step_once(
+                payload=payload,
+                protocol=protocol,
                 principal=principal,
-                protocol_version=protocol.protocol_version,
-            )
-            response_dict = response.__dict__
-            response_dict["request_id"] = payload.session_id
-            _apply_protocol_metadata(response_dict, protocol)
-            uow.commit()
+                session=session,
+                keyword_index=keyword_index,
+                vector_index=vector_index,
+            ),
+        )
     except ProtocolNegotiationError as exc:
         raise _upgrade_required(exc) from exc
     except WorkflowStepError as exc:
@@ -450,29 +498,75 @@ def complete_workflow_step(
             protocol=protocol,
             next_action_type="complete_current_workflow_step",
         ) from exc
+
+
+def _complete_workflow_step_once(
+    *,
+    payload: CompleteWorkflowStepRequest,
+    protocol: ProtocolContext,
+    principal: Principal,
+    session: Session,
+    keyword_index: FakeKeywordIndex,
+    vector_index: FakeVectorIndex,
+) -> dict:
+    _ensure_session_member(session, principal, session_id=payload.session_id)
+    response = _harness(session, keyword_index, vector_index).complete_workflow_step(
+        **payload.model_dump(),
+        principal=principal,
+        protocol_version=protocol.protocol_version,
+    )
+    response_dict = response.__dict__
+    response_dict["request_id"] = payload.session_id
+    _apply_protocol_metadata(response_dict, protocol)
     return response_dict
 
 
 @router.post("/submit-skill-candidate", status_code=status.HTTP_201_CREATED)
 def submit_skill_candidate(
     payload: SubmitSkillCandidateRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
-    with SqlAlchemyUnitOfWork(session) as uow:
-        _ensure_session_member(session, principal, session_id=payload.session_id)
-        response = _harness(session, keyword_index, vector_index).submit_skill_candidate(
-            **payload.model_dump(),
+    return execute_idempotent(
+        session=session,
+        principal=principal,
+        protocol=protocol,
+        operation="harness.submit_skill_candidate",
+        idempotency_key=idempotency_key,
+        request_payload=payload.model_dump(),
+        callback=lambda _initial_request_id: _submit_skill_candidate_once(
+            payload=payload,
+            protocol=protocol,
             principal=principal,
-            protocol_version=protocol.protocol_version,
-        )
-        response_dict = response.__dict__
-        response_dict["request_id"] = payload.session_id
-        _apply_protocol_metadata(response_dict, protocol)
-        uow.commit()
+            session=session,
+            keyword_index=keyword_index,
+            vector_index=vector_index,
+        ),
+    )
+
+
+def _submit_skill_candidate_once(
+    *,
+    payload: SubmitSkillCandidateRequest,
+    protocol: ProtocolContext,
+    principal: Principal,
+    session: Session,
+    keyword_index: FakeKeywordIndex,
+    vector_index: FakeVectorIndex,
+) -> dict:
+    _ensure_session_member(session, principal, session_id=payload.session_id)
+    response = _harness(session, keyword_index, vector_index).submit_skill_candidate(
+        **payload.model_dump(),
+        principal=principal,
+        protocol_version=protocol.protocol_version,
+    )
+    response_dict = response.__dict__
+    response_dict["request_id"] = payload.session_id
+    _apply_protocol_metadata(response_dict, protocol)
     return response_dict
 
 
@@ -502,23 +596,49 @@ def suggest_skills(
 @router.post("/record-evidence", status_code=status.HTTP_201_CREATED)
 def record_evidence(
     payload: RecordEvidenceRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
-    with SqlAlchemyUnitOfWork(session) as uow:
-        _ensure_session_member(session, principal, session_id=payload.session_id)
-        response = _harness(session, keyword_index, vector_index).record_evidence(
-            **payload.model_dump(),
+    return execute_idempotent(
+        session=session,
+        principal=principal,
+        protocol=protocol,
+        operation="harness.record_evidence",
+        idempotency_key=idempotency_key,
+        request_payload=payload.model_dump(),
+        callback=lambda _initial_request_id: _record_evidence_once(
+            payload=payload,
+            protocol=protocol,
             principal=principal,
-            protocol_version=protocol.protocol_version,
-        )
-        response_dict = response.__dict__
-        response_dict["request_id"] = payload.session_id
-        _apply_protocol_metadata(response_dict, protocol)
-        uow.commit()
+            session=session,
+            keyword_index=keyword_index,
+            vector_index=vector_index,
+        ),
+    )
+
+
+def _record_evidence_once(
+    *,
+    payload: RecordEvidenceRequest,
+    protocol: ProtocolContext,
+    principal: Principal,
+    session: Session,
+    keyword_index: FakeKeywordIndex,
+    vector_index: FakeVectorIndex,
+) -> dict:
+    _ensure_session_member(session, principal, session_id=payload.session_id)
+    response = _harness(session, keyword_index, vector_index).record_evidence(
+        **payload.model_dump(),
+        principal=principal,
+        protocol_version=protocol.protocol_version,
+    )
+    response_dict = response.__dict__
+    response_dict["request_id"] = payload.session_id
+    _apply_protocol_metadata(response_dict, protocol)
     return response_dict
 
 
@@ -571,6 +691,7 @@ def get_project_status(
 @router.post("/close-work")
 def close_work(
     payload: CloseWorkRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     protocol: ProtocolContext = Depends(_protocol_context),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
@@ -579,23 +700,50 @@ def close_work(
     runtime_policy: RuntimePolicy = Depends(get_runtime_policy),
 ):
     try:
-        with SqlAlchemyUnitOfWork(session) as uow:
-            _ensure_session_member(session, principal, session_id=payload.session_id)
-            _validate_close_work_capture(payload, protocol, runtime_policy)
-            response = _harness(session, keyword_index, vector_index).close_work(
-                session_id=payload.session_id,
-                status=payload.status,
-                development_update=payload.development_update.model_dump() if payload.development_update is not None else None,
-                repo_path=payload.repo_path,
-                base_ref=payload.base_ref,
-                head_ref=payload.head_ref,
-                agent_summary=payload.agent_summary,
-                test_result=payload.test_result,
-            )
-            _apply_protocol_metadata(response, protocol)
-            uow.commit()
+        return execute_idempotent(
+            session=session,
+            principal=principal,
+            protocol=protocol,
+            operation="harness.close_work",
+            idempotency_key=idempotency_key,
+            request_payload=payload.model_dump(),
+            callback=lambda _initial_request_id: _close_work_once(
+                payload=payload,
+                protocol=protocol,
+                principal=principal,
+                session=session,
+                keyword_index=keyword_index,
+                vector_index=vector_index,
+                runtime_policy=runtime_policy,
+            ),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _close_work_once(
+    *,
+    payload: CloseWorkRequest,
+    protocol: ProtocolContext,
+    principal: Principal,
+    session: Session,
+    keyword_index: FakeKeywordIndex,
+    vector_index: FakeVectorIndex,
+    runtime_policy: RuntimePolicy,
+) -> dict:
+    _ensure_session_member(session, principal, session_id=payload.session_id)
+    _validate_close_work_capture(payload, protocol, runtime_policy)
+    response = _harness(session, keyword_index, vector_index).close_work(
+        session_id=payload.session_id,
+        status=payload.status,
+        development_update=payload.development_update.model_dump() if payload.development_update is not None else None,
+        repo_path=payload.repo_path,
+        base_ref=payload.base_ref,
+        head_ref=payload.head_ref,
+        agent_summary=payload.agent_summary,
+        test_result=payload.test_result,
+    )
+    _apply_protocol_metadata(response, protocol)
     return response
 
 
@@ -678,86 +826,6 @@ def _ensure_session_member(session: Session, principal: Principal, *, session_id
     return task_session
 
 
-def _start_work_idempotent(
-    *,
-    payload: StartWorkRequest,
-    idempotency_key: str,
-    protocol: ProtocolContext,
-    principal: Principal,
-    session: Session,
-    keyword_index: FakeKeywordIndex,
-    vector_index: FakeVectorIndex,
-) -> dict:
-    operation = "harness.start_work"
-    request_hash = _request_hash(payload, protocol=protocol)
-    pending_error: HTTPException | None = None
-    for _ in range(10):
-        pending = False
-        try:
-            with SqlAlchemyUnitOfWork(session) as uow:
-                runtime = CoreRuntime(session)
-                record = runtime.get_idempotency_record(
-                    credential_id=principal.credential_id,
-                    operation=operation,
-                    idempotency_key=idempotency_key,
-                )
-                if record is not None:
-                    if record.status == "expired" or _replay_expired(record.replay_expires_at):
-                        record.status = "expired"
-                        uow.commit()
-                        pending_error = _idempotency_error(
-                            "IDEMPOTENCY_KEY_EXPIRED",
-                            "Idempotency key has expired",
-                            protocol=protocol,
-                        )
-                    elif record.request_hash != request_hash:
-                        pending_error = _idempotency_error(
-                            "IDEMPOTENCY_CONFLICT",
-                            "Idempotency key payload changed",
-                            protocol=protocol,
-                        )
-                    elif record.status == "completed" and record.response_json is not None:
-                        response = dict(record.response_json)
-                        _apply_protocol_metadata(response, protocol)
-                        uow.commit()
-                        return response
-                    else:
-                        pending = True
-                else:
-                    record = runtime.create_idempotency_record(
-                        user_id=principal.user_id,
-                        credential_id=principal.credential_id,
-                        operation=operation,
-                        idempotency_key=idempotency_key,
-                        request_hash=request_hash,
-                        replay_window=timedelta(hours=24),
-                    )
-                    response = _execute_start_work(
-                        payload=payload,
-                        protocol=protocol,
-                        principal=principal,
-                        session=session,
-                        keyword_index=keyword_index,
-                        vector_index=vector_index,
-                        initial_request_id=record.id,
-                    )
-                    runtime.complete_idempotency_record(record, response_json=response)
-                    uow.commit()
-                    return response
-        except (IntegrityError, OperationalError):
-            if session.in_transaction():
-                session.rollback()
-            time.sleep(0.05)
-            continue
-
-        if pending_error is not None:
-            raise pending_error
-        if pending:
-            time.sleep(0.05)
-            continue
-    raise _idempotency_error("IDEMPOTENCY_REPLAY_PENDING", "Idempotency replay is still pending", protocol=protocol)
-
-
 def _execute_start_work(
     *,
     payload: StartWorkRequest,
@@ -816,31 +884,6 @@ def _serialize_start_work(result, protocol: ProtocolContext) -> dict:
         "workflow_version_id": result.workflow_version_id,
         "skill_version_id": result.skill_version_id,
     }, protocol)
-
-
-def _request_hash(payload: StartWorkRequest, *, protocol: ProtocolContext) -> str:
-    encoded = json.dumps(
-        {
-            "payload": payload.model_dump(),
-            "protocol_version": protocol.protocol_version,
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-    )
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
-
-
-def _replay_expired(replay_expires_at) -> bool:
-    now = utc_now()
-    if replay_expires_at.tzinfo is None:
-        return replay_expires_at <= now.replace(tzinfo=None)
-    return replay_expires_at <= now
-
-
-def _idempotency_error(code: str, message: str, *, protocol: ProtocolContext | None = None) -> HTTPException:
-    mapped_code = "IDEMPOTENCY_CONFLICT" if code.startswith("IDEMPOTENCY") else code
-    return _protocol_error(mapped_code, message, status_code=409, protocol=protocol, legacy_code=code)
 
 
 def _protocol_error(
