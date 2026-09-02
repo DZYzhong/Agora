@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from packages.core.services.mcp_tools import canonical_tool_names, deprecated_tool_map
+
 
 HARNESS_PROTOCOL_CURRENT = "1.1"
 HARNESS_PROTOCOL_SUPPORTED = ["1.0", "1.1"]
@@ -8,39 +10,11 @@ MCP_SERVER_VERSION = "0.1.0"
 MINIMUM_LOCAL_CONNECTOR_VERSION = "0.1.0"
 LEGACY_PROTOCOL_VERSION = "1.0"
 
-CANONICAL_MCP_TOOLS = [
-    "agora_start_work",
-    "agora_prepare_context",
-    "agora_fetch_context_ref",
-    "agora_submit_context_proposal",
-    "agora_complete_workflow_step",
-    "agora_submit_skill_candidate",
-    "agora_suggest_skills",
-    "agora_record_evidence",
-    "agora_get_quality_status",
-    "agora_get_project_status",
-    "agora_get_protocol_manifest",
-    "agora_close_work",
-]
+# Derived from the canonical tool registry so advertisement and manifest
+# cannot drift from the dispatch surface (see packages/core/services/mcp_tools.py).
+CANONICAL_MCP_TOOLS = list(canonical_tool_names())
 
-DEPRECATED_MCP_TOOLS = {
-    "agora_plan_context": {
-        "canonical_tool": "agora_prepare_context",
-        "remove_after": "P2",
-    },
-    "agora_record_event": {
-        "canonical_tool": None,
-        "remove_after": "P2",
-    },
-    "agora_prepare_writeback": {
-        "canonical_tool": None,
-        "remove_after": "P2",
-    },
-    "agora_search_knowledge": {
-        "canonical_tool": "agora_prepare_context",
-        "remove_after": "P2",
-    },
-}
+DEPRECATED_MCP_TOOLS = deprecated_tool_map()
 
 
 @dataclass(frozen=True)

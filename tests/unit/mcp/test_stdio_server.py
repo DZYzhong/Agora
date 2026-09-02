@@ -3,6 +3,13 @@ import asyncio
 import httpx
 
 from apps.mcp.server import _dispatch, _post, list_tools
+from packages.core.services.mcp_tools import (
+    TOOL_DEFINITIONS,
+    canonical_tool_names,
+    get_tool_definition,
+    tool_schema,
+)
+from packages.core.services.protocol import CANONICAL_MCP_TOOLS, DEPRECATED_MCP_TOOLS, build_protocol_manifest
 
 
 def test_stdio_mcp_server_lists_agora_tools():
@@ -424,3 +431,113 @@ def test_stdio_close_work_without_summary_sends_no_development_update(monkeypatc
 
     assert result["status"] == "closed"
     assert captured["payload"]["development_update"] is None
+
+
+# --- Task 6: canonical immutable tool/handler registry ----------------------
+
+
+def test_registry_canonical_names_match_manifest_and_dispatch_keys():
+    canonical = canonical_tool_names()
+    registry_names = {definition.name for definition in TOOL_DEFINITIONS if not definition.deprecated}
+
+    assert set(canonical) == registry_names
+    assert set(canonical) == set(CANONICAL_MCP_TOOLS)
+    for name in canonical:
+        assert get_tool_definition(name) is not None
+
+    manifest = build_protocol_manifest()
+    assert set(manifest["tools"]["canonical"]) == set(canonical)
+    assert set(manifest["tools"]["deprecated"]) == set(DEPRECATED_MCP_TOOLS)
+
+
+def test_registry_deprecated_aliases_share_registry():
+    assert set(DEPRECATED_MCP_TOOLS) == {
+        "agora_plan_context",
+        "agora_record_event",
+        "agora_prepare_writeback",
+        "agora_search_knowledge",
+    }
+    for name in DEPRECATED_MCP_TOOLS:
+        definition = get_tool_definition(name)
+        assert definition is not None
+        assert definition.deprecated is True
+
+
+def test_registry_schemas_use_immutable_storage_and_fresh_copies():
+    for definition in TOOL_DEFINITIONS:
+        assert isinstance(definition.properties, tuple)
+        assert isinstance(definition.required, tuple)
+
+        first = tool_schema(definition)
+        second = tool_schema(definition)
+        assert first == second
+        assert first is not second
+        assert first["properties"] is not second["properties"]
+
+        if first["properties"]:
+            key = next(iter(first["properties"]))
+            first["properties"][key]["type"] = "integer"
+        assert tool_schema(definition) == second
+
+
+def test_registry_canonical_tools_include_workflow_completion():
+    assert "agora_complete_workflow_step" in canonical_tool_names()
+
+
+def test_registry_every_definition_exposes_minimum_protocol_version():
+    for definition in TOOL_DEFINITIONS:
+        assert definition.minimum_protocol_version in ("1.0", "1.1")
+    workflow_completion = get_tool_definition("agora_complete_workflow_step")
+    assert workflow_completion.minimum_protocol_version == "1.1"
+
+
+MINIMAL_DISPATCH_ARGUMENTS = {
+    "agora_start_work": {"user_message": "task", "agent_type": "codex", "local_observation": {"dirty": False}},
+    "agora_prepare_context": {"session_id": "sess_1"},
+    "agora_fetch_context_ref": {"session_id": "sess_1", "asset_id": "asset_1"},
+    "agora_submit_context_proposal": {"session_id": "sess_1", "title": "t", "summary": "m", "content": {}},
+    "agora_complete_workflow_step": {"session_id": "sess_1", "step_key": "analysis", "summary": "m"},
+    "agora_suggest_skills": {"session_id": "sess_1"},
+    "agora_submit_skill_candidate": {"session_id": "sess_1", "slug": "x", "name": "n", "summary": "m", "instructions": "i"},
+    "agora_record_evidence": {"session_id": "sess_1", "evidence_type": "local_test", "source": "ai_tool", "status": "passed", "conclusion": "c"},
+    "agora_get_quality_status": {"session_id": "sess_1"},
+    "agora_get_project_status": {"project_id": "project_1"},
+    "agora_close_work": {"session_id": "sess_1"},
+    "agora_plan_context": {"session_id": "sess_1"},
+    "agora_record_event": {"session_id": "sess_1", "event_type": "e", "payload": {}},
+    "agora_prepare_writeback": {"session_id": "sess_1", "title": "t", "content": "c"},
+    "agora_search_knowledge": {"session_id": "sess_1", "query": "q"},
+}
+
+
+def test_registry_parameterized_dispatch_posts_every_remote_definition_to_declared_path(monkeypatch):
+    captured = {}
+
+    async def fake_post(path, payload):
+        captured["path"] = path
+        captured["payload"] = payload
+        return {"ok": True}
+
+    monkeypatch.setattr("apps.mcp.server._post", fake_post)
+
+    for definition in TOOL_DEFINITIONS:
+        if definition.api_path is None:
+            continue
+        arguments = dict(MINIMAL_DISPATCH_ARGUMENTS[definition.name])
+        result = asyncio.run(_dispatch(definition.name, arguments))
+
+        assert captured["path"] == definition.api_path, definition.name
+        assert result["ok"] is True
+        if definition.deprecated:
+            assert result["deprecation"]["legacy_tool"] == definition.name
+            assert result["deprecation"]["canonical_tool"] == definition.canonical_tool
+
+
+def test_registry_local_manifest_definition_has_no_api_path():
+    definition = get_tool_definition("agora_get_protocol_manifest")
+    assert definition is not None
+    assert definition.api_path is None
+    assert definition.adapter is None
+
+    result = asyncio.run(_dispatch("agora_get_protocol_manifest", {}))
+    assert result["format"] == "agora-protocol-manifest/v1"

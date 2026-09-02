@@ -418,11 +418,11 @@ git commit -m "fix: keep close-work repository capture local"
 - Modify: `apps/mcp/server.py`
 - Modify: `tests/unit/mcp/test_stdio_server.py`
 
-- [ ] **Step 1: Add failing registry contract tests**
+- [x] **Step 1: Add failing registry contract tests**
 
 Assert advertised canonical names equal manifest names and handler keys; deprecated aliases share the registry; schemas use immutable internal mappings/tuples and fresh JSON copies; each remote definition uses its declared API path; parameterized dispatch validates every payload adapter; canonical tools include `agora_complete_workflow_step`; every definition exposes `minimum_protocol_version`, with workflow completion set to 1.1.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 .venv/bin/pytest tests/unit/mcp/test_stdio_server.py -q
@@ -430,11 +430,11 @@ Assert advertised canonical names equal manifest names and handler keys; depreca
 
 Expected: FAIL because tools and dispatch are independent lists/chains.
 
-- [ ] **Step 3: Implement definitions and registry handlers**
+- [x] **Step 3: Implement definitions and registry handlers**
 
 Use frozen records with immutable mappings/tuples and handler callables. Local manifest has no API path. Remote handlers consume definition paths; payload adapters live beside definitions.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 ```bash
 .venv/bin/pytest tests/unit/mcp/test_stdio_server.py tests/unit/mcp/test_tools.py -q
@@ -442,12 +442,19 @@ Use frozen records with immutable mappings/tuples and handler callables. Local m
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/core/services/mcp_tools.py packages/core/services/protocol.py apps/mcp/server.py tests/unit/mcp/test_stdio_server.py
 git commit -m "refactor: unify mcp definitions and dispatch"
 ```
+
+**Execution record (2026-09-01):**
+
+- Commit: `refactor: unify mcp definitions and dispatch` (single commit covers Steps 1-5).
+- Implementation: added `packages/core/services/mcp_tools.py` with frozen `McpToolDefinition` records (immutable `properties`/`required` tuples, fresh deep-copied schemas, declared `api_path`, `minimum_protocol_version` and payload adapters beside each definition); `protocol.py` manifest canonical/deprecated lists now derive from the registry; `apps/mcp/server.py` advertises and dispatches solely through the registry (remote tools post to their declared path, deprecated tools carry deprecation metadata, local manifest has no API path).
+- GREEN evidence: focused registry/stdio/tools suite `33 passed`; full Python suite counts recorded after the final commit.
+- State: `implemented` and `automated verified`; PR1A black-box and exit criteria remain pending.
 
 ### Task 7: Protocol 1.1 idempotency for create/complete/submit/close tools
 
