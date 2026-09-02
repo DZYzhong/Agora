@@ -115,6 +115,24 @@ PR2 exit gate:
 - `PR2-COMPOSE-*`, `PR2-WORKER-*`, `PR2-DR-*` evidence recorded.
 - Measured RPO <= 24 hours and RTO <= 4 hours.
 
+## 本机生产能力（2026-09-02 Web 整改 + 本机部署清单）
+
+Plan: `docs/superpowers/plans/2026-09-02-production-ready-web-deploy.md`
+
+Current execution state (2026-09-02): A1/A2/B1-B6/C2/D1-D3 完成并自动验证；D1 真实 `docker compose up` 全栈健康（api/worker/web/nginx/postgres/redis），引导、登录/reauth、建项目、成员激活、审批拒绝矩阵均在本机部署栈实测通过（`~483 passed, 2 skipped`（SQLite）+ `4 passed` PostgreSQL 专属回归；`tsc --noEmit`、`next build`、`pip check`、依赖审计 0 High/Critical）。部署实测抓出并修复两个 SQLite 掩盖的 PostgreSQL-only 缺陷（audit 多态 actor 外键 `20260902_0017`；跨后端 schema fingerprint 归一化），并堵住 compose 注入占位 token 的环境安全问题。C1（移除服务端本地初始化残留）按保守决策**挂起**：代码保留但在 production 下 404 隐藏，清理列入后续。
+
+Outcomes (2026-09-02 本机部署实测记录见 `docs/development/local-production-runbook.zh-CN.md` §10)：
+
+- Web 审批闭环（会话 + reauth + grant）、cookie 会话 UI、Nav 登录态、production 中间件登录门。
+- 知识总览、context 版本时间线、审批待办队列、workflow stepper、asset 查看/筛选、进行中会话看板。
+- Compose 收敛到实际服务集；secrets 走 gitignored `infra/.env`；nginx TLS API 入口（8443）。
+- 一键脚本 `scripts/deploy_local.sh` + `infra/env.production.example` + 本机生产运行手册。
+
+仍挂起（不阻塞本机生产能力，需真实环境/用户配合，详见清单"挂起项"）：
+
+- 真实 AI 工具（Codex 等）黑盒、PR1 exit gate、PR2 DR 干净主机演练、RPO≤24h/RTO≤4h 实测、运维 TLS 证书。
+- PR3-PR6 逐阶段推进（本机跑通稳定后）。
+
 ## Chunk 3: PR3 Team identity and authorization
 
 Separate implementation plan required after PR2 exit.
