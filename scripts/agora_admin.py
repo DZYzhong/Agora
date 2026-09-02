@@ -1,8 +1,10 @@
 import argparse
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import sqlite3
+import subprocess
 import sys
 from urllib.error import URLError
 from urllib.request import urlopen
@@ -118,19 +120,50 @@ def migrate(database_url: str, *, dry_run: bool, postgres_backup_confirmed: bool
     )
 
 
-def backup_sqlite(database_url: str, *, output: Path) -> Path:
+def backup_sqlite(database_url: str, *, output: Path, passphrase: str | None = None) -> Path:
+    """Online backup of a file-backed SQLite database.
+
+    When a passphrase is provided the backup file is encrypted at rest with
+    AES-256-CBC (openssl, PBKDF2); the plaintext is never written next to the
+    encrypted output.
+    """
     database_path = _sqlite_file_from_url(database_url)
     if database_path is None:
         raise SystemExit("backup-sqlite only supports file-backed SQLite URLs")
     output = output.expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     source_uri = f"file:{database_path}?mode=ro"
-    with sqlite3.connect(source_uri, uri=True) as source, sqlite3.connect(output) as destination:
-        source.backup(destination)
+    if passphrase is None:
+        with sqlite3.connect(source_uri, uri=True) as source, sqlite3.connect(output) as destination:
+            source.backup(destination)
+        return output
+    plaintext = output.with_suffix(f"{output.suffix}.tmp")
+    try:
+        with sqlite3.connect(source_uri, uri=True) as source, sqlite3.connect(plaintext) as destination:
+            source.backup(destination)
+        _openssl_encrypt(plaintext, output, passphrase)
+    finally:
+        plaintext.unlink(missing_ok=True)
     return output
 
 
-def restore_sqlite(*, backup: Path, database_url: str, yes: bool) -> Path:
+def _openssl_encrypt(src: Path, dst: Path, passphrase: str) -> None:
+    _openssl_run(["openssl", "enc", "-aes-256-cbc", "-salt", "-pbkdf2", "-pass", f"pass:{passphrase}"], src, dst)
+
+
+def _openssl_decrypt(src: Path, dst: Path, passphrase: str) -> None:
+    _openssl_run(["openssl", "enc", "-d", "-aes-256-cbc", "-pbkdf2", "-pass", f"pass:{passphrase}"], src, dst)
+
+
+def _openssl_run(args: list[str], src: Path, dst: Path) -> None:
+    with src.open("rb") as source, dst.open("wb") as destination:
+        result = subprocess.run(args, stdin=source, stdout=destination, stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        dst.unlink(missing_ok=True)
+        raise SystemExit(f"openssl failed: {result.stderr.decode('utf-8', errors='replace').strip()}")
+
+
+def restore_sqlite(*, backup: Path, database_url: str, yes: bool, passphrase: str | None = None) -> Path:
     if not yes:
         raise SystemExit("Refusing to restore SQLite database without --yes")
     database_path = _sqlite_file_from_url(database_url)
@@ -142,8 +175,17 @@ def restore_sqlite(*, backup: Path, database_url: str, yes: bool) -> Path:
     database_path.parent.mkdir(parents=True, exist_ok=True)
     for path in (database_path, Path(f"{database_path}-wal"), Path(f"{database_path}-shm")):
         path.unlink(missing_ok=True)
-    with sqlite3.connect(backup) as source, sqlite3.connect(database_path) as destination:
-        source.backup(destination)
+    if passphrase is None:
+        with sqlite3.connect(backup) as source, sqlite3.connect(database_path) as destination:
+            source.backup(destination)
+    else:
+        plaintext = backup.with_suffix(f"{backup.suffix}.tmp")
+        try:
+            _openssl_decrypt(backup, plaintext, passphrase)
+            with sqlite3.connect(plaintext) as source, sqlite3.connect(database_path) as destination:
+                source.backup(destination)
+        finally:
+            plaintext.unlink(missing_ok=True)
     ensure_schema(database_url)
     return database_path
 
@@ -450,14 +492,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Confirm an operator backup exists before stamping an unversioned PostgreSQL P1 schema",
     )
 
-    backup = subparsers.add_parser("backup-sqlite", help="Write an online backup of a file-backed SQLite database")
+    backup = subparsers.add_parser("backup-sqlite", help="Write an online backup of a file-backed SQLite database (encrypted when a passphrase is set)")
     backup.add_argument("--database-url", required=True)
     backup.add_argument("--output", required=True, type=Path)
+    backup.add_argument("--passphrase", default=None, help="Encryption passphrase; defaults to AGORA_BACKUP_PASSPHRASE")
 
-    restore = subparsers.add_parser("restore-sqlite", help="Restore a file-backed SQLite database from a backup file")
+    restore = subparsers.add_parser("restore-sqlite", help="Restore a file-backed SQLite database from a backup file (decrypt when a passphrase is set)")
     restore.add_argument("--backup", required=True, type=Path)
     restore.add_argument("--database-url", required=True)
     restore.add_argument("--yes", action="store_true", help="Confirm replacing the target SQLite database")
+    restore.add_argument("--passphrase", default=None, help="Decryption passphrase; defaults to AGORA_BACKUP_PASSPHRASE")
 
     export = subparsers.add_parser("export-project", help="Export one project governance archive as JSONL files")
     export.add_argument("--database-url", required=True)
@@ -542,11 +586,13 @@ def main() -> int:
         print(f"Backup: {result.backup_path or 'not-created'}")
         return 0
     if args.command == "backup-sqlite":
-        path = backup_sqlite(args.database_url, output=args.output)
-        print(f"SQLite backup written: {path}")
+        passphrase = args.passphrase or os.environ.get("AGORA_BACKUP_PASSPHRASE")
+        path = backup_sqlite(args.database_url, output=args.output, passphrase=passphrase)
+        print(f"SQLite backup written: {path}" + (" (encrypted)" if passphrase else ""))
         return 0
     if args.command == "restore-sqlite":
-        path = restore_sqlite(backup=args.backup, database_url=args.database_url, yes=args.yes)
+        passphrase = args.passphrase or os.environ.get("AGORA_BACKUP_PASSPHRASE")
+        path = restore_sqlite(backup=args.backup, database_url=args.database_url, yes=args.yes, passphrase=passphrase)
         print(f"SQLite backup restored: {path}")
         return 0
     if args.command == "export-project":

@@ -889,3 +889,67 @@ def test_admin_cli_bootstrap_admin_is_one_time(tmp_path):
         assert admins[0].password_hash.startswith("$argon2id$")
     finally:
         session.close()
+
+
+def test_encrypted_backup_restore_round_trip(tmp_path):
+    import os
+    import subprocess
+    import sys
+
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'agora.db'}"
+    engine = create_app_engine(database_url)
+    session = sessionmaker(bind=engine)()
+    from packages.core.models import ProjectModel
+
+    with SqlAlchemyUnitOfWork(session) as uow:
+        session.add(ProjectModel(org_id="org_enc", name="Encrypted", slug="encrypted", git_remotes=[]))
+        uow.commit()
+    session.close()
+
+    passphrase = "backup-passphrase-123"
+    backup_path = tmp_path / "backup.enc"
+    env = {**os.environ, "AGORA_BACKUP_PASSPHRASE": passphrase}
+
+    backup = subprocess.run(
+        [sys.executable, "-m", "scripts.agora_admin", "backup-sqlite", "--database-url", database_url, "--output", str(backup_path)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert backup.returncode == 0, backup.stderr
+    assert "encrypted" in backup.stdout
+    raw = backup_path.read_bytes()
+    assert b"encrypted" not in raw  # plaintext marker absent
+    assert b"SQLite format 3" not in raw  # not a plain sqlite file
+
+    # wrong passphrase fails loudly
+    bad_restore = subprocess.run(
+        [
+            sys.executable, "-m", "scripts.agora_admin", "restore-sqlite",
+            "--backup", str(backup_path), "--database-url", database_url, "--yes",
+        ],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "AGORA_BACKUP_PASSPHRASE": "wrong-passphrase"},
+    )
+    assert bad_restore.returncode != 0
+
+    # correct passphrase restores cleanly
+    restore = subprocess.run(
+        [
+            sys.executable, "-m", "scripts.agora_admin", "restore-sqlite",
+            "--backup", str(backup_path), "--database-url", database_url, "--yes",
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert restore.returncode == 0, restore.stderr
+
+    engine2 = create_app_engine(database_url)
+    session2 = sessionmaker(bind=engine2)()
+    try:
+        projects = session2.query(ProjectModel).filter_by(org_id="org_enc").all()
+        assert [project.slug for project in projects] == ["encrypted"]
+    finally:
+        session2.close()

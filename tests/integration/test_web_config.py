@@ -461,9 +461,11 @@ def test_runtime_environment_examples_use_supported_values():
 
     compose_environments = _compose_service_environment_values(compose)
     assert compose_environments == {
+        "migrate": ["production"],
         "api": ["production"],
         "web": ["production"],
         "local-connector": ["production"],
+        "worker": ["production"],
     }
 
     discovered_values = {
@@ -479,7 +481,7 @@ def test_runtime_environment_examples_use_supported_values():
 
     assert discovered_values == {
         ".env.example": ["production"],
-        "infra/docker-compose.yml": ["production", "production", "production"],
+        "infra/docker-compose.yml": ["production", "production", "production", "production", "production"],
         "docs/development/p9-operations-readiness-blackbox.zh-CN.md": ["production"],
         "docs/manual/agora-system-user-and-technical-manual.zh-CN.md": ["development"],
     }
@@ -655,3 +657,33 @@ def test_pr1c_eslint_is_configured_and_non_interactive():
     assert '"lint": "eslint ."' in package
     assert "eslint" in package
     assert "eslint-config-next" in package
+
+
+def test_pr2_compose_runs_migrate_worker_and_reverse_proxy():
+    compose = Path("infra/docker-compose.yml").read_text()
+    document = yaml.safe_load(compose)
+    services = document["services"]
+
+    assert "migrate" in services
+    assert services["migrate"]["command"] == ["alembic", "upgrade", "head"]
+    assert services["api"]["depends_on"]["migrate"]["condition"] == "service_completed_successfully"
+
+    assert "worker" in services
+    assert services["worker"]["command"] == ["python", "-m", "apps.workers.main", "outbox-loop"]
+
+    assert "nginx" in services
+    assert "agora.conf" in services["nginx"]["volumes"][0]
+
+
+def test_pr2_nginx_reverse_proxy_enforces_limits():
+    conf = Path("infra/nginx/agora.conf").read_text()
+
+    assert "ssl_certificate" in conf
+    assert "ssl_certificate_key" in conf
+    assert "client_max_body_size 1m" in conf
+    assert "client_body_timeout" in conf
+    assert "proxy_read_timeout" in conf
+    assert "limit_req_zone" in conf
+    assert "limit_req" in conf
+    assert "proxy_pass http://agora_api" in conf
+    assert "return 301 https://" in conf
