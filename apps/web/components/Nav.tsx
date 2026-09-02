@@ -9,6 +9,7 @@ export function Nav() {
       </Link>
       <nav className="nav-links" aria-label="Primary">
         <Link href="/projects">Projects</Link>
+        <Link href="/users">Users</Link>
       </nav>
     </header>
   );

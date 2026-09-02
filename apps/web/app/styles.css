@@ -726,3 +726,23 @@ button {
     display: grid;
   }
 }
+
+.alert-highlight {
+  border-color: #b8860b;
+  background: #fffbea;
+}
+
+.token-box {
+  padding: 0.75rem 1rem;
+  border: 1px dashed #b8860b;
+  border-radius: 6px;
+  background: #1a1a1a;
+  color: #ffe066;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9rem;
+}
+
+.danger {
+  color: #c0392b;
+}

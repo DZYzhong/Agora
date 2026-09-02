@@ -590,3 +590,56 @@ def test_pr1a_blackbox_guide_exists():
     assert "Retry" in content
     assert "用户是否通过 AI 工具完成" in content
     assert "未手动调用 HTTP API" in content
+
+
+def test_pr1b_web_login_page_and_session_routes_exist():
+    login_page = Path("apps/web/app/login/page.tsx")
+    login_route = Path("apps/web/app/login/submit/route.ts")
+    logout_route = Path("apps/web/app/logout/route.ts")
+    api_lib = Path("apps/web/lib/api.ts").read_text()
+
+    assert login_page.exists()
+    content = login_page.read_text()
+    assert "username" in content
+    assert "password" in content
+    assert "Sign in" in content
+
+    login_handler = login_route.read_text()
+    assert "/auth/login" in login_handler
+    assert "set-cookie" in login_handler
+    assert "Location" in login_handler
+
+    logout_handler = logout_route.read_text()
+    assert "/auth/logout" in logout_handler
+    assert "agora_session" in logout_handler
+    assert "Max-Age=0" in logout_handler
+
+    assert "apiGetWithSession" in api_lib
+    assert "apiPostWithSession" in api_lib
+    assert "agora_csrf" in api_lib
+    assert "X-CSRF-Token" in api_lib
+
+
+def test_pr1b_web_users_management_pages_exist():
+    users_page = Path("apps/web/app/users/page.tsx")
+    assert users_page.exists()
+    content = users_page.read_text()
+    assert "Create user" in content
+    assert "username" in content
+    assert "display_name" in content
+    assert "Disable" in content
+    assert "Reset password" in content
+    assert "/users?org_id=local-org" in content
+    assert "activation_token" in content
+    assert "reset_token" in content
+
+    for action in ("create", "disable", "enable", "reset"):
+        route = Path(f"apps/web/app/users/{action}/route.ts")
+        assert route.exists(), action
+        handler = route.read_text()
+        assert "apiPostWithSession" in handler, action
+
+
+def test_pr1b_web_nav_links_to_users():
+    nav = Path("apps/web/components/Nav.tsx").read_text()
+    assert 'href="/users"' in nav
