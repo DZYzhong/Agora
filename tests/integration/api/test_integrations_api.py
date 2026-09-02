@@ -1,6 +1,12 @@
 from fastapi.testclient import TestClient
 
 from apps.api.main import app
+from sqlalchemy.orm import sessionmaker
+
+from apps.api.dependencies import get_engine
+from packages.core.passwords import hash_password
+from packages.core.repositories.identities import IdentityRepository
+from packages.core.uow import SqlAlchemyUnitOfWork
 
 HUMAN_TOKEN = "integrations-human-token"
 AGENT_TOKEN = "integrations-agent-token"
@@ -22,6 +28,45 @@ def _production_auth(monkeypatch) -> None:
     monkeypatch.setenv("AGORA_BOOTSTRAP_AGENT_TOKEN", AGENT_TOKEN)
     monkeypatch.setenv("AGORA_BOOTSTRAP_CI_TOKEN", CI_TOKEN)
     monkeypatch.setenv("AGORA_BOOTSTRAP_ORG_ID", "local-org")
+
+
+def _session_client() -> TestClient:
+    return TestClient(app, base_url="https://testserver")
+
+
+def _csrf_headers(csrf_token: str) -> dict[str, str]:
+    return {"X-CSRF-Token": csrf_token, "Origin": "http://127.0.0.1:13140"}
+
+
+def _web_approver(client: TestClient, *, project_id: str) -> str:
+    from uuid import uuid4
+
+    from packages.core.models import UserModel
+
+    username = f"web-{uuid4().hex[:10]}"
+    db = sessionmaker(bind=get_engine())()
+    try:
+        with SqlAlchemyUnitOfWork(db) as uow:
+            user = UserModel(
+                org_id="local-org",
+                username=username,
+                display_name="Web Approver",
+                status="active",
+                is_placeholder=False,
+                password_hash=hash_password("web-password"),
+            )
+            db.add(user)
+            db.flush()
+            IdentityRepository(db).grant_membership(project_id=project_id, user_id=user.id, role="owner")
+            uow.commit()
+    finally:
+        db.close()
+    login = client.post("/auth/login", json={"username": username, "password": "web-password"})
+    assert login.status_code == 200, login.text
+    csrf = login.json()["csrf_token"]
+    reauth = client.post("/auth/reauth", json={"password": "web-password"}, headers=_csrf_headers(csrf))
+    assert reauth.status_code == 200, reauth.text
+    return csrf
 
 
 def test_ci_quality_signal_records_evidence_and_updates_project_status(monkeypatch):
@@ -184,7 +229,7 @@ def test_ci_quality_signal_rejects_non_ci_credentials(monkeypatch):
 def test_repository_revision_signal_marks_context_stale_and_creates_refresh_proposal(monkeypatch):
     _production_auth(monkeypatch)
 
-    with TestClient(app) as client:
+    with _session_client() as client:
         project = client.post(
             "/projects",
             headers=_headers(HUMAN_TOKEN),
@@ -211,9 +256,10 @@ def test_repository_revision_signal_marks_context_stale_and_creates_refresh_prop
                 "provenance": {"generating_tool": "codex", "schema_version": "context-revision/v1"},
             },
         ).json()
+        approver = _web_approver(client, project_id=project["id"])
         client.post(
             f"/projects/{project['id']}/context/proposals/{initial['id']}/approve",
-            headers=_headers(HUMAN_TOKEN),
+            headers=_csrf_headers(approver),
             json={
                 "expected_head_revision_id": None,
                 "comment": "批准初始上下文。",
@@ -317,7 +363,7 @@ def test_repository_revision_signal_reuses_existing_task_link_work_item(monkeypa
 def test_pull_request_signal_resolves_project_from_repository_and_creates_refresh_proposal(monkeypatch):
     _production_auth(monkeypatch)
 
-    with TestClient(app) as client:
+    with _session_client() as client:
         project = client.post(
             "/projects",
             headers=_headers(HUMAN_TOKEN),
@@ -344,9 +390,10 @@ def test_pull_request_signal_resolves_project_from_repository_and_creates_refres
                 "provenance": {"generating_tool": "codex", "schema_version": "context-revision/v1"},
             },
         ).json()
+        approver = _web_approver(client, project_id=project["id"])
         client.post(
             f"/projects/{project['id']}/context/proposals/{initial['id']}/approve",
-            headers=_headers(HUMAN_TOKEN),
+            headers=_csrf_headers(approver),
             json={
                 "expected_head_revision_id": None,
                 "comment": "批准初始上下文。",

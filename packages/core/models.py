@@ -235,6 +235,23 @@ class WebSessionModel(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class ApprovalGrantModel(Base):
+    __tablename__ = "approval_grants"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    org_id: Mapped[str] = mapped_column(String, index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    session_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    object_type: Mapped[str] = mapped_column(String, index=True)
+    object_id: Mapped[str] = mapped_column(String, index=True)
+    payload_digest: Mapped[str] = mapped_column(String)
+    decision: Mapped[str] = mapped_column(String)
+    policy_version: Mapped[str] = mapped_column(String)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
 class ProjectMembershipModel(Base):
     __tablename__ = "project_memberships"
     __table_args__ = (

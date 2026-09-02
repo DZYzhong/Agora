@@ -21,6 +21,7 @@ from apps.api.routers.skills import router as skills_router
 from apps.api.routers.work_items import router as work_items_router
 from apps.api.routers.writebacks import router as writebacks_router
 from apps.api.routers.users import router as users_router
+from apps.api.routers.approvals import router as approvals_router
 from apps.api.auth import bootstrap_auth_from_env
 from apps.api.dependencies import get_engine, get_runtime_policy
 from packages.core.services.runtime import CoreRuntime
@@ -63,6 +64,7 @@ app.include_router(integrations_router)
 app.include_router(work_items_router)
 app.include_router(writebacks_router)
 app.include_router(users_router)
+app.include_router(approvals_router)
 
 
 def custom_openapi():

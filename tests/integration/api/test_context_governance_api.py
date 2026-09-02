@@ -1,4 +1,7 @@
 from fastapi.testclient import TestClient
+from uuid import uuid4
+
+from packages.core.passwords import hash_password
 from sqlalchemy.orm import sessionmaker
 
 from apps.api.dependencies import get_engine
@@ -15,6 +18,52 @@ MEMBER_TOKEN = "context-member-token"
 
 def _headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+def _session_client() -> TestClient:
+    # Secure cookies are only sent by httpx over https.
+    return TestClient(app, base_url="https://testserver")
+
+
+def _csrf_headers(csrf_token: str) -> dict[str, str]:
+    return {"X-CSRF-Token": csrf_token, "Origin": "http://127.0.0.1:13140"}
+
+
+def _web_approver(client: TestClient, *, project_id: str, role: str = "owner") -> str:
+    """Create a Web human user with the given project role, log in and reauthenticate.
+
+    Returns the CSRF token of the logged-in session.
+    """
+    from packages.core.models import UserModel
+
+    username = f"web-{uuid4().hex[:10]}"
+    db = sessionmaker(bind=get_engine())()
+    try:
+        with SqlAlchemyUnitOfWork(db) as uow:
+            user = UserModel(
+                org_id="local-org",
+                username=username,
+                display_name="Web Approver",
+                status="active",
+                is_placeholder=False,
+                password_hash=hash_password("web-password"),
+            )
+            db.add(user)
+            db.flush()
+            IdentityRepository(db).grant_membership(project_id=project_id, user_id=user.id, role=role)
+            uow.commit()
+    finally:
+        db.close()
+    login = client.post("/auth/login", json={"username": username, "password": "web-password"})
+    assert login.status_code == 200, login.text
+    csrf = login.json()["csrf_token"]
+    reauth = client.post(
+        "/auth/reauth",
+        json={"password": "web-password"},
+        headers=_csrf_headers(csrf),
+    )
+    assert reauth.status_code == 200, reauth.text
+    return csrf
 
 
 def _production_auth(monkeypatch) -> None:
@@ -95,8 +144,9 @@ def _proposal_payload(expected_head_revision_id: str | None = None) -> dict:
 
 def test_agent_submits_context_proposal_and_human_accepts_revision(monkeypatch):
     _production_auth(monkeypatch)
-    with TestClient(app) as client:
+    with _session_client() as client:
         project = _create_project(client)
+        approver = _web_approver(client, project_id=project["id"])
 
         create_response = client.post(
             f"/projects/{project['id']}/context/proposals",
@@ -112,7 +162,7 @@ def test_agent_submits_context_proposal_and_human_accepts_revision(monkeypatch):
 
         approve_response = client.post(
             f"/projects/{project['id']}/context/proposals/{proposal['id']}/approve",
-            headers=_headers(HUMAN_TOKEN),
+            headers=_csrf_headers(approver),
             json={
                 "expected_head_revision_id": None,
                 "comment": "同意作为项目初始上下文。",
@@ -137,7 +187,7 @@ def test_agent_submits_context_proposal_and_human_accepts_revision(monkeypatch):
 
 def test_context_approval_rejects_agent_and_non_reviewer_member_with_audit(monkeypatch):
     _production_auth(monkeypatch)
-    with TestClient(app) as client:
+    with _session_client() as client:
         project = _create_project(client)
         proposal = client.post(
             f"/projects/{project['id']}/context/proposals",
@@ -160,14 +210,16 @@ def test_context_approval_rejects_agent_and_non_reviewer_member_with_audit(monke
             headers=_headers(AGENT_TOKEN),
             json=payload,
         )
+        # a member role cannot approve even with a reauthenticated Web session
+        member_approver = _web_approver(client, project_id=project["id"], role="member")
         member_denied = client.post(
             f"/projects/{project['id']}/context/proposals/{proposal['id']}/approve",
-            headers=_headers(MEMBER_TOKEN),
+            headers=_csrf_headers(member_approver),
             json=payload,
         )
 
     assert agent_denied.status_code == 403
-    assert agent_denied.json()["detail"]["code"] == "HUMAN_CREDENTIAL_REQUIRED"
+    assert agent_denied.json()["detail"]["code"] == "APPROVAL_CREDENTIAL_REQUIRED"
     assert member_denied.status_code == 403
     assert member_denied.json()["detail"]["code"] == "PROJECT_ROLE_REQUIRED"
 
@@ -175,13 +227,14 @@ def test_context_approval_rejects_agent_and_non_reviewer_member_with_audit(monke
         events = db.query(SecurityAuditEventModel).filter_by(project_id=project["id"]).order_by(SecurityAuditEventModel.created_at).all()
         assert [event.action for event in events] == ["context_proposal.approve", "context_proposal.approve"]
         assert [event.decision for event in events] == ["deny", "deny"]
-        assert {event.reason for event in events} == {"HUMAN_CREDENTIAL_REQUIRED", "PROJECT_ROLE_REQUIRED"}
+        assert {event.reason for event in events} == {"APPROVAL_CREDENTIAL_REQUIRED", "PROJECT_ROLE_REQUIRED"}
 
 
 def test_accepting_stale_context_proposal_marks_needs_rebase(monkeypatch):
     _production_auth(monkeypatch)
-    with TestClient(app) as client:
+    with _session_client() as client:
         project = _create_project(client)
+        approver = _web_approver(client, project_id=project["id"])
         first = client.post(
             f"/projects/{project['id']}/context/proposals",
             headers=_headers(AGENT_TOKEN),
@@ -189,7 +242,7 @@ def test_accepting_stale_context_proposal_marks_needs_rebase(monkeypatch):
         ).json()
         accepted = client.post(
             f"/projects/{project['id']}/context/proposals/{first['id']}/approve",
-            headers=_headers(HUMAN_TOKEN),
+            headers=_csrf_headers(approver),
             json={
                 "expected_head_revision_id": None,
                 "revision_signal": {
@@ -207,7 +260,7 @@ def test_accepting_stale_context_proposal_marks_needs_rebase(monkeypatch):
         ).json()
         stale_accept = client.post(
             f"/projects/{project['id']}/context/proposals/{stale['id']}/approve",
-            headers=_headers(HUMAN_TOKEN),
+            headers=_csrf_headers(approver),
             json={
                 "expected_head_revision_id": None,
                 "revision_signal": {
@@ -226,8 +279,9 @@ def test_accepting_stale_context_proposal_marks_needs_rebase(monkeypatch):
 
 def test_multiple_same_head_context_proposals_cannot_overwrite_stream_head(monkeypatch):
     _production_auth(monkeypatch)
-    with TestClient(app) as client:
+    with _session_client() as client:
         project = _create_project(client)
+        approver = _web_approver(client, project_id=project["id"])
         proposals = [
             client.post(
                 f"/projects/{project['id']}/context/proposals",
@@ -244,7 +298,7 @@ def test_multiple_same_head_context_proposals_cannot_overwrite_stream_head(monke
         results = [
             client.post(
                 f"/projects/{project['id']}/context/proposals/{proposal['id']}/approve",
-                headers=_headers(HUMAN_TOKEN),
+                headers=_csrf_headers(approver),
                 json={
                     "expected_head_revision_id": None,
                     "revision_signal": {
@@ -274,8 +328,9 @@ def test_prepare_context_uses_accepted_revision_after_approval(
     repo = local_init_root / "repo"
     (repo / "src").mkdir(parents=True)
     (repo / "src/payments.py").write_text("payment state machine", encoding="utf-8")
-    with TestClient(app) as client:
+    with _session_client() as client:
         project = _create_project(client)
+        approver = _web_approver(client, project_id=project["id"])
         client.post(
             f"/projects/{project['id']}/initialize-local",
             headers=_headers(HUMAN_TOKEN),
@@ -288,7 +343,7 @@ def test_prepare_context_uses_accepted_revision_after_approval(
         ).json()
         accepted = client.post(
             f"/projects/{project['id']}/context/proposals/{proposal['id']}/approve",
-            headers=_headers(HUMAN_TOKEN),
+            headers=_csrf_headers(approver),
             json={
                 "expected_head_revision_id": None,
                 "revision_signal": {
@@ -326,7 +381,7 @@ def test_prepare_context_uses_accepted_revision_after_approval(
 
 def test_ai_tool_submits_context_proposal_through_harness_session(monkeypatch):
     _production_auth(monkeypatch)
-    with TestClient(app) as client:
+    with _session_client() as client:
         project = _create_project(client)
         started = client.post(
             "/harness/start-work",
@@ -366,8 +421,9 @@ def test_ai_tool_submits_context_proposal_through_harness_session(monkeypatch):
 
 def test_feature_branch_context_proposal_updates_feature_stream_without_overwriting_main(monkeypatch):
     _production_auth(monkeypatch)
-    with TestClient(app) as client:
+    with _session_client() as client:
         project = _create_project(client)
+        approver = _web_approver(client, project_id=project["id"])
         main_proposal = client.post(
             f"/projects/{project['id']}/context/proposals",
             headers=_headers(AGENT_TOKEN),
@@ -375,7 +431,7 @@ def test_feature_branch_context_proposal_updates_feature_stream_without_overwrit
         ).json()
         main_accepted = client.post(
             f"/projects/{project['id']}/context/proposals/{main_proposal['id']}/approve",
-            headers=_headers(HUMAN_TOKEN),
+            headers=_csrf_headers(approver),
             json={
                 "expected_head_revision_id": None,
                 "revision_signal": {
@@ -406,7 +462,7 @@ def test_feature_branch_context_proposal_updates_feature_stream_without_overwrit
 
         feature_accepted = client.post(
             f"/projects/{project['id']}/context/proposals/{feature_proposal['id']}/approve",
-            headers=_headers(HUMAN_TOKEN),
+            headers=_csrf_headers(approver),
             json={
                 "expected_head_revision_id": None,
                 "revision_signal": {
@@ -426,8 +482,9 @@ def test_feature_branch_context_proposal_updates_feature_stream_without_overwrit
 
 def test_feature_branch_context_cannot_update_default_stream_without_merge_signal(monkeypatch):
     _production_auth(monkeypatch)
-    with TestClient(app) as client:
+    with _session_client() as client:
         project = _create_project(client)
+        approver = _web_approver(client, project_id=project["id"])
         proposal = client.post(
             f"/projects/{project['id']}/context/proposals",
             headers=_headers(AGENT_TOKEN),
@@ -448,7 +505,7 @@ def test_feature_branch_context_cannot_update_default_stream_without_merge_signa
 
         response = client.post(
             f"/projects/{project['id']}/context/proposals/{proposal['id']}/approve",
-            headers=_headers(HUMAN_TOKEN),
+            headers=_csrf_headers(approver),
             json={
                 "expected_head_revision_id": None,
                 "revision_signal": {

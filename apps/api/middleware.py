@@ -34,7 +34,11 @@ class CsrfProtectionMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request, call_next):
-        if request.method in STATE_CHANGING_METHODS and request.cookies.get(SESSION_COOKIE_NAME):
+        if (
+            request.method in STATE_CHANGING_METHODS
+            and request.cookies.get(SESSION_COOKIE_NAME)
+            and not request.headers.get("Authorization")
+        ):
             if not _origin_allowed(request):
                 return JSONResponse(
                     {"detail": {"code": "CSRF_ORIGIN_REJECTED", "message": "Cross-origin request rejected"}},

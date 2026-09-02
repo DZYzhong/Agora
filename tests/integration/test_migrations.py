@@ -79,7 +79,7 @@ def test_create_app_engine_upgrades_empty_in_memory_database_on_same_engine(data
 
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT count(*) FROM assets")) == 0
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260902_0014"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260902_0015"
 
 
 def test_p8_pull_request_signals_schema_links_project_work_item_and_actor(tmp_path):

@@ -1,6 +1,6 @@
 import os
 
-from fastapi import Header, HTTPException, status
+from fastapi import HTTPException, Request, status
 from sqlalchemy.orm import sessionmaker
 
 from apps.api.dependencies import auth_bypass_enabled, get_engine, get_runtime_policy
@@ -36,15 +36,24 @@ def bootstrap_auth_from_env(policy: RuntimePolicy | None = None) -> None:
         session.close()
 
 
-def get_current_principal(authorization: str | None = Header(default=None)) -> Principal:
+def get_current_principal(request: Request) -> Principal:
     if auth_bypass_enabled():
         return bypass_principal()
-    token = _bearer_token(authorization)
+    authorization = request.headers.get("Authorization")
     session = sessionmaker(bind=get_engine())()
     try:
-        principal = resolve_principal(session, bearer_token=token)
+        if authorization:
+            token = _bearer_token(authorization)
+            principal = resolve_principal(session, bearer_token=token)
+            if principal is None:
+                raise _auth_error("INVALID_CREDENTIAL", "Invalid bearer token")
+            return principal
+        # Web sessions authenticate via the Secure/HttpOnly cookie.
+        from apps.api.auth_session import SESSION_COOKIE_NAME, resolve_session_principal
+
+        principal = resolve_session_principal(session, session_token=request.cookies.get(SESSION_COOKIE_NAME))
         if principal is None:
-            raise _auth_error("INVALID_CREDENTIAL", "Invalid bearer token")
+            raise _auth_error("AUTH_REQUIRED", "Authentication required")
         return principal
     finally:
         session.close()

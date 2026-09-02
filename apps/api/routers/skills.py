@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from apps.api.auth import get_current_principal, require_human, require_project_approver, require_project_member
 from apps.api.dependencies import get_db_session
 from packages.core.auth import Principal
+from packages.core.services.approval_grants import ApprovalDeniedError, approval_payload_digest, require_approval_capability
 from packages.core.services.runtime import CoreRuntime
 from packages.core.uow import SqlAlchemyUnitOfWork
 from packages.domain.enums import SkillStatus
@@ -33,6 +34,7 @@ class SkillUpdateRequest(BaseModel):
 class SkillApproveRequest(BaseModel):
     name: str | None = None
     definition: dict | None = None
+    approval_grant_id: str | None = None
 
 
 class SkillRunRequest(BaseModel):
@@ -278,7 +280,24 @@ def approve_skill(
             if skill is None:
                 raise HTTPException(status_code=404, detail="Skill not found")
             _ensure_project_skill(skill, project_id)
-            if not principal.is_human:
+            try:
+                require_approval_capability(
+                    session,
+                    principal=principal,
+                    org_id=project.org_id,
+                    object_type="skill",
+                    object_id=skill.id,
+                    payload_digest=approval_payload_digest(
+                        skill.id,
+                        skill.slug,
+                        skill.name,
+                        payload.name if payload is not None else None,
+                        payload.definition if payload is not None else None,
+                    ),
+                    decision="approved",
+                    grant_id=payload.approval_grant_id if payload is not None else None,
+                )
+            except ApprovalDeniedError as exc:
                 _record_security_audit(
                     runtime,
                     project=project,
@@ -287,10 +306,11 @@ def approve_skill(
                     target_type="skill",
                     target_id=skill.id,
                     decision="deny",
-                    reason="HUMAN_CREDENTIAL_REQUIRED",
+                    reason=exc.code,
+                    metadata={"detail": exc.message},
                 )
                 uow.commit()
-                require_human(principal)
+                raise HTTPException(status_code=403, detail={"code": exc.code, "message": exc.message}) from exc
             try:
                 require_project_approver(session, principal, project_id=project.id)
             except HTTPException as exc:

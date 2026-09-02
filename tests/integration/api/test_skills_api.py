@@ -25,6 +25,46 @@ def _headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _session_client() -> TestClient:
+    return TestClient(app, base_url="https://testserver")
+
+
+def _csrf_headers(csrf_token: str) -> dict[str, str]:
+    return {"X-CSRF-Token": csrf_token, "Origin": "http://127.0.0.1:13140"}
+
+
+def _web_approver(client: TestClient, *, project_id: str, role: str = "owner") -> str:
+    from uuid import uuid4
+
+    from packages.core.models import UserModel
+    from packages.core.passwords import hash_password
+
+    username = f"web-{uuid4().hex[:10]}"
+    db = sessionmaker(bind=get_engine())()
+    try:
+        with SqlAlchemyUnitOfWork(db) as uow:
+            user = UserModel(
+                org_id="local-org",
+                username=username,
+                display_name="Web Approver",
+                status="active",
+                is_placeholder=False,
+                password_hash=hash_password("web-password"),
+            )
+            db.add(user)
+            db.flush()
+            IdentityRepository(db).grant_membership(project_id=project_id, user_id=user.id, role=role)
+            uow.commit()
+    finally:
+        db.close()
+    login = client.post("/auth/login", json={"username": username, "password": "web-password"})
+    assert login.status_code == 200, login.text
+    csrf = login.json()["csrf_token"]
+    reauth = client.post("/auth/reauth", json={"password": "web-password"}, headers=_csrf_headers(csrf))
+    assert reauth.status_code == 200, reauth.text
+    return csrf
+
+
 def _production_auth(monkeypatch) -> None:
     monkeypatch.delenv("AGORA_TEST_AUTH_BYPASS", raising=False)
     monkeypatch.setenv("AGORA_BOOTSTRAP_HUMAN_TOKEN", HUMAN_TOKEN)
@@ -151,7 +191,7 @@ def test_project_skill_lifecycle_and_run_history():
 
 def test_skill_approval_rejects_agent_and_non_reviewer_member_with_audit(monkeypatch):
     _production_auth(monkeypatch)
-    with TestClient(app) as client:
+    with _session_client() as client:
         project = client.post(
             "/projects",
             headers=_headers(HUMAN_TOKEN),
@@ -182,9 +222,10 @@ def test_skill_approval_rejects_agent_and_non_reviewer_member_with_audit(monkeyp
             f"/projects/{project['id']}/skills/{skill['id']}/approve",
             headers=_headers(AGENT_TOKEN),
         )
+        member_approver = _web_approver(client, project_id=project["id"], role="member")
         member_denied = client.post(
             f"/projects/{project['id']}/skills/{skill['id']}/approve",
-            headers=_headers(MEMBER_TOKEN),
+            headers=_csrf_headers(member_approver),
         )
         audit_response = client.get(
             f"/projects/{project['id']}/security-audit",
@@ -192,18 +233,18 @@ def test_skill_approval_rejects_agent_and_non_reviewer_member_with_audit(monkeyp
         )
 
     assert agent_denied.status_code == 403
-    assert agent_denied.json()["detail"]["code"] == "HUMAN_CREDENTIAL_REQUIRED"
+    assert agent_denied.json()["detail"]["code"] == "APPROVAL_CREDENTIAL_REQUIRED"
     assert member_denied.status_code == 403
     assert member_denied.json()["detail"]["code"] == "PROJECT_ROLE_REQUIRED"
     assert audit_response.status_code == 200
     assert [event["decision"] for event in audit_response.json()[-2:]] == ["deny", "deny"]
-    assert {event["reason"] for event in audit_response.json()[-2:]} == {"HUMAN_CREDENTIAL_REQUIRED", "PROJECT_ROLE_REQUIRED"}
+    assert {event["reason"] for event in audit_response.json()[-2:]} == {"APPROVAL_CREDENTIAL_REQUIRED", "PROJECT_ROLE_REQUIRED"}
 
     with sessionmaker(bind=get_engine())() as db:
         events = db.query(SecurityAuditEventModel).filter_by(project_id=project["id"]).order_by(SecurityAuditEventModel.created_at).all()
         assert [event.action for event in events[-2:]] == ["skill.approve", "skill.approve"]
         assert [event.decision for event in events[-2:]] == ["deny", "deny"]
-        assert {event.reason for event in events[-2:]} == {"HUMAN_CREDENTIAL_REQUIRED", "PROJECT_ROLE_REQUIRED"}
+        assert {event.reason for event in events[-2:]} == {"APPROVAL_CREDENTIAL_REQUIRED", "PROJECT_ROLE_REQUIRED"}
 
 
 def test_approving_and_running_skill_creates_and_pins_immutable_skill_version():

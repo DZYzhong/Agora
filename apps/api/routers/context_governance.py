@@ -10,6 +10,7 @@ from apps.api.auth import get_current_principal, require_human, require_project_
 from apps.api.dependencies import get_db_session
 from packages.core.auth import Principal
 from packages.core.repositories.projects import ProjectRepository
+from packages.core.services.approval_grants import ApprovalDeniedError, approval_payload_digest, require_approval_capability
 from packages.core.services.runtime import CoreRuntime
 from packages.core.uow import SqlAlchemyUnitOfWork
 
@@ -43,6 +44,7 @@ class ContextProposalApprove(BaseModel):
     expected_head_revision_id: str | None = None
     comment: str | None = None
     revision_signal: RevisionSignal
+    approval_grant_id: str | None = None
 
 
 @router.get("/streams")
@@ -132,7 +134,24 @@ def approve_context_proposal(
         project = ProjectRepository(session).get(project_id)
         if project is None:
             raise HTTPException(status_code=404, detail="Project not found")
-        if not principal.is_human:
+        try:
+            require_approval_capability(
+                session,
+                principal=principal,
+                org_id=project.org_id,
+                object_type="context_proposal",
+                object_id=proposal.id,
+                payload_digest=approval_payload_digest(
+                    proposal.id,
+                    proposal.content,
+                    proposal.source_anchors,
+                    payload.revision_signal.model_dump(),
+                    payload.comment,
+                ),
+                decision="approved",
+                grant_id=payload.approval_grant_id,
+            )
+        except ApprovalDeniedError as exc:
             _record_security_audit(
                 runtime,
                 project=project,
@@ -141,10 +160,11 @@ def approve_context_proposal(
                 target_type="context_proposal",
                 target_id=proposal.id,
                 decision="deny",
-                reason="HUMAN_CREDENTIAL_REQUIRED",
+                reason=exc.code,
+                metadata={"detail": exc.message},
             )
             uow.commit()
-            require_human(principal)
+            raise HTTPException(status_code=403, detail={"code": exc.code, "message": exc.message}) from exc
         try:
             require_project_approver(session, principal, project_id=project_id)
         except HTTPException as exc:
