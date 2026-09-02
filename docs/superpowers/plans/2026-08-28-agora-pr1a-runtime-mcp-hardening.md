@@ -402,7 +402,7 @@ git commit -m "fix: keep close-work repository capture local"
 
 **Execution record (2026-09-01):**
 
-- Commit: `fix: keep close-work repository capture local` (single commit covers Steps 1-5).
+- Commit: `0be0ea9` (fix: keep close-work repository capture local; single commit covers Steps 1-5).
 - RED evidence: before implementation the server accepted `repo_path` and unvalidated client summaries; the new boundary tests could not pass against the previous code.
 - Implementation: added `packages/local_connector/development_capture.py` emitting only bounded relative metadata (allowlisted `added|modified|deleted|renamed` statuses, dirty flag, diff-stat counters; never diff/file content); refactored `packages/harness/development_capture.py` to accept validated structured files with the legacy server-side git path retained for contained development/test fixtures; `close_work` now accepts a validated `development_update`; API gating rejects `repo_path` under protocol 1.1 (`LOCAL_REPO_PATH_REJECTED`) and in production before any Git access (`LOCAL_REPO_PATH_FORBIDDEN`), and confines legacy paths to an explicit local-init root; MCP stdio schema and dispatch build the capture locally (`AGORA_WORKSPACE_ROOT`/cwd) and never send server paths.
 - GREEN evidence: focused Task5B suites — connector capture `5 passed`, MCP tools/stdio and harness API suites all passed; full Python suite `346 passed, 2 skipped` (counts recorded after the final commit).
