@@ -818,3 +818,10 @@ def test_pr_web_asset_content_view_and_filters_exist():
     assets_router = Path("apps/api/routers/assets.py").read_text()
     assert '"/{asset_id}"' in assets_router
     assert "with_content" in assets_router
+
+
+def test_pr_web_inflight_sessions_shown_on_project_home():
+    home = Path("apps/web/app/projects/[projectId]/page.tsx").read_text()
+    assert "In-flight sessions" in home
+    assert "status !== \"closed\"" in home
+    assert "sessions/${session.id}" in home

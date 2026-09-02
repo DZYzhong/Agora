@@ -1,6 +1,17 @@
 import Link from "next/link";
 import { apiGet } from "../../../lib/api";
 
+type LiveSession = {
+  id: string;
+  task_id: string | null;
+  work_item: { id: string; external_key: string | null; title: string; stage: string } | null;
+  agent_type: string;
+  intent: string;
+  status: string;
+  created_at: string;
+  events: Array<{ id: string; event_type: string; created_at: string }>;
+};
+
 type Project = {
   id: string;
   name: string;
@@ -29,6 +40,16 @@ export default async function ProjectDetailPage({
   const { projectId } = await params;
   await searchParams;
   const project = await apiGet<Project>(`/projects/${projectId}`);
+  let liveSessions: LiveSession[] = [];
+  try {
+    liveSessions = await apiGet<LiveSession[]>(`/projects/${projectId}/sessions`);
+  } catch {
+    liveSessions = [];
+  }
+  const inFlight = liveSessions
+    .filter((session) => session.status !== "closed")
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at) ?? ""))
+    .slice(0, 5);
   let initializationJobs: InitializationJob[] = [];
   try {
     initializationJobs = await apiGet<InitializationJob[]>(`/projects/${projectId}/initialization-jobs`);
@@ -119,6 +140,43 @@ export default async function ProjectDetailPage({
                 <span>{job.asset_count}</span>
                 <span>{job.warnings.length}</span>
                 <span>{job.completed_at ? new Date(job.completed_at).toLocaleString() : "In progress"}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {inFlight.length ? (
+        <section className="panel">
+          <div className="session-header">
+            <div>
+              <h2>In-flight sessions</h2>
+              <p className="muted">AI tool sessions currently working on this project.</p>
+            </div>
+            <Link className="button-link secondary-link" href={`/projects/${project.id}/sessions`}>
+              All sessions
+            </Link>
+          </div>
+          <div className="history-list">
+            <div className="history-row history-header">
+              <span>Agent</span>
+              <span>Intent</span>
+              <span>Work item</span>
+              <span>Started</span>
+            </div>
+            {inFlight.map((session) => (
+              <div className="history-row" key={session.id}>
+                <span>{session.agent_type}</span>
+                <span>{session.intent}</span>
+                <span>
+                  <Link href={`/projects/${project.id}/sessions/${session.id}`}>
+                    {session.work_item
+                      ? session.work_item.external_key
+                        ? `${session.work_item.external_key} · ${session.work_item.title}`
+                        : session.work_item.title
+                      : "No work item"}
+                  </Link>
+                </span>
+                <span>{new Date(session.created_at).toLocaleString()}</span>
               </div>
             ))}
           </div>
