@@ -25,11 +25,11 @@
 - Modify: `packages/core/services/outbox.py` (atomic claim `pending -> processing` with lease timestamp; lease-timeout reclaim of stale `processing` events; commit per event)
 - Modify: `tests/unit/core/test_outbox.py` (or new `tests/unit/core/test_outbox_leases.py`)
 
-- [ ] **Step 1: Add failing tests** — two processors claiming concurrently never process the same event; a crashed (stale) processing event is reclaimed after the lease timeout; retries and dead-lettering still work; per-event commit means one failure does not roll back other completions.
-- [ ] **Step 2: Run RED.**
-- [ ] **Step 3: Implement** lease claim + reclaim + per-event commit.
-- [ ] **Step 4: Run GREEN.**
-- [ ] **Step 5: Commit** `feat: add lease-based outbox claiming`.
+- [x] **Step 1: Add failing tests** — two processors claiming concurrently never process the same event; a crashed (stale) processing event is reclaimed after the lease timeout; retries and dead-lettering still work; per-event commit means one failure does not roll back other completions.
+- [x] **Step 2: Run RED.**
+- [x] **Step 3: Implement** lease claim + reclaim + per-event commit.
+- [x] **Step 4: Run GREEN.**
+- [x] **Step 5: Commit** `feat: add lease-based outbox claiming`.
 
 ### Task 2: Persistent worker loop with graceful shutdown
 
@@ -39,11 +39,11 @@
 - Modify: `apps/workers/workflows/outbox.py` (expose `run_worker_loop` reusable by tests)
 - Create: `tests/integration/workers/test_outbox_loop.py`
 
-- [ ] **Step 1: Add failing tests** — `--once` processes a batch and exits 0; SIGTERM during the loop stops cleanly; backoff delay is honored (configurable for tests).
-- [ ] **Step 2: Run RED.**
-- [ ] **Step 3: Implement** the loop.
-- [ ] **Step 4: Run GREEN.**
-- [ ] **Step 5: Commit** `feat: add persistent outbox worker loop`.
+- [x] **Step 1: Add failing tests** — `--once` processes a batch and exits 0; SIGTERM during the loop stops cleanly; backoff delay is honored (configurable for tests).
+- [x] **Step 2: Run RED.**
+- [x] **Step 3: Implement** the loop.
+- [x] **Step 4: Run GREEN.**
+- [x] **Step 5: Commit** `feat: add persistent outbox worker loop`.
 
 ## Chunk 2: Deployment topology
 
@@ -55,11 +55,11 @@
 - Create: `infra/nginx/agora.conf` (TLS termination, `client_max_body_size`, timeouts, `limit_req`)
 - Modify: `tests/integration/test_web_config.py` (compose contract: migrate/worker/nginx services exist; nginx config has payload limit/timeout/rate limit; TLS cert paths referenced)
 
-- [ ] **Step 1: Add failing contract tests.**
-- [ ] **Step 2: Run RED.**
-- [ ] **Step 3: Implement** compose + nginx config.
-- [ ] **Step 4: Run GREEN** (PyYAML compose validation).
-- [ ] **Step 5: Commit** `feat: add migrate job, worker and reverse proxy to compose`.
+- [x] **Step 1: Add failing contract tests.**
+- [x] **Step 2: Run RED.**
+- [x] **Step 3: Implement** compose + nginx config.
+- [x] **Step 4: Run GREEN** (PyYAML compose validation).
+- [x] **Step 5: Commit** `feat: add migrate job, worker and reverse proxy to compose`.
 
 ### Task 4: `/ready` returns 503 on failure (verify PR1A fix)
 
@@ -67,9 +67,9 @@
 
 - Modify: `tests/integration/api/test_health.py` (assert 503 + `not_ready` when database is unreachable / configuration invalid; 200 only when fully ready)
 
-- [ ] **Step 1: Add failing/verification tests** (the PR1A fix already returns 503; add regression coverage).
-- [ ] **Step 2: Run GREEN.**
-- [ ] **Step 3: Commit** `test: verify readiness returns 503 on failure`.
+- [x] **Step 1: Add failing/verification tests** (the PR1A fix already returns 503; add regression coverage).
+- [x] **Step 2: Run GREEN.**
+- [x] **Step 3: Commit** `test: verify readiness returns 503 on failure`.
 
 ## Chunk 3: Encrypted backup and restore
 
@@ -80,19 +80,43 @@
 - Modify: `scripts/agora_admin.py` (`backup-sqlite --passphrase` / env `AGORA_BACKUP_PASSPHRASE`; `restore-sqlite` with same; openssl AES-256-CBC, no plaintext on disk)
 - Modify: `tests/integration/test_admin_cli.py` (backup-encrypt-restore round-trip; wrong passphrase fails; plaintext secrets not in the backup file)
 
-- [ ] **Step 1: Add failing tests.**
-- [ ] **Step 2: Run RED.**
-- [ ] **Step 3: Implement** openssl-backed encryption.
-- [ ] **Step 4: Run GREEN.**
-- [ ] **Step 5: Commit** `feat: encrypt sqlite backups at rest`.
+- [x] **Step 1: Add failing tests.**
+- [x] **Step 2: Run RED.**
+- [x] **Step 3: Implement** openssl-backed encryption.
+- [x] **Step 4: Run GREEN.**
+- [x] **Step 5: Commit** `feat: encrypt sqlite backups at rest`.
 
 ## Chunk 4: Verification and durable status
 
 ### Task 6: PR2 verification and roadmap update
 
-- [ ] **Step 1: Full verification** — `pytest`, `compileall`, `pip check`, `tsc --noEmit`, `next build`, `git diff --check`, PyYAML compose validation.
-- [ ] **Step 2: Update roadmap** PR2 state honestly: `implemented` + `automated verified`; DR drills, RPO/RTO measurement, TLS cert ops and PR1 black-box remain pending in a real environment.
-- [ ] **Step 3: Commit** `docs: record pr2 verification`.
+- [x] **Step 1: Full verification** — `pytest`, `compileall`, `pip check`, `tsc --noEmit`, `next build`, `git diff --check`, PyYAML compose validation.
+- [x] **Step 2: Update roadmap** PR2 state honestly: `implemented` + `automated verified`; DR drills, RPO/RTO measurement, TLS cert ops and PR1 black-box remain pending in a real environment.
+- [x] **Step 3: Commit** `docs: record pr2 verification`.
+
+## Execution records
+
+### Task 1-2 (2026-09-02)
+
+- Commit: `6151695` (feat: add persistent outbox worker with lease claiming). Migration `20260902_0016` adds `outbox_events.processing_started_at`; `OutboxProcessor` now claims events atomically (`pending|failed -> processing` with a lease timestamp, committed before the handler), commits each outcome separately, and reclaims stale leases after a configurable timeout. New `outbox-loop` worker command with SIGTERM/SIGINT graceful shutdown and `--once`; `run_worker_loop` reusable by tests. Suite: outbox processor `8 passed` + outbox loop `3 passed`.
+- Note: `packages/core/services/outbox.py` is exempted from the "services do not commit" guard because it owns per-event transaction boundaries for worker-side lease safety (same pattern as `auth_admin` at the package root).
+
+### Task 3 (2026-09-02)
+
+- Commit: `d4f7af0` (feat: add migrate job, worker, reverse proxy and encrypted backups). Compose now runs a one-shot `migrate` job (`alembic upgrade head`) before `api`/`worker`, adds a persistent `worker` service (`outbox-loop`), and fronts ingress with `nginx` (TLS 8443, `client_max_body_size 1m`, body/header timeouts, `proxy_read_timeout`, `limit_req`). `infra/nginx/agora.conf` documents self-signed cert generation for local dev and operator-managed certs in production. Contract tests `3 passed`; compose env test updated for the new services.
+
+### Task 4 (2026-09-02)
+
+- No code change: `/ready` already returns 503 on failure (fixed in PR1A `3ef536f`); `tests/unit/test_health.py` already covers 503 for invalid configuration, engine failure, DB query failure, probe disposal failure and stale schema (`21 passed`). Marked verified.
+
+### Task 5 (2026-09-02)
+
+- Commit: `d4f7af0`. `backup-sqlite`/`restore-sqlite` accept `--passphrase` or `AGORA_BACKUP_PASSPHRASE` and encrypt/decrypt via openssl AES-256-CBC (PBKDF2); plaintext is never written next to the encrypted output; wrong passphrase fails loudly. Round-trip test `1 passed`; plaintext markers absent from the encrypted file.
+
+### Task 6 (2026-09-02)
+
+- Verification: full Python suite `470 passed, 2 skipped`; `compileall` OK; `pip check` OK; PyYAML compose validation OK; `git diff --check` OK (web untouched this round, so `tsc`/`next build` carry over from PR1C).
+- Durable status: PR2 `implemented` + `automated verified`. DR drills on a clean host, measured RPO/RTO, operator TLS certificate management and PR1 real-AI-tool black-box remain open and gated on a real environment.
 
 ---
 

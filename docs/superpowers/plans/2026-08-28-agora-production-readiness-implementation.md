@@ -80,8 +80,6 @@ PR1 exit gate:
 
 ## Chunk 2: PR2 Recoverable deployment
 
-Separate implementation plan required after PR1 exit.
-
 ### PR2A: Compose deployability fixes (HIGH-2, HIGH-3)
 
 Plan: `docs/superpowers/plans/2026-09-01-agora-pr2a-compose-deployability.md`
@@ -94,6 +92,12 @@ Outcomes covered:
 - PostgreSQL data persists across container recreation via named volume.
 
 PR2A does not claim the full PR2 exit gate (TLS, worker, DR, measured RPO/RTO), which remains open and gated behind PR1 exit.
+
+### PR2: Recoverable deployment
+
+Plan: `docs/superpowers/plans/2026-09-02-agora-pr2-recoverable-deployment.md`
+
+Current execution state (2026-09-02): Tasks 1-6 implemented and automated-verified (`470 passed, 2 skipped`; PyYAML compose validation OK). DR drills on a clean host, measured RPO/RTO, operator TLS certificate management and PR1 real-AI-tool black-box remain open and gated on a real environment.
 
 Outcomes:
 
