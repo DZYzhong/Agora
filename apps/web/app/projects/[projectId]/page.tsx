@@ -145,6 +145,10 @@ export default async function ProjectDetailPage({
           <h2>Skills</h2>
           <p className="muted">Inspect built-in and project skills.</p>
         </Link>
+        <Link className="panel" href={`/projects/${project.id}/knowledge`}>
+          <h2>Knowledge</h2>
+          <p className="muted">See the team knowledge accumulated in this project.</p>
+        </Link>
         <Link className="panel" href={`/projects/${project.id}/context`}>
           <h2>Context</h2>
           <p className="muted">Inspect uploaded context state and provisional P1 material.</p>

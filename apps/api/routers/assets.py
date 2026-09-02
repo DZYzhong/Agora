@@ -26,6 +26,7 @@ def list_assets(
             "source_uri": asset.source_uri,
             "title": asset.title,
             "summary": asset.summary,
+            "created_at": asset.created_at,
         }
         for asset in assets
     ]

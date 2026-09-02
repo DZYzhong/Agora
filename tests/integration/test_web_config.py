@@ -737,3 +737,25 @@ def test_pr_web_nav_shows_sign_in_out_and_middleware_guards_production():
     assert '"/login"' in middleware
     assert "next" in middleware
     assert "/projects" in middleware
+
+
+def test_pr_web_knowledge_overview_page_exists_and_is_linked():
+    page = Path("apps/web/app/projects/[projectId]/knowledge/page.tsx")
+    assert page.exists()
+    content = page.read_text()
+    assert "Knowledge" in content
+    assert "/projects/${projectId}/assets" in content
+    assert "/projects/${projectId}/writebacks" in content
+    assert "Recently accumulated" in content
+    assert "Context revisions" in content
+    assert "accepted_revision_id" in content
+
+    home = Path("apps/web/app/projects/[projectId]/page.tsx").read_text()
+    assert '/knowledge' in home
+
+
+def test_asset_and_writeback_lists_expose_created_at_for_timelines():
+    assets_router = Path("apps/api/routers/assets.py").read_text()
+    writebacks_router = Path("apps/api/routers/writebacks.py").read_text()
+    assert '"created_at": asset.created_at' in assets_router
+    assert '"created_at": writeback.created_at' in writebacks_router

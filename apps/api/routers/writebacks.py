@@ -34,6 +34,7 @@ def list_writebacks(
             "content": writeback.content,
             "status": writeback.status,
             "accepted_asset_id": writeback.accepted_asset_id,
+            "created_at": writeback.created_at,
         }
         for writeback in writebacks
     ]
