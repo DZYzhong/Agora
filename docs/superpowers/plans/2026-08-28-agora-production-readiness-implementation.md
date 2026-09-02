@@ -44,7 +44,9 @@ PR1A is not suitable for shared or real-data deployment. Agent artifacts and Hum
 
 ### PR1B: Human sessions and approval grants
 
-Separate plan required after PR1A verification.
+Plan: `docs/superpowers/plans/2026-09-02-agora-pr1b-human-sessions-approval.md`
+
+Current execution state (2026-09-02): Tasks 1-7 implemented and automated-verified (`432 passed, 2 skipped`; `tsc --noEmit` and `next build` pass; `pip check` and `compileall` pass). PR1B `black-box passed` and PR1 exit criteria remain pending and gated behind PR1C and real AI-tool black-box runs.
 
 Outcomes:
 

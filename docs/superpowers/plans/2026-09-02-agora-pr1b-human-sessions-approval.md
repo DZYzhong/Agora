@@ -115,15 +115,15 @@ Hash/verify round-trip; wrong password fails; parameters embedded in the hash st
 - Create: `apps/web/app/login/page.tsx`, `apps/web/app/users/page.tsx`, route handlers for login/logout/users
 - Modify: `apps/web/lib/api.ts` (cookie credentials for session routes, CSRF header)
 
-- [ ] **Step 1: Add failing web-config contract tests** — login page exists; cookie + CSRF usage; users page lists members.
-- [ ] **Step 2: Implement + GREEN.**
-- [ ] **Step 3: Commit** `feat: add web login and user management`.
+- [x] **Step 1: Add failing web-config contract tests** — login page exists; cookie + CSRF usage; users page lists members.
+- [x] **Step 2: Implement + GREEN.**
+- [x] **Step 3: Commit** `feat: add web login and user management`.
 
 ### Task 7: PR1B verification and durable status
 
-- [ ] **Step 1: Full verification** — `pytest` full suite, `compileall`, `pip check`, `npx tsc --noEmit`, `next build`, `git diff --check`.
-- [ ] **Step 2: Update roadmap** (`2026-08-28-agora-production-readiness-implementation.md` PR1B state) honestly: `implemented` + `automated verified` only; black-box and PR1 exit remain pending.
-- [ ] **Step 3: Commit** `docs: record pr1b verification`.
+- [x] **Step 1: Full verification** — `pytest` full suite, `compileall`, `pip check`, `npx tsc --noEmit`, `next build`, `git diff --check`.
+- [x] **Step 2: Update roadmap** (`2026-08-28-agora-production-readiness-implementation.md` PR1B state) honestly: `implemented` + `automated verified` only; black-box and PR1 exit remain pending.
+- [x] **Step 3: Commit** `docs: record pr1b verification`.
 
 
 ## Execution records
@@ -161,6 +161,18 @@ Hash/verify round-trip; wrong password fails; parameters embedded in the hash st
 - Commit: `e47d5c3` (feat: enforce approval grants and credential denial matrix).
 - Implementation: `approval_grants` table + repository + `packages/core/services/approval_grants.py`: grants bound to human user, object type/id, payload digest, decision, policy version, 5-minute expiry, single-use; `require_approval_capability` enforces the denial matrix — Agent/CI/Personal bearer tokens denied (`APPROVAL_CREDENTIAL_REQUIRED`), reauthenticated Web human sessions approve directly, grants consumed with full binding checks. `/approval-grants` issues grants from reauthenticated sessions; `approve_context_proposal` and `approve_skill` enforce capability before the project-role check. Existing production-auth approval tests converted to the Web-session flow.
 - GREEN: `test_approval_grants.py` `9 passed`; full suite `429 passed, 2 skipped`.
+
+### Task 6 (2026-09-02)
+
+- Commit: `9cb89f7` (feat: add web login and user management).
+- Implementation: `/login` page + `/login/submit` route handler (forwards the API's session/CSRF cookies to the browser and redirects), `/logout` route (revokes via the API and clears cookies), `/users` page (lists users, create form, disable/enable/reset forms, one-time activation/reset token delivery boxes), `/users/{create,disable,enable,reset}` route handlers using the session-cookie + CSRF helpers added to `lib/api.ts` (`apiGetWithSession`/`apiPostWithSession`, `agora_csrf` → `X-CSRF-Token`).
+- GREEN: 3 new web-config contract tests; `npx tsc --noEmit` and `next build` pass; full suite `432 passed, 2 skipped`.
+
+### Task 7 (2026-09-02)
+
+- Commit: `docs: record pr1b verification` (this record).
+- Verification: full Python suite `432 passed, 2 skipped` (PostgreSQL skips remain partial evidence until PR2); `compileall` OK; `pip check` OK; `npx tsc --noEmit` OK; `next build` OK; `git diff --check` OK.
+- Durable status: PR1B Tasks 1-7 are `implemented` and `automated verified`. PR1B `black-box passed`, PR1 exit gate and production readiness remain open and gated behind PR1C and real-AI-tool black-box runs.
 
 ---
 
