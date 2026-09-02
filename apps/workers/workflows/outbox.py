@@ -1,24 +1,52 @@
 from __future__ import annotations
 
+import threading
+from typing import Callable
+
 from sqlalchemy.orm import Session
 
 from packages.core.models import OutboxEventModel
 from packages.core.services.outbox import OutboxProcessResult, OutboxProcessor
 from packages.core.services.runtime import CoreRuntime
-from packages.core.uow import SqlAlchemyUnitOfWork
 
 
 def process_outbox_once(session: Session, *, limit: int = 20, max_attempts: int = 3) -> OutboxProcessResult:
-    with SqlAlchemyUnitOfWork(session) as uow:
-        runtime = CoreRuntime(session)
-        processor = OutboxProcessor(
-            session,
-            handlers={"context_head_changed": _context_head_changed_handler(runtime)},
-            max_attempts=max_attempts,
-        )
-        result = processor.process_next_batch(limit=limit)
-        uow.commit()
-        return result
+    # The processor owns transaction boundaries (per-claim and per-outcome
+    # commits) for lease-based cross-worker safety; do not wrap in a UoW here.
+    runtime = CoreRuntime(session)
+    processor = OutboxProcessor(
+        session,
+        handlers={"context_head_changed": _context_head_changed_handler(runtime)},
+        max_attempts=max_attempts,
+    )
+    return processor.process_next_batch(limit=limit)
+
+
+def run_worker_loop(
+    session_factory: Callable[[], Session],
+    *,
+    max_attempts: int = 3,
+    batch_limit: int = 20,
+    idle_delay: float = 1.0,
+    shutdown_event: threading.Event | None = None,
+) -> int:
+    """Run the persistent outbox worker until the shutdown event is set.
+
+    Returns the total number of events processed. The shutdown event doubles as
+    the backoff sleep, so SIGTERM stops the loop promptly even while idle.
+    """
+    shutdown = shutdown_event or threading.Event()
+    processed_total = 0
+    while not shutdown.is_set():
+        with session_factory() as session:
+            result = process_outbox_once(session, limit=batch_limit, max_attempts=max_attempts)
+        processed_total += result.processed
+        if result.processed == 0:
+            if shutdown.wait(idle_delay):
+                break
+        elif shutdown.wait(0.05):
+            break
+    return processed_total
 
 
 def _context_head_changed_handler(runtime: CoreRuntime):

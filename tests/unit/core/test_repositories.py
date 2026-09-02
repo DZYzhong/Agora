@@ -131,9 +131,15 @@ def test_repositories_and_domain_services_do_not_commit_transactions():
         PROJECT_ROOT / "packages/domain",
         PROJECT_ROOT / "packages/harness",
     ]
+    # packages/core/services/outbox.py owns per-claim/per-outcome transaction
+    # boundaries for lease-based cross-worker safety (PR2); it is invoked by
+    # the worker process, not by API routes, so its commits are sanctioned.
+    exempt_paths = {PROJECT_ROOT / "packages/core/services/outbox.py"}
     offenders = []
     for root in guarded_roots:
         for path in root.rglob("*.py"):
+            if path in exempt_paths:
+                continue
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
             for node in ast.walk(tree):
                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "commit":

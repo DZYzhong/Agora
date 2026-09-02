@@ -7,7 +7,6 @@ from apps.workers.workflows.outbox import process_outbox_once
 from packages.core.models import ContextProposalModel, ContextRevisionModel, ContextStreamModel, ProjectModel
 from packages.core.models import OutboxEventModel
 from packages.core.services.outbox import OutboxProcessor
-from packages.core.uow import SqlAlchemyUnitOfWork
 
 
 def _alembic_config(database_url: str) -> Config:
@@ -44,10 +43,8 @@ def _event(**overrides) -> OutboxEventModel:
 
 
 def _process_and_commit(processor: OutboxProcessor, *, limit: int = 10):
-    with SqlAlchemyUnitOfWork(processor.session) as uow:
-        result = processor.process_next_batch(limit=limit)
-        uow.commit()
-        return result
+    # The processor owns transaction boundaries (per-claim/per-outcome commits).
+    return processor.process_next_batch(limit=limit)
 
 
 def test_outbox_processor_marks_successful_event_completed_once(tmp_path):
@@ -216,3 +213,89 @@ def test_outbox_workflow_marks_inconsistent_context_head_event_dead(tmp_path):
     assert result.dead == 1
     assert event.status == "dead"
     assert "does not match stream head" in event.last_error
+
+
+def test_lease_claim_prevents_double_processing_by_concurrent_workers(tmp_path):
+    session = _session(tmp_path)
+    session.add(_event())
+    session.commit()
+    calls = []
+
+    def handle(event):
+        calls.append(event.id)
+
+    # Worker A claims and completes the event.
+    worker_a = OutboxProcessor(session, handlers={"context_head_changed": handle})
+    first = _process_and_commit(worker_a, limit=10)
+
+    # Worker B (a different session on the same DB) sees nothing to process.
+    engine = session.get_bind()
+    session_b = sessionmaker(bind=engine)()
+    try:
+        worker_b = OutboxProcessor(session_b, handlers={"context_head_changed": handle})
+        second = _process_and_commit(worker_b, limit=10)
+    finally:
+        session_b.close()
+
+    assert first.processed == 1
+    assert second.processed == 0
+    assert len(calls) == 1
+
+
+def test_stale_processing_event_is_reclaimed_after_lease_timeout(tmp_path):
+    from datetime import timedelta
+
+    session = _session(tmp_path)
+    event = session.add(_event())
+    session.flush()
+    # Simulate a crashed worker: claim the event, then abandon it without completion.
+    processor = OutboxProcessor(session, handlers={"context_head_changed": lambda e: None})
+    processor._claim(session.query(OutboxEventModel).one().id)
+    event = session.query(OutboxEventModel).one()
+    assert event.status == "processing"
+
+    # A processor with an expired lease reclaims and processes it.
+    from packages.core.models import utc_now
+
+    event.processing_started_at = utc_now() - timedelta(minutes=10)
+    session.commit()
+
+    calls = []
+
+    def handle(e):
+        calls.append(e.id)
+
+    reclaiming = OutboxProcessor(
+        session,
+        handlers={"context_head_changed": handle},
+        lease_timeout=timedelta(minutes=5),
+    )
+    result = _process_and_commit(reclaiming, limit=10)
+
+    assert result.reclaimed == 1
+    assert result.completed == 1
+    assert len(calls) == 1
+    assert session.query(OutboxEventModel).one().status == "completed"
+
+
+def test_failed_handler_does_not_roll_back_other_completions(tmp_path):
+    session = _session(tmp_path)
+    session.add(_event(idempotency_key="context_head_changed:stream-1:revision-1"))
+    session.add(_event(idempotency_key="context_head_changed:stream-2:revision-2", aggregate_id="stream-2"))
+    session.commit()
+    calls = []
+
+    def flaky(event):
+        calls.append(event.id)
+        if event.aggregate_id == "stream-1":
+            raise RuntimeError("projection schema mismatch")
+
+    processor = OutboxProcessor(session, handlers={"context_head_changed": flaky})
+
+    result = _process_and_commit(processor, limit=10)
+
+    events = session.query(OutboxEventModel).order_by(OutboxEventModel.aggregate_id).all()
+    assert result.processed == 2
+    assert result.failed == 1
+    assert result.completed == 1
+    assert {event.status for event in events} == {"failed", "completed"}

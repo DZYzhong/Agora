@@ -230,7 +230,7 @@ def test_admin_cli_export_project_archive_writes_manifest_and_jsonl_assets(tmp_p
     assert "Project export written" in result.stdout
     manifest = json.loads((export_dir / "manifest.json").read_text())
     assert manifest["project"]["slug"] == "order-dev-platform"
-    assert manifest["schema_revision"] == "20260902_0015"
+    assert manifest["schema_revision"] == "20260902_0016"
     assert manifest["files"]["projects.jsonl"] == 1
     assert manifest["files"]["work_items.jsonl"] == 1
     assert manifest["files"]["quality_evidence.jsonl"] == 1
@@ -722,7 +722,7 @@ def test_admin_cli_compatibility_check_reports_protocol_manifest(tmp_path):
     report = json.loads(result.stdout)
     assert report["format"] == "agora-compatibility-check/v1"
     assert report["compatible"] is True
-    assert report["schema_revision"] == "20260902_0015"
+    assert report["schema_revision"] == "20260902_0016"
     assert report["protocol_manifest"]["harness_protocol"]["current"] == "1.1"
     assert report["protocol_manifest"]["harness_protocol"]["supported"] == ["1.0", "1.1"]
     assert report["protocol_manifest"]["compatibility"]["minimum_local_connector_version"] == "0.1.0"
@@ -782,7 +782,7 @@ def test_admin_cli_smoke_checks_api_readiness_metrics_and_web(tmp_path):
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(
-                    b'{"status":"ready","checks":{"database":{"status":"ok"},"schema":{"revision":"20260902_0015"}}}'
+                    b'{"status":"ready","checks":{"database":{"status":"ok"},"schema":{"revision":"20260902_0016"}}}'
                 )
                 return
             if self.path == "/metrics":
