@@ -469,6 +469,7 @@ def complete_workflow_step(
     session: Session = Depends(get_db_session),
     keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
     vector_index: FakeVectorIndex = Depends(get_vector_index),
+    runtime_policy: RuntimePolicy = Depends(get_runtime_policy),
 ):
     try:
         require_minimum_protocol(protocol, "1.1")
@@ -486,6 +487,7 @@ def complete_workflow_step(
                 session=session,
                 keyword_index=keyword_index,
                 vector_index=vector_index,
+                runtime_policy=runtime_policy,
             ),
         )
     except ProtocolNegotiationError as exc:
@@ -508,8 +510,10 @@ def _complete_workflow_step_once(
     session: Session,
     keyword_index: FakeKeywordIndex,
     vector_index: FakeVectorIndex,
+    runtime_policy: RuntimePolicy,
 ) -> dict:
     _ensure_session_member(session, principal, session_id=payload.session_id)
+    _enforce_pr1a_content_boundary(payload, runtime_policy)
     response = _harness(session, keyword_index, vector_index).complete_workflow_step(
         **payload.model_dump(),
         principal=principal,
@@ -519,6 +523,35 @@ def _complete_workflow_step_once(
     response_dict["request_id"] = payload.session_id
     _apply_protocol_metadata(response_dict, protocol)
     return response_dict
+
+
+def _enforce_pr1a_content_boundary(payload: CompleteWorkflowStepRequest, runtime_policy: RuntimePolicy) -> None:
+    """Temporary PR1A boundary: no untyped artifact upload or approval grants.
+
+    Summary-only completions are always allowed when otherwise authorized.
+    Artifacts and human confirmations are blocked in development and
+    production; they remain accepted only in an isolated test environment.
+    PR1B/PR1C replace these temporary errors with the typed upload/approval
+    policies — the checks must never be removed blindly.
+    """
+    if runtime_policy.environment == "test":
+        return
+    if payload.artifacts:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "PR1_UPLOAD_POLICY_REQUIRED",
+                "message": "Work artifact upload requires the PR1B upload policy; summary-only completion is supported before then",
+            },
+        )
+    if payload.human_confirmation is not None:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "PR1_APPROVAL_POLICY_REQUIRED",
+                "message": "Approval grants require the PR1B approval policy; summary-only completion is supported before then",
+            },
+        )
 
 
 @router.post("/submit-skill-candidate", status_code=status.HTTP_201_CREATED)

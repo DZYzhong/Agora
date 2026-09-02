@@ -3,7 +3,17 @@ from sqlalchemy.orm import sessionmaker
 
 from apps.api.dependencies import get_engine, get_keyword_index, get_vector_index
 from apps.api.main import app
-from packages.core.models import HumanConfirmationModel, QualityEvidenceModel, WorkArtifactModel, WorkItemModel
+from packages.core.auth import hash_token, token_diagnostic_prefix
+from packages.core.models import (
+    CredentialModel,
+    HumanConfirmationModel,
+    QualityEvidenceModel,
+    UserModel,
+    WorkArtifactModel,
+    WorkItemModel,
+)
+from packages.core.repositories.identities import IdentityRepository
+from packages.core.uow import SqlAlchemyUnitOfWork
 
 PROTOCOL_11_HEADERS = {"Agora-Protocol-Version": "1.1", "Agora-Connector-Version": "0.1.0"}
 
@@ -1534,3 +1544,144 @@ def test_idempotency_key_scope_includes_protocol_version():
     assert legacy.status_code == 201
     assert current.status_code == 409
     assert current.json()["detail"]["error"]["code"] == "IDEMPOTENCY_CONFLICT"
+
+
+# --- Task 8: safe workflow completion boundary (PR1A) ---
+
+def test_production_workflow_completion_blocks_untyped_artifacts_and_confirmation(authenticated_client, monkeypatch):
+    client = authenticated_client
+    project = client.post(
+        "/projects",
+        json={"org_id": "org_pr1a", "name": "PR1A", "slug": "pr1a", "git_remotes": []},
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={"project_id": project["id"], "user_message": "PR1A 边界验证", "agent_type": "codex"},
+    ).json()
+
+    monkeypatch.setenv("AGORA_ENV", "production")
+
+    summary_only = client.post(
+        "/harness/complete-workflow-step",
+        headers=_idem("key-pr1a-summary"),
+        json={"session_id": started["session_id"], "step_key": "analysis", "summary": "仅摘要完成。"},
+    )
+    assert summary_only.status_code == 200
+
+    with_artifacts = client.post(
+        "/harness/complete-workflow-step",
+        headers=_idem("key-pr1a-artifacts"),
+        json={
+            "session_id": started["session_id"],
+            "step_key": "design",
+            "summary": "带产物完成。",
+            "artifacts": [{"type": "analysis_note", "title": "分析记录", "content": "影响面已确认。"}],
+        },
+    )
+    assert with_artifacts.status_code == 400
+    assert with_artifacts.json()["detail"]["code"] == "PR1_UPLOAD_POLICY_REQUIRED"
+
+    with_confirmation = client.post(
+        "/harness/complete-workflow-step",
+        headers=_idem("key-pr1a-confirmation"),
+        json={
+            "session_id": started["session_id"],
+            "step_key": "design",
+            "summary": "带人工确认完成。",
+            "human_confirmation": {"confirmation_type": "step_review", "decision": "approved"},
+        },
+    )
+    assert with_confirmation.status_code == 400
+    assert with_confirmation.json()["detail"]["code"] == "PR1_APPROVAL_POLICY_REQUIRED"
+
+
+def test_production_workflow_completion_boundary_is_principal_independent(authenticated_client, monkeypatch):
+    client = authenticated_client
+    agent_token = "pr1a-agent-token"
+    project = client.post(
+        "/projects",
+        json={"org_id": "org_pr1a_agent", "name": "PR1AAgent", "slug": "pr1a-agent", "git_remotes": []},
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={"project_id": project["id"], "user_message": "PR1A 代理边界", "agent_type": "codex"},
+    ).json()
+
+    db = sessionmaker(bind=get_engine())()
+    try:
+        with SqlAlchemyUnitOfWork(db) as uow:
+            user = UserModel(org_id="local-org", display_name="PR1A Agent", status="active", is_placeholder=False)
+            db.add(user)
+            db.flush()
+            credential = CredentialModel(
+                user_id=user.id,
+                kind="agent",
+                token_hash=hash_token(agent_token),
+                token_prefix=token_diagnostic_prefix(agent_token),
+                status="active",
+            )
+            db.add(credential)
+            db.flush()
+            IdentityRepository(db).grant_membership(project_id=project["id"], user_id=user.id, role="member")
+            uow.commit()
+    finally:
+        db.close()
+
+    monkeypatch.setenv("AGORA_ENV", "production")
+
+    summary_only = client.post(
+        "/harness/complete-workflow-step",
+        headers={
+            "Authorization": f"Bearer {agent_token}",
+            "Agora-Protocol-Version": "1.1",
+            "Agora-Connector-Version": "0.1.0",
+            "Idempotency-Key": "key-pr1a-agent-summary",
+        },
+        json={"session_id": started["session_id"], "step_key": "analysis", "summary": "代理仅摘要完成。"},
+    )
+    assert summary_only.status_code == 200
+
+    with_artifacts = client.post(
+        "/harness/complete-workflow-step",
+        headers={
+            "Authorization": f"Bearer {agent_token}",
+            "Agora-Protocol-Version": "1.1",
+            "Agora-Connector-Version": "0.1.0",
+            "Idempotency-Key": "key-pr1a-agent-artifacts",
+        },
+        json={
+            "session_id": started["session_id"],
+            "step_key": "design",
+            "summary": "代理带产物完成。",
+            "artifacts": [{"type": "analysis_note", "title": "分析记录", "content": "影响面已确认。"}],
+        },
+    )
+    assert with_artifacts.status_code == 400
+    assert with_artifacts.json()["detail"]["code"] == "PR1_UPLOAD_POLICY_REQUIRED"
+
+
+def test_development_workflow_completion_also_blocks_artifacts(authenticated_client, monkeypatch):
+    client = authenticated_client
+    project = client.post(
+        "/projects",
+        json={"org_id": "org_pr1a_dev", "name": "PR1ADev", "slug": "pr1a-dev", "git_remotes": []},
+    ).json()
+    started = client.post(
+        "/harness/start-work",
+        json={"project_id": project["id"], "user_message": "开发环境边界", "agent_type": "codex"},
+    ).json()
+
+    monkeypatch.setenv("AGORA_ENV", "development")
+
+    with_artifacts = client.post(
+        "/harness/complete-workflow-step",
+        headers=_idem("key-pr1a-dev"),
+        json={
+            "session_id": started["session_id"],
+            "step_key": "analysis",
+            "summary": "开发环境带产物。",
+            "artifacts": [{"type": "analysis_note", "title": "t", "content": "c"}],
+        },
+    )
+    assert with_artifacts.status_code == 400
+    assert with_artifacts.json()["detail"]["code"] == "PR1_UPLOAD_POLICY_REQUIRED"

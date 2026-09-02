@@ -124,12 +124,15 @@ def _submit_context_proposal_payload(arguments: dict[str, Any]) -> dict[str, Any
 
 @_adapter
 def _complete_workflow_step_payload(arguments: dict[str, Any]) -> dict[str, Any]:
+    # PR1A safety boundary: the 1.1 stdio transport sends summary-only
+    # completions. Artifact upload and approval grants require the PR1B/PR1C
+    # typed policies and are rejected server-side before persistence.
     return {
         "session_id": arguments["session_id"],
         "step_key": arguments["step_key"],
         "summary": arguments["summary"],
-        "artifacts": arguments.get("artifacts", []),
-        "human_confirmation": arguments.get("human_confirmation"),
+        "artifacts": [],
+        "human_confirmation": None,
     }
 
 
@@ -288,13 +291,11 @@ TOOL_DEFINITIONS: tuple[McpToolDefinition, ...] = (
     ),
     McpToolDefinition(
         name="agora_complete_workflow_step",
-        description="Complete the current Agora workflow step after producing required artifacts and receiving human confirmation.",
+        description="Complete the current Agora workflow step with a summary of what was completed. Artifact upload and approval grants are blocked until the PR1B/PR1C typed policies are available.",
         properties=(
             _str("session_id"),
             _str("step_key", "The current workflow step key, such as analysis, design, review, implementation, self_test, or upload."),
             _str("summary", "Concise evidence-backed summary of what was completed in this step."),
-            _arr("artifacts", "object", "Structured artifacts produced for the workflow step."),
-            _obj("human_confirmation", "Human review or confirmation record collected in the AI tool before advancing the workflow."),
             _str("idempotency_key", "Client-generated idempotency key for safe retries (required by protocol 1.1)."),
         ),
         required=("session_id", "step_key", "summary", "idempotency_key"),

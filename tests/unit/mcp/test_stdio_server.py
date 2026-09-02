@@ -49,7 +49,16 @@ def test_stdio_mcp_server_lists_agora_tools():
     workflow_tool = next(tool for tool in result.tools if tool.name == "agora_complete_workflow_step")
     assert "session_id" in workflow_tool.input_schema["required"]
     assert "step_key" in workflow_tool.input_schema["required"]
-    assert "human_confirmation" in workflow_tool.input_schema["properties"]
+    assert "summary" in workflow_tool.input_schema["required"]
+    assert "idempotency_key" in workflow_tool.input_schema["required"]
+    assert set(workflow_tool.input_schema["properties"]) == {
+        "session_id",
+        "step_key",
+        "summary",
+        "idempotency_key",
+    }
+    assert "artifacts" not in workflow_tool.input_schema["properties"]
+    assert "human_confirmation" not in workflow_tool.input_schema["properties"]
 
     skill_tool = next(tool for tool in result.tools if tool.name == "agora_submit_skill_candidate")
     assert "session_id" in skill_tool.input_schema["required"]
@@ -170,6 +179,7 @@ def test_stdio_complete_workflow_step_dispatches_to_harness(monkeypatch):
                 "session_id": "sess_1",
                 "step_key": "analysis",
                 "summary": "分析完成，人工已确认。",
+                "idempotency_key": "key-complete",
                 "artifacts": [{"type": "analysis_note", "title": "分析记录", "content": "影响面已确认。"}],
                 "human_confirmation": {"confirmation_type": "step_review", "decision": "approved"},
             },
@@ -179,8 +189,8 @@ def test_stdio_complete_workflow_step_dispatches_to_harness(monkeypatch):
     assert result["completed_step"]["step_key"] == "analysis"
     assert captured["path"] == "/harness/complete-workflow-step"
     assert captured["payload"]["summary"] == "分析完成，人工已确认。"
-    assert captured["payload"]["artifacts"][0]["title"] == "分析记录"
-    assert captured["payload"]["human_confirmation"]["decision"] == "approved"
+    assert captured["payload"]["artifacts"] == []
+    assert captured["payload"]["human_confirmation"] is None
 
 
 def test_stdio_submit_skill_candidate_dispatches_to_harness(monkeypatch):

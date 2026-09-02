@@ -522,11 +522,11 @@ git commit -m "feat: require idempotency for protocol 1.1 writes"
 - Modify: `tests/integration/api/test_harness_api.py`
 - Modify: `tests/unit/mcp/test_stdio_server.py`
 
-- [ ] **Step 1: Add failing boundary tests**
+- [x] **Step 1: Add failing boundary tests**
 
 In `production`, for every principal kind: summary-only complete succeeds when otherwise authorized; non-empty artifacts returns `PR1_UPLOAD_POLICY_REQUIRED`; any confirmation returns `PR1_APPROVAL_POLICY_REQUIRED`. Legacy artifact/confirmation compatibility is allowed only in isolated `AGORA_ENV=test`, never in development or production. MCP 1.1 schema exposes only idempotency key, session ID, step key and summary.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 .venv/bin/pytest tests/integration/api/test_harness_api.py::test_agent_workflow_completion_blocks_untyped_artifacts_and_confirmation tests/unit/mcp/test_stdio_server.py::test_stdio_complete_workflow_step_has_pr1a_safe_schema -q
@@ -534,11 +534,11 @@ In `production`, for every principal kind: summary-only complete succeeds when o
 
 Expected: FAIL because API accepts untyped content and stdio omits the tool.
 
-- [ ] **Step 3: Implement temporary safety boundary and handler**
+- [x] **Step 3: Implement temporary safety boundary and handler**
 
 Stdio sends empty artifacts/no confirmation. API checks runtime environment and payload before persistence, independent of principal kind. PR1B/PR1C replace temporary errors with typed policy, never remove checks blindly.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 ```bash
 .venv/bin/pytest tests/integration/api/test_harness_api.py tests/unit/mcp/test_stdio_server.py tests/unit/mcp/test_tools.py -q
@@ -546,12 +546,19 @@ Stdio sends empty artifacts/no confirmation. API checks runtime environment and 
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/routers/harness.py apps/mcp/server.py packages/core/services/mcp_tools.py tests/integration/api/test_harness_api.py tests/unit/mcp/test_stdio_server.py
 git commit -m "feat: expose safe workflow completion over mcp"
 ```
+
+**Execution record (2026-09-01):**
+
+- Commit: `feat: expose safe workflow completion over mcp` (single commit covers Steps 1-5).
+- Implementation: `_enforce_pr1a_content_boundary` checks the runtime environment and payload before persistence, independent of principal kind — summary-only completions succeed in development/production, non-empty artifacts return `PR1_UPLOAD_POLICY_REQUIRED`, any human confirmation returns `PR1_APPROVAL_POLICY_REQUIRED`; legacy artifact/confirmation compatibility remains only in isolated `AGORA_ENV=test`. The MCP 1.1 `agora_complete_workflow_step` schema now exposes only `idempotency_key`, `session_id`, `step_key` and `summary`, and the stdio adapter always sends empty artifacts and no confirmation.
+- GREEN evidence: focused boundary suite `3 passed`; MCP + API integration `155 passed`; full Python suite counts recorded after the final commit.
+- State: `implemented` and `automated verified`; PR1A black-box and exit criteria remain pending.
 
 ### Task 9: Stateful real-stdio process workflow
 
