@@ -8,6 +8,7 @@ from apps.api.dependencies import get_engine, get_runtime_policy
 from packages.core.auth import hash_token
 from packages.core.models import utc_now
 from packages.core.repositories.sessions_auth import WebSessionRepository
+from packages.core.upload_policy import MAX_JSON_BODY_BYTES, redact_sensitive
 
 
 REQUEST_ID_HEADER = "X-Request-ID"
@@ -22,6 +23,24 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers[REQUEST_ID_HEADER] = request_id
         return response
+
+
+class BodyLimitMiddleware(BaseHTTPMiddleware):
+    """Reject oversized request bodies with a stable error before parsing."""
+
+    async def dispatch(self, request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and content_length.isdigit() and int(content_length) > MAX_JSON_BODY_BYTES:
+            return JSONResponse(
+                {
+                    "detail": {
+                        "code": "PAYLOAD_TOO_LARGE",
+                        "message": f"Request body exceeds the {MAX_JSON_BODY_BYTES} byte limit",
+                    }
+                },
+                status_code=413,
+            )
+        return await call_next(request)
 
 
 class CsrfProtectionMiddleware(BaseHTTPMiddleware):
@@ -102,6 +121,21 @@ class HideProductionLocalInitializationMiddleware(BaseHTTPMiddleware):
             if get_runtime_policy().environment == "production":
                 return JSONResponse({"detail": "Not Found"}, status_code=404)
         return await call_next(request)
+
+
+def stable_error_response(exc: Exception) -> JSONResponse:
+    """Convert an unhandled exception into a stable, redacted 500 response."""
+    message = redact_sensitive(str(exc))
+    return JSONResponse(
+        {
+            "detail": {
+                "code": "INTERNAL_ERROR",
+                "message": "Internal server error",
+                "redacted_reason": message[:500] if message else None,
+            }
+        },
+        status_code=500,
+    )
 
 
 def _is_legacy_local_initialization_path(path: str) -> bool:

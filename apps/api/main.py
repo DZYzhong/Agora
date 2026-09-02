@@ -5,6 +5,7 @@ from fastapi.openapi.utils import get_openapi
 from sqlalchemy.orm import sessionmaker
 
 from apps.api.middleware import (
+    BodyLimitMiddleware,
     CsrfProtectionMiddleware,
     HideProductionLocalInitializationMiddleware,
     RequestIdMiddleware,
@@ -28,6 +29,36 @@ from packages.core.services.runtime import CoreRuntime
 from packages.core.services.skills import ensure_builtin_skills_for_existing_projects
 from packages.core.uow import SqlAlchemyUnitOfWork
 
+DEFAULT_DEV_WEB_ORIGINS = (
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:13100",
+    "http://127.0.0.1:13120",
+    "http://127.0.0.1:13140",
+    "http://localhost:3000",
+)
+
+
+def _configure_cors(app: FastAPI) -> None:
+    """CORS allow-list from AGORA_ALLOWED_ORIGINS plus the localhost dev origins.
+
+    No wildcard is ever allowed alongside credentials.
+    """
+    import os
+
+    from starlette.middleware.cors import CORSMiddleware
+
+    configured = os.environ.get("AGORA_ALLOWED_ORIGINS", "")
+    origins = [item.strip() for item in configured.split(",") if item.strip()]
+    origins.extend(DEFAULT_DEV_WEB_ORIGINS)
+    origins = list(dict.fromkeys(origins))
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["content-type", "authorization", "x-csrf-token", "idempotency-key", "agora-protocol-version", "agora-connector-version", "x-request-id"],
+    )
+
 
 def _bootstrap_builtin_skills() -> None:
     session = sessionmaker(bind=get_engine())()
@@ -49,8 +80,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Agora API", lifespan=lifespan)
 app.add_middleware(HideProductionLocalInitializationMiddleware)
+app.add_middleware(BodyLimitMiddleware)
 app.add_middleware(CsrfProtectionMiddleware)
 app.add_middleware(RequestIdMiddleware)
+
+_configure_cors(app)
 
 app.include_router(health_router)
 app.include_router(auth_router)
