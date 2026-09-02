@@ -13,6 +13,11 @@ from apps.api.routers.projects import _validate_local_initialization_path
 from packages.core.auth import Principal
 from packages.core.repositories.workflows import WorkflowStepError
 from packages.core.settings import RuntimePolicy
+from packages.core.upload_policy import (
+    classify_upload,
+    contains_secret,
+    revalidate_upload,
+)
 from packages.core.services.protocol import (
     HARNESS_PROTOCOL_CURRENT,
     HARNESS_PROTOCOL_SUPPORTED,
@@ -92,6 +97,28 @@ class CompleteWorkflowStepRequest(BaseModel):
     summary: str
     artifacts: list[dict[str, Any]] = Field(default_factory=list)
     human_confirmation: dict[str, Any] | None = None
+    # PR1C low-risk workflow acknowledgment evidence: when present, the AI tool
+    # asserts a local human confirmed this step (distinct from Approval).
+    acknowledgment: dict[str, Any] | None = None
+
+    @field_validator("acknowledgment")
+    @classmethod
+    def validate_acknowledgment_evidence(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        if value is None:
+            return None
+        required = {
+            "step_id",
+            "prompt_digest",
+            "choice",
+            "local_interaction_id",
+            "payload_digest",
+            "policy_version",
+            "acknowledged_at",
+        }
+        missing = sorted(required - set(value))
+        if missing:
+            raise ValueError(f"acknowledgment is missing required evidence fields: {', '.join(missing)}")
+        return value
 
 
 class SubmitSkillCandidateRequest(BaseModel):
@@ -766,6 +793,8 @@ def _close_work_once(
 ) -> dict:
     _ensure_session_member(session, principal, session_id=payload.session_id)
     _validate_close_work_capture(payload, protocol, runtime_policy)
+    if payload.development_update is not None:
+        _enforce_upload_policy_for_development_update(payload.development_update, principal)
     response = _harness(session, keyword_index, vector_index).close_work(
         session_id=payload.session_id,
         status=payload.status,
@@ -778,6 +807,46 @@ def _close_work_once(
     )
     _apply_protocol_metadata(response, protocol)
     return response
+
+
+def _enforce_upload_policy_for_development_update(
+    update: DevelopmentUpdateInput,
+    principal: Principal,
+) -> None:
+    """Server-side revalidation and tier/grant matching for close-work uploads."""
+    violations = revalidate_upload(
+        kind="development_update",
+        paths=[entry.path for entry in update.changed_files],
+        content=None,
+        agent_summary=update.agent_summary,
+        test_result=update.test_result,
+        changed_files=len(update.changed_files),
+        diff_stat_json=json.dumps(update.diff_stat, sort_keys=True) if update.diff_stat else None,
+    )
+    if violations:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "UPLOAD_POLICY_VIOLATION", "message": "upload policy violation", "violations": violations},
+        )
+
+    high_risk_content = (
+        contains_secret(update.agent_summary or "")
+        or contains_secret(update.test_result or "")
+    )
+    assessment = classify_upload(
+        kind="development_update",
+        has_source_excerpt=high_risk_content,
+        secret_rule_exception=high_risk_content,
+    )
+    if assessment.requires_grant and not principal.is_bypass:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "HIGH_RISK_UPLOAD_REQUIRES_GRANT",
+                "message": "This development update is high-risk and requires a reauthenticated Web approval grant",
+                "reasons": list(assessment.reasons),
+            },
+        )
 
 
 def _validate_close_work_capture(

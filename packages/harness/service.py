@@ -364,6 +364,7 @@ class HarnessService:
         summary: str,
         artifacts: list[dict] | None = None,
         human_confirmation: dict | None = None,
+        acknowledgment: dict | None = None,
         principal: Principal | None = None,
         protocol_version: str = LEGACY_PROTOCOL_VERSION,
     ) -> WorkflowStepCompletionResult:
@@ -372,6 +373,18 @@ class HarnessService:
         session = self.core.get_session(session_id)
         if session is None:
             raise ValueError(f"Session not found: {session_id}")
+        if acknowledgment is not None:
+            # PR1C: low-risk workflow acknowledgment is recorded for audit and is
+            # never treated as an Approval or high-risk HumanConfirmation.
+            self.session_recorder.record_event(
+                session_id=session_id,
+                event_type="workflow_step_acknowledged",
+                payload={
+                    "step_key": step_key,
+                    "acknowledgment": acknowledgment,
+                    "actor_credential_kind": principal.credential_kind,
+                },
+            )
         workflow_execution_id = getattr(session, "workflow_execution_id", None) or getattr(
             getattr(session, "work_item", None),
             "workflow_execution_id",
