@@ -451,7 +451,7 @@ git commit -m "refactor: unify mcp definitions and dispatch"
 
 **Execution record (2026-09-01):**
 
-- Commit: `refactor: unify mcp definitions and dispatch` (single commit covers Steps 1-5).
+- Commit: `6d1788c` (refactor: unify mcp definitions and dispatch; single commit covers Steps 1-5).
 - Implementation: added `packages/core/services/mcp_tools.py` with frozen `McpToolDefinition` records (immutable `properties`/`required` tuples, fresh deep-copied schemas, declared `api_path`, `minimum_protocol_version` and payload adapters beside each definition); `protocol.py` manifest canonical/deprecated lists now derive from the registry; `apps/mcp/server.py` advertises and dispatches solely through the registry (remote tools post to their declared path, deprecated tools carry deprecation metadata, local manifest has no API path).
 - GREEN evidence: focused registry/stdio/tools suite `33 passed`; full Python suite counts recorded after the final commit.
 - State: `implemented` and `automated verified`; PR1A black-box and exit criteria remain pending.
