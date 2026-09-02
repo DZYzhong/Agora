@@ -57,6 +57,32 @@ def list_context_streams(
     return [_serialize_stream(stream) for stream in CoreRuntime(session).list_context_streams_by_project(project_id)]
 
 
+@router.get("/streams/{stream_id}/revisions")
+def list_stream_revisions(
+    project_id: str,
+    stream_id: str,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+):
+    require_project_member(session, principal, project_id=project_id)
+    runtime = CoreRuntime(session)
+    stream = runtime.get_context_stream(stream_id)
+    if stream is None or stream.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Context stream not found")
+    revisions = runtime.list_revisions_by_stream(stream_id)
+    head_revision_id = stream.head_revision_id
+    return {
+        "stream": _serialize_stream(stream),
+        "revisions": [
+            {
+                **_serialize_revision(revision),
+                "is_head": revision.id == head_revision_id,
+            }
+            for revision in revisions
+        ],
+    }
+
+
 @router.get("/proposals")
 def list_context_proposals(
     project_id: str,

@@ -207,6 +207,9 @@ class CoreRuntime:
     def list_context_streams_by_project(self, project_id: str) -> list[ContextStreamModel]:
         return ContextGovernanceRepository(self.session).list_streams_by_project(project_id)
 
+    def list_revisions_by_stream(self, stream_id: str) -> list[ContextRevisionModel]:
+        return ContextGovernanceRepository(self.session).list_revisions_by_stream(stream_id)
+
     def get_head_context_revision_for_project(self, *, project_id: str, branch: str | None = None) -> ContextRevisionModel | None:
         return ContextGovernanceRepository(self.session).get_head_revision_for_project(project_id=project_id, branch=branch)
 

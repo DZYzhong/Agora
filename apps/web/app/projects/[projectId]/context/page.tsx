@@ -169,11 +169,16 @@ export default async function ContextStatePage({ params }: { params: Promise<{ p
                 <div className="session-header">
                   <div>
                     <strong>{stream.name} · {stream.branch}</strong>
-                    <p className="asset-uri">{stream.head_revision_id ?? "No accepted head"}</p>
+                    <p className="asset-uri">{stream.head_revision_id ? `Head revision present` : "No accepted head"}</p>
                   </div>
                   <span className="asset-type">{stream.status}</span>
                 </div>
                 <p className="muted">Updated {new Date(stream.updated_at).toLocaleString()}</p>
+                <div className="actions">
+                  <Link className="button-link secondary-link" href={`/projects/${project.id}/context/streams/${stream.id}`}>
+                    View revision history
+                  </Link>
+                </div>
               </article>
             ))}
           </div>

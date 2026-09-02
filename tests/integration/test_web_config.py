@@ -759,3 +759,16 @@ def test_asset_and_writeback_lists_expose_created_at_for_timelines():
     writebacks_router = Path("apps/api/routers/writebacks.py").read_text()
     assert '"created_at": asset.created_at' in assets_router
     assert '"created_at": writeback.created_at' in writebacks_router
+
+
+def test_pr_web_context_revision_history_exists_and_is_linked():
+    page = Path("apps/web/app/projects/[projectId]/context/streams/[streamId]/page.tsx")
+    assert page.exists()
+    content = page.read_text()
+    assert "Revision history" in content or "revision history" in content
+    assert "is_head" in content
+    assert "source_anchors" in content
+    assert "Content by version" in content
+
+    context_page = Path("apps/web/app/projects/[projectId]/context/page.tsx").read_text()
+    assert "context/streams/" in context_page

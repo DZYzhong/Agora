@@ -520,3 +520,59 @@ def test_feature_branch_context_cannot_update_default_stream_without_merge_signa
 
         assert response.status_code == 400
         assert response.json()["detail"] == "Feature branch context cannot update the default stream before merge reachability is proven"
+
+
+def test_stream_revisions_endpoint_lists_history_and_marks_head(monkeypatch):
+    _production_auth(monkeypatch)
+    with _session_client() as client:
+        project = _create_project(client)
+        initial = client.post(
+            f"/projects/{project['id']}/context/proposals",
+            headers=_headers(AGENT_TOKEN),
+            json=_proposal_payload(),
+        ).json()
+        approver = _web_approver(client, project_id=project["id"])
+        for comment in ("first", "second"):
+            resp = client.post(
+                f"/projects/{project['id']}/context/proposals/{initial['id']}/approve",
+                headers=_csrf_headers(approver),
+                json={
+                    "expected_head_revision_id": None,
+                    "comment": comment,
+                    "revision_signal": {
+                        "target_branch": "main",
+                        "observed_head_sha": "abc123",
+                        "contains_to_commit": True,
+                    },
+                },
+            )
+            assert resp.status_code in (200, 409)
+
+        streams = client.get(f"/projects/{project['id']}/context/streams", headers=_headers(HUMAN_TOKEN)).json()
+        assert streams, "no stream created"
+        stream = streams[0]
+
+        result = client.get(
+            f"/projects/{project['id']}/context/streams/{stream['id']}/revisions",
+            headers=_headers(HUMAN_TOKEN),
+        )
+        assert result.status_code == 200
+        body = result.json()
+        assert body["stream"]["id"] == stream["id"]
+        assert "revisions" in body
+        for revision in body["revisions"]:
+            assert "is_head" in revision
+        head_marks = [revision for revision in body["revisions"] if revision["is_head"]]
+        assert len(head_marks) == 1
+        assert head_marks[0]["id"] == stream["head_revision_id"]
+
+
+def test_stream_revisions_endpoint_rejects_unknown_stream(monkeypatch):
+    _production_auth(monkeypatch)
+    with TestClient(app) as client:
+        project = _create_project(client)
+        response = client.get(
+            f"/projects/{project['id']}/context/streams/nope/revisions",
+            headers=_headers(HUMAN_TOKEN),
+        )
+        assert response.status_code == 404

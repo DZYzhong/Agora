@@ -100,6 +100,14 @@ class ContextGovernanceRepository:
     def get_revision(self, revision_id: str) -> ContextRevisionModel | None:
         return self.session.get(ContextRevisionModel, revision_id)
 
+    def list_revisions_by_stream(self, stream_id: str) -> list[ContextRevisionModel]:
+        statement = (
+            select(ContextRevisionModel)
+            .where(ContextRevisionModel.stream_id == stream_id)
+            .order_by(ContextRevisionModel.created_at, ContextRevisionModel.id)
+        )
+        return list(self.session.scalars(statement).all())
+
     def create_approval_decision(self, **kwargs) -> ApprovalDecisionModel:
         decision = ApprovalDecisionModel(**kwargs)
         self.session.add(decision)
