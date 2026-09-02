@@ -560,3 +560,33 @@ def test_compose_postgres_persists_data_with_named_volume():
 
     declared = document.get("volumes", {})
     assert "agora-postgres-data" in declared
+
+
+def test_pr1a_blackbox_guide_exists():
+    guide = Path("docs/development/pr1a-runtime-mcp-blackbox.zh-CN.md")
+    content = guide.read_text()
+
+    assert "PR1A Runtime and MCP Hardening 黑盒验证步骤" in content
+    assert "不是" in content
+    assert "生产" in content
+    assert "敏感" in content
+    assert "AI 工具" in content
+    assert "Web" in content
+    assert '"1.1"' in content
+    assert "agora_complete_workflow_step" in content
+    assert "idempotency_key" in content
+    assert "step_key" in content
+    assert "summary" in content
+    assert "agora_close_work" in content
+    assert "start -> complete -> close" in content
+    assert "agora_start_work" in content
+    assert "PR1_UPLOAD_POLICY_REQUIRED" in content
+    assert "PR1_APPROVAL_POLICY_REQUIRED" in content
+    assert "PR1B" in content
+    assert "PR1C" in content
+    assert "repo_path" in content
+    assert "不包含" in content
+    assert "Initialize from local repository" in content
+    assert "Retry" in content
+    assert "用户是否通过 AI 工具完成" in content
+    assert "未手动调用 HTTP API" in content

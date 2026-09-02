@@ -3251,3 +3251,13 @@ Next:
 
 - Run final full verification and commit.
 - Hand P5 black-box validation steps to the user.
+
+## PR1A: Runtime boundaries and protocol closure (2026-09-01)
+
+Plan: `docs/superpowers/plans/2026-08-28-agora-pr1a-runtime-mcp-hardening.md`
+
+- Tasks 1-10 implemented and automated-verified: runtime environment policy, startup/readiness truthfulness, legacy repository import containment, path/retry control removal, harness protocol 1.1 negotiation, local close-work capture, canonical MCP tool registry, protocol 1.1 write idempotency, safe summary-only workflow completion, and stateful stdio process verification.
+- Full Python suite `378 passed, 2 skipped` (PostgreSQL-dependent skips require PR2); `tsc --noEmit` and `next build` pass; `pip check` and `git diff --check` pass; `compileall` passes.
+- Lint gap recorded: `next lint` requires interactive ESLint setup; ESLint configuration is deferred to PR1C.
+- Black-box guide: `docs/development/pr1a-runtime-mcp-blackbox.zh-CN.md`.
+- Status: PR1A `implemented` and `automated verified`; `black-box passed` and PR1 exit gate remain pending and gated behind PR1B/PR1C.

@@ -29,7 +29,7 @@ No phase is described as complete until all four are true and the roadmap contai
 
 Plan: `docs/superpowers/plans/2026-08-28-agora-pr1a-runtime-mcp-hardening.md`
 
-Current execution state (2026-09-01): Tasks 1-5 are implemented and automated-verified; Task 5B is next. PR1A black-box and exit criteria remain pending.
+Current execution state (2026-09-01): Tasks 1-10 are implemented and automated-verified (`378 passed, 2 skipped`, `tsc --noEmit` and `next build` pass; `npm run lint` remains unconfigured — recorded gap for PR1C). PR1A black-box and exit criteria remain pending; a black-box guide is available at `docs/development/pr1a-runtime-mcp-blackbox.zh-CN.md`.
 
 Outcomes:
 

@@ -616,17 +616,17 @@ git commit -m "test: verify stateful mcp 1.1 workflow process"
 - Modify: `docs/superpowers/plans/2026-08-28-agora-production-readiness-implementation.md`
 - Modify: `docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md`
 
-- [ ] **Step 1: Add failing documentation contract test**
+- [x] **Step 1: Add failing documentation contract test**
 
 Guide uses AI tool/Web actions only and states PR1A is non-production/non-sensitive; Web has no path/retry controls; AI tool sees 1.1 and summary-only completion; start -> complete -> close works; Web shows state; artifact/confirmation remain blocked pending PR1B/PR1C.
 
-- [ ] **Step 2: Run RED, write guide, run GREEN**
+- [x] **Step 2: Run RED, write guide, run GREEN**
 
 ```bash
 .venv/bin/pytest tests/integration/test_web_config.py::test_pr1a_blackbox_guide_exists -q
 ```
 
-- [ ] **Step 3: Run complete PR1A verification**
+- [x] **Step 3: Run complete PR1A verification**
 
 ```bash
 .venv/bin/pytest
@@ -640,13 +640,21 @@ git diff --check
 
 If no lint script exists, add one or record the exact gap; do not call build lint. PostgreSQL skips before PR2 are partial PR1A evidence only and cannot satisfy release CI.
 
-- [ ] **Step 4: Update durable status honestly**
+- [x] **Step 4: Update durable status honestly**
 
 Record RED/GREEN commands, full counts, build and skips. Mark only PR1A `implemented` and `automated verified`; leave black-box, PR1 exit and production false.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/development/pr1a-runtime-mcp-blackbox.zh-CN.md tests/integration/test_web_config.py docs/superpowers/plans/2026-08-28-agora-pr1a-runtime-mcp-hardening.md docs/superpowers/plans/2026-08-28-agora-production-readiness-implementation.md docs/superpowers/plans/2026-08-13-agora-p1-p9-roadmap.md
 git commit -m "docs: record pr1a verification and black-box guide"
 ```
+
+**Execution record (2026-09-01):**
+
+- Commit: `docs: record pr1a verification and black-box guide` (covers Steps 1-5 plus the Task 1-9 execution records referenced in this plan).
+- RED evidence: the new documentation contract test was written before the guide and could not pass; after writing the guide it passes (`1 passed`).
+- GREEN evidence (Step 3 verification): full Python suite `378 passed, 2 skipped` (skips are PostgreSQL-dependent tests that require a real database — partial PR1A evidence only, cannot satisfy release CI); `compileall` passed for apps/packages/scripts/alembic; `pip check` reported no broken requirements; `npx tsc --noEmit` passed; `NEXT_TELEMETRY_DISABLED=1 npm run build` passed; `git diff --check` passed.
+- Lint gap (recorded, not fixed): `npm run lint` invokes `next lint`, which requires interactive ESLint setup and is not configured. This is recorded as an open gap; a real ESLint configuration belongs to the PR1C dependency/security baseline, not PR1A.
+- Durable status: PR1A Tasks 1-10 are `implemented` and `automated verified`. PR1A `black-box passed` remains pending real AI-tool verification per the new guide; PR1 exit gate and production readiness remain open and gated behind PR1B/PR1C.
