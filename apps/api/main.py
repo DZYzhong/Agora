@@ -4,9 +4,14 @@ from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from sqlalchemy.orm import sessionmaker
 
-from apps.api.middleware import HideProductionLocalInitializationMiddleware, RequestIdMiddleware
+from apps.api.middleware import (
+    CsrfProtectionMiddleware,
+    HideProductionLocalInitializationMiddleware,
+    RequestIdMiddleware,
+)
 from apps.api.routers.harness import router as harness_router
 from apps.api.routers.health import router as health_router
+from apps.api.routers.auth import router as auth_router
 from apps.api.routers.context_governance import router as context_governance_router
 from apps.api.routers.integrations import router as integrations_router
 from apps.api.routers.projects import router as projects_router
@@ -43,9 +48,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Agora API", lifespan=lifespan)
 app.add_middleware(HideProductionLocalInitializationMiddleware)
+app.add_middleware(CsrfProtectionMiddleware)
 app.add_middleware(RequestIdMiddleware)
 
 app.include_router(health_router)
+app.include_router(auth_router)
 app.include_router(projects_router)
 app.include_router(assets_router)
 app.include_router(harness_router)

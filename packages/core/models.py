@@ -218,6 +218,23 @@ class OrganizationMembershipModel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
 
+class WebSessionModel(Base):
+    __tablename__ = "web_sessions"
+    __table_args__ = (UniqueConstraint("token_hash", name="uq_web_sessions_token_hash"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    org_id: Mapped[str] = mapped_column(String, index=True)
+    token_hash: Mapped[str] = mapped_column(String)
+    csrf_secret_hash: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    idle_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    reauth_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class ProjectMembershipModel(Base):
     __tablename__ = "project_memberships"
     __table_args__ = (

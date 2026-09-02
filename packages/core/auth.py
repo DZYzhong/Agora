@@ -26,7 +26,7 @@ class Principal:
 
     @property
     def is_human(self) -> bool:
-        return self.is_bypass or self.credential_kind == "human"
+        return self.is_bypass or self.credential_kind in ("human", "web_session")
 
     @property
     def is_agent(self) -> bool:

@@ -12,10 +12,12 @@ def isolate_agora_api_runtime(monkeypatch, tmp_path):
     monkeypatch.setenv("AGORA_TEST_AUTH_BYPASS", "1")
 
     from apps.api import dependencies
+    from apps.api.auth_session import rate_limiter
 
     dependencies.get_engine.cache_clear()
     dependencies.get_keyword_index.cache_clear()
     dependencies.get_vector_index.cache_clear()
+    rate_limiter.reset()
     yield
     dependencies.get_engine.cache_clear()
     dependencies.get_keyword_index.cache_clear()
