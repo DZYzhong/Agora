@@ -599,7 +599,7 @@ git commit -m "test: verify stateful mcp 1.1 workflow process"
 
 **Execution record (2026-09-01):**
 
-- Commit: `test: verify stateful mcp 1.1 workflow process` (single commit covers Steps 1-5).
+- Commit: `da9014d` (test: verify stateful mcp 1.1 workflow process; single commit covers Steps 1-5).
 - Implementation: added `test_stdio_process_completes_stateful_protocol_1_1_workflow` driving one real stdio MCP process through list-tools -> start -> complete -> close, asserting the ordered API paths, Agent `Authorization`, protocol/Connector/idempotency headers on every write, and the absence of absolute repo paths, remote credentials and source content in any uploaded payload. Repository root is now computed from `Path(__file__).resolve().parents[3]`; the hard-coded `PYTHONPATH` was removed.
 - GREEN evidence: local-connector process suite `2 passed`; full Python suite counts recorded after the final commit.
 - State: `implemented` and `automated verified`; PR1A black-box and exit criteria remain pending.
