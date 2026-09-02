@@ -800,3 +800,21 @@ def test_pr_web_workflow_stepper_visualizes_steps():
     assert ".stepper" in styles
     assert ".step-dot" in styles
     assert ".step-current" in styles
+
+
+def test_pr_web_asset_content_view_and_filters_exist():
+    detail = Path("apps/web/app/projects/[projectId]/assets/[assetId]/page.tsx")
+    assert detail.exists()
+    content = detail.read_text()
+    assert "Content" in content
+    assert "assets/${assetId}" in content or "assetId" in content
+
+    list_page = Path("apps/web/app/projects/[projectId]/assets/page.tsx").read_text()
+    assert "searchParams" in list_page
+    assert "filtered" in list_page
+    assert "assets/${asset.id}" in list_page
+    assert '?type=' in list_page
+
+    assets_router = Path("apps/api/routers/assets.py").read_text()
+    assert '"/{asset_id}"' in assets_router
+    assert "with_content" in assets_router
