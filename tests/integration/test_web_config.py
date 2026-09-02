@@ -643,3 +643,15 @@ def test_pr1b_web_users_management_pages_exist():
 def test_pr1b_web_nav_links_to_users():
     nav = Path("apps/web/components/Nav.tsx").read_text()
     assert 'href="/users"' in nav
+
+
+def test_pr1c_eslint_is_configured_and_non_interactive():
+    config = Path("apps/web/eslint.config.mjs")
+    package = Path("apps/web/package.json").read_text()
+
+    assert config.exists()
+    assert "FlatCompat" in config.read_text()
+    assert "next/core-web-vitals" in config.read_text()
+    assert '"lint": "eslint ."' in package
+    assert "eslint" in package
+    assert "eslint-config-next" in package

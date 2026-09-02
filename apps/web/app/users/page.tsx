@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
-import { apiGetWithSession, CSRF_COOKIE } from "../../lib/api";
+import { apiGetWithSession } from "../../lib/api";
 
 type User = {
   id: string;

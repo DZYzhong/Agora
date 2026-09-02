@@ -2,7 +2,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "lint": "next lint"
+    "lint": "eslint ."
   },
   "dependencies": {
     "next": "^15.5.25",
@@ -12,6 +12,8 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^15.5.25",
     "typescript": "^5.5.0"
   },
   "overrides": {

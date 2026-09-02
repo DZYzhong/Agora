@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 
 const API_BASE_URL = process.env.AGORA_API_URL ?? "http://localhost:8000";
 
