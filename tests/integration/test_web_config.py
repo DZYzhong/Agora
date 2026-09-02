@@ -825,3 +825,12 @@ def test_pr_web_inflight_sessions_shown_on_project_home():
     assert "In-flight sessions" in home
     assert "status !== \"closed\"" in home
     assert "sessions/${session.id}" in home
+
+
+def test_pr_compose_excludes_unused_search_containers():
+    document = yaml.safe_load(Path("infra/docker-compose.yml").read_text())
+    services = document["services"]
+    assert "qdrant" not in services
+    assert "opensearch" not in services
+    assert "neo4j" not in services
+    assert "api" in services and "worker" in services and "nginx" in services
