@@ -1,15 +1,28 @@
+from __future__ import annotations
+
+from typing import Any
+
+from packages.core.services.runtime import CoreRuntime
 from packages.harness.context_bundle import build_context_bundle
+from packages.knowledge.context_engine import ContextEngine, PlannedContextPack
 
 
 class ContextPlanner:
-    def __init__(self, *, core, context_engine):
+    def __init__(self, *, core: CoreRuntime, context_engine: ContextEngine) -> None:
         self.core = core
         self.context_engine = context_engine
 
-    def plan(self, *, session_id: str, query: str, token_budget: int = 4000):
+    def plan(self, *, session_id: str, query: str, token_budget: int = 4000) -> PlannedContextPack:
         return self._plan_context_pack(session_id=session_id, query=query, token_budget=token_budget)
 
-    def prepare(self, *, session_id: str, query: str, token_budget: int = 4000, event_type: str = "context_prepared"):
+    def prepare(
+        self,
+        *,
+        session_id: str,
+        query: str,
+        token_budget: int = 4000,
+        event_type: str = "context_prepared",
+    ) -> dict[str, Any]:
         session = self.core.get_session(session_id)
         if session is None:
             raise ValueError(f"Session not found: {session_id}")
@@ -48,7 +61,14 @@ class ContextPlanner:
             )
         return bundle
 
-    def _plan_context_pack(self, *, session_id: str, query: str, token_budget: int = 4000, record_event: bool = True):
+    def _plan_context_pack(
+        self,
+        *,
+        session_id: str,
+        query: str,
+        token_budget: int = 4000,
+        record_event: bool = True,
+    ) -> PlannedContextPack:
         session = self.core.get_session(session_id)
         if session is None:
             raise ValueError(f"Session not found: {session_id}")

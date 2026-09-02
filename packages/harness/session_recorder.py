@@ -1,5 +1,12 @@
+from __future__ import annotations
+
+from packages.core.models import SessionEventModel
+from packages.core.repositories.work import WorkSessionView
+from packages.core.services.runtime import CoreRuntime
+
+
 class SessionRecorder:
-    def __init__(self, core):
+    def __init__(self, core: CoreRuntime) -> None:
         self.core = core
 
     def start(
@@ -13,7 +20,7 @@ class SessionRecorder:
         initial_request_id: str | None = None,
         workflow_version_id: str | None = None,
         workflow_execution_id: str | None = None,
-    ):
+    ) -> WorkSessionView:
         return self.core.create_work_session(
             work_item_id=work_item_id,
             user_id=user_id,
@@ -25,5 +32,5 @@ class SessionRecorder:
             workflow_execution_id=workflow_execution_id,
         )
 
-    def record_event(self, *, session_id: str, event_type: str, payload: dict):
+    def record_event(self, *, session_id: str, event_type: str, payload: dict) -> SessionEventModel:
         return self.core.record_event(session_id=session_id, event_type=event_type, payload=payload)

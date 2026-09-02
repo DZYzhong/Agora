@@ -1,6 +1,10 @@
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass
 
+from packages.core.models import ProjectModel
+from packages.core.services.runtime import CoreRuntime
 from packages.harness.task_resolver import TASK_ID_RE, infer_intent
 
 BRANCH_TASK_ID_RE = re.compile(r"(?:^|[/_-])([A-Z][A-Z0-9]+-\d+)(?:$|[/_-])")
@@ -17,10 +21,16 @@ class WorkResolution:
 
 
 class WorkResolver:
-    def __init__(self, core):
+    def __init__(self, core: CoreRuntime) -> None:
         self.core = core
 
-    def resolve(self, *, project, user_message: str, branch_name: str | None = None) -> WorkResolution:
+    def resolve(
+        self,
+        *,
+        project: ProjectModel,
+        user_message: str,
+        branch_name: str | None = None,
+    ) -> WorkResolution:
         intent = infer_intent(user_message)
         external_key = _extract_external_key(user_message) or _extract_external_key(branch_name or "")
         title = _extract_title(user_message=user_message, external_key=external_key)

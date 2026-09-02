@@ -1,6 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 
+from packages.core.services.runtime import CoreRuntime
 from packages.core.services.skills import get_builtin_skill
+from packages.llm.gateway import LlmGateway
 from packages.llm.structured_output import ensure_dict_output
 
 
@@ -14,7 +18,7 @@ class SkillRunResult:
 
 
 class SkillOrchestrator:
-    def __init__(self, *, core, llm):
+    def __init__(self, *, core: CoreRuntime, llm: LlmGateway) -> None:
         self.core = core
         self.llm = llm
 

@@ -1,6 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
-from packages.domain.local_workspace import LocalWorkspaceObservation
+from packages.core.models import ProjectModel
+from packages.core.services.runtime import CoreRuntime
+from packages.domain.local_workspace import LocalWorkspaceObservation, RepositoryIdentity
 from packages.local_connector.sanitization import normalize_repository_identity
 
 
@@ -11,7 +15,7 @@ class ProjectResolution:
 
 
 class ProjectResolver:
-    def __init__(self, core):
+    def __init__(self, core: CoreRuntime) -> None:
         self.core = core
 
     def resolve(
@@ -48,7 +52,7 @@ class ProjectResolver:
         project = None
         return ProjectResolution(project=project, clarification=f"No Agora project is bound to repository {candidate_remote}.")
 
-    def _list_projects(self):
+    def _list_projects(self) -> list[ProjectModel]:
         if hasattr(self.core, "list_projects"):
             return self.core.list_projects()
         return []
@@ -71,7 +75,9 @@ def _repository_identity(remote: str | None) -> str | None:
     return identity.normalized if identity else (_normalize_remote(remote) if remote else None)
 
 
-def _observation_identity(local_observation: LocalWorkspaceObservation | dict | None):
+def _observation_identity(
+    local_observation: LocalWorkspaceObservation | dict | None,
+) -> RepositoryIdentity | None:
     if local_observation is None:
         return None
     observation = (

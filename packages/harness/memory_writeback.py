@@ -1,5 +1,9 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
+from packages.core.models import WritebackModel
+from packages.core.services.runtime import CoreRuntime
 from packages.domain.schemas import AssetCreate
 
 
@@ -16,7 +20,7 @@ class AcceptWritebackResult:
 
 
 class MemoryWritebackService:
-    def __init__(self, *, core):
+    def __init__(self, *, core: CoreRuntime) -> None:
         self.core = core
 
     def prepare_writeback(
@@ -29,7 +33,7 @@ class MemoryWritebackService:
         content: str,
         session_id: str | None = None,
         asset_refs: list[str] | None = None,
-    ):
+    ) -> WritebackModel:
         return self.core.create_writeback(
             org_id=org_id,
             project_id=project_id,
@@ -41,7 +45,7 @@ class MemoryWritebackService:
             status="draft",
         )
 
-    def accept_writeback(self, writeback_id: str):
+    def accept_writeback(self, writeback_id: str) -> AcceptWritebackResult:
         writeback = self.core.get_writeback(writeback_id)
         if writeback is None:
             raise ValueError(f"Writeback not found: {writeback_id}")
@@ -87,14 +91,14 @@ class MemoryWritebackService:
             pending_index=PendingAssetIndex(asset_id=asset.id, asset=asset_payload),
         )
 
-    def reject_writeback(self, writeback_id: str):
+    def reject_writeback(self, writeback_id: str) -> WritebackModel:
         writeback = self.core.get_writeback(writeback_id)
         if writeback is None:
             raise ValueError(f"Writeback not found: {writeback_id}")
         writeback.status = "rejected"
         return writeback
 
-    def _create_candidate_skill_from_repeated_writebacks(self, writeback) -> None:
+    def _create_candidate_skill_from_repeated_writebacks(self, writeback: WritebackModel) -> None:
         if not all(
             hasattr(self.core, method)
             for method in ("list_accepted_writebacks_by_type", "get_skill_by_slug", "create_skill")

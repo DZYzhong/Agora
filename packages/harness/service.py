@@ -1,15 +1,30 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import Any
 
 from packages.core.auth import Principal
-from packages.core.models import utc_now
+from packages.core.models import (
+    ContextProposalModel,
+    ContextStreamModel,
+    HumanConfirmationModel,
+    QualityEvidenceModel,
+    SessionEventModel,
+    WorkArtifactModel,
+    WorkflowStepRunModel,
+    WorkItemLinkModel,
+    utc_now,
+)
 from packages.core.repositories.workflows import WorkflowStepError
 from packages.core.services.protocol import LEGACY_PROTOCOL_VERSION
+from packages.core.services.runtime import CoreRuntime
 from packages.domain.local_workspace import LocalWorkspaceObservation
 from packages.harness.context_planner import ContextPlanner
 from packages.harness.development_capture import capture_development_change
 from packages.harness.project_resolver import ProjectResolver
 from packages.harness.session_recorder import SessionRecorder
 from packages.harness.work_resolver import WorkResolver
+from packages.knowledge.context_engine import ContextEngine, PlannedContextPack
 
 
 @dataclass(frozen=True)
@@ -123,7 +138,7 @@ class ProjectStatusResult:
 
 
 class HarnessService:
-    def __init__(self, *, core, context_engine):
+    def __init__(self, *, core: CoreRuntime, context_engine: ContextEngine) -> None:
         self.core = core
         self.context_engine = context_engine
         self.project_resolver = ProjectResolver(core)
@@ -142,7 +157,7 @@ class HarnessService:
         branch_name: str | None = None,
         local_observation: LocalWorkspaceObservation | dict | None = None,
         initial_request_id: str | None = None,
-    ):
+    ) -> WorkStartResult:
         if principal is None:
             raise ValueError("HarnessService.start_work requires an authenticated Principal")
         observation = _coerce_local_observation(local_observation)
@@ -221,7 +236,13 @@ class HarnessService:
             workflow_version_id=workflow_version_id,
         )
 
-    def plan_context(self, *, session_id: str, query: str | None = None, token_budget: int = 4000):
+    def plan_context(
+        self,
+        *,
+        session_id: str,
+        query: str | None = None,
+        token_budget: int = 4000,
+    ) -> PlannedContextPack:
         session = self.core.get_session(session_id)
         if session is None:
             raise ValueError(f"Session not found: {session_id}")
@@ -234,7 +255,7 @@ class HarnessService:
         query: str | None = None,
         token_budget: int = 4000,
         event_type: str = "context_prepared",
-    ):
+    ) -> dict[str, Any]:
         session = self.core.get_session(session_id)
         if session is None:
             raise ValueError(f"Session not found: {session_id}")
@@ -245,10 +266,10 @@ class HarnessService:
             event_type=event_type,
         )
 
-    def record_event(self, *, session_id: str, event_type: str, payload: dict):
+    def record_event(self, *, session_id: str, event_type: str, payload: dict) -> SessionEventModel:
         return self.session_recorder.record_event(session_id=session_id, event_type=event_type, payload=payload)
 
-    def fetch_context_ref(self, *, session_id: str, asset_id: str, max_tokens: int = 2000):
+    def fetch_context_ref(self, *, session_id: str, asset_id: str, max_tokens: int = 2000) -> ContextRefResult:
         session = self.core.get_session(session_id)
         if session is None:
             raise ValueError(f"Session not found: {session_id}")
@@ -803,7 +824,7 @@ class HarnessService:
         head_ref: str | None = None,
         agent_summary: str | None = None,
         test_result: str | None = None,
-    ):
+    ) -> dict[str, Any]:
         session = self.core.get_session(session_id)
         if session is None:
             raise ValueError(f"Session not found: {session_id}")
@@ -869,7 +890,7 @@ def _coerce_local_observation(
     return LocalWorkspaceObservation.model_validate(local_observation)
 
 
-def _serialize_context_stream(stream) -> dict:
+def _serialize_context_stream(stream: ContextStreamModel) -> dict[str, Any]:
     return {
         "id": stream.id,
         "project_id": stream.project_id,
@@ -883,7 +904,7 @@ def _serialize_context_stream(stream) -> dict:
     }
 
 
-def _serialize_context_proposal(core, proposal) -> dict:
+def _serialize_context_proposal(core: CoreRuntime, proposal: ContextProposalModel) -> dict[str, Any]:
     stream = core.get_context_stream(proposal.stream_id)
     return {
         "id": proposal.id,
@@ -909,7 +930,7 @@ def _serialize_context_proposal(core, proposal) -> dict:
     }
 
 
-def _serialize_workflow_step_run(step) -> dict:
+def _serialize_workflow_step_run(step: WorkflowStepRunModel) -> dict[str, Any]:
     return {
         "id": step.id,
         "step_key": step.step_key,
@@ -920,7 +941,7 @@ def _serialize_workflow_step_run(step) -> dict:
     }
 
 
-def _serialize_work_artifact(artifact) -> dict:
+def _serialize_work_artifact(artifact: WorkArtifactModel) -> dict[str, Any]:
     return {
         "id": artifact.id,
         "work_item_id": artifact.work_item_id,
@@ -937,7 +958,7 @@ def _serialize_work_artifact(artifact) -> dict:
     }
 
 
-def _serialize_human_confirmation(confirmation) -> dict:
+def _serialize_human_confirmation(confirmation: HumanConfirmationModel) -> dict[str, Any]:
     return {
         "id": confirmation.id,
         "work_item_id": confirmation.work_item_id,
@@ -953,7 +974,7 @@ def _serialize_human_confirmation(confirmation) -> dict:
     }
 
 
-def _serialize_quality_evidence(evidence) -> dict:
+def _serialize_quality_evidence(evidence: QualityEvidenceModel) -> dict[str, Any]:
     return {
         "id": evidence.id,
         "org_id": evidence.org_id,
@@ -974,7 +995,7 @@ def _serialize_quality_evidence(evidence) -> dict:
     }
 
 
-def _serialize_work_item_link(link) -> dict:
+def _serialize_work_item_link(link: WorkItemLinkModel) -> dict[str, Any]:
     return {
         "id": link.id,
         "org_id": link.org_id,
@@ -992,7 +1013,9 @@ def _serialize_work_item_link(link) -> dict:
     }
 
 
-def _quality_summary(evidence: list) -> tuple[str, dict, list[dict], list[dict]]:
+def _quality_summary(
+    evidence: list[QualityEvidenceModel],
+) -> tuple[str, dict, list[dict], list[dict]]:
     counts = {
         "passed": len([item for item in evidence if item.status == "passed"]),
         "failed": len([item for item in evidence if item.status == "failed"]),
@@ -1073,7 +1096,7 @@ def _merge_unique(existing: list, incoming: list) -> list:
     return merged
 
 
-def _artifact_matches_query(artifact, query: str) -> bool:
+def _artifact_matches_query(artifact: WorkArtifactModel, query: str) -> bool:
     compact_query = query.strip().lower()
     haystack = f"{artifact.title} {artifact.content} {artifact.type}".lower()
     if compact_query and compact_query in haystack:
@@ -1082,7 +1105,7 @@ def _artifact_matches_query(artifact, query: str) -> bool:
     return bool(terms) and all(term in haystack for term in terms)
 
 
-def _suggest_skill_identity(query: str, artifacts: list) -> tuple[str, str]:
+def _suggest_skill_identity(query: str, artifacts: list[WorkArtifactModel]) -> tuple[str, str]:
     combined = f"{query} {' '.join(artifact.title for artifact in artifacts)}"
     if "发布" in combined and ("风险" in combined or "回滚" in combined):
         return "release-risk-review", "Release Risk Review"
@@ -1106,7 +1129,7 @@ def _suggest_triggers(query: str) -> list[str]:
     return _merge_unique([], triggers)
 
 
-def _suggest_instructions(query: str, artifacts: list) -> str:
+def _suggest_instructions(query: str, artifacts: list[WorkArtifactModel]) -> str:
     snippets = []
     for artifact in artifacts[:3]:
         content = " ".join(artifact.content.split())

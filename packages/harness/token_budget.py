@@ -11,7 +11,7 @@ ESTIMATOR_VERSION = "chars_div_4_v1"
 class TokenBudgetTooSmall(ValueError):
     code = "TOKEN_BUDGET_TOO_SMALL"
 
-    def __init__(self, *, budget_limit: int, minimum_tokens: int):
+    def __init__(self, *, budget_limit: int, minimum_tokens: int) -> None:
         self.budget_limit = budget_limit
         self.minimum_tokens = minimum_tokens
         super().__init__(f"Token budget {budget_limit} is too small; minimum is {minimum_tokens}")

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from packages.core.models import ContextRevisionModel, SkillVersionModel
 from packages.harness.token_budget import TokenBudgetTooSmall, trim_payload_to_budget
+from packages.knowledge.context_engine import PlannedContextPack
 
 PROTOCOL_VERSION = "1.0"
 
@@ -12,9 +14,9 @@ def build_context_bundle(
     session_id: str,
     query: str,
     token_budget: int,
-    context_pack,
-    accepted_revision=None,
-    skill_versions: list | None = None,
+    context_pack: PlannedContextPack,
+    accepted_revision: ContextRevisionModel | None = None,
+    skill_versions: list[SkillVersionModel] | None = None,
 ) -> dict[str, Any]:
     has_sources = bool(context_pack.source_refs)
     accepted_revision_id = accepted_revision.id if accepted_revision is not None else None
@@ -68,7 +70,7 @@ def build_context_bundle(
     return trim_payload_to_budget(payload, budget_limit=token_budget)
 
 
-def _serialize_skill_version(version) -> dict[str, Any]:
+def _serialize_skill_version(version: SkillVersionModel) -> dict[str, Any]:
     definition = version.definition or {}
     return {
         "skill_version_id": version.id,
