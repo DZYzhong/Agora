@@ -504,7 +504,7 @@ git commit -m "feat: require idempotency for protocol 1.1 writes"
 
 **Execution record (2026-09-01):**
 
-- Commit: `feat: require idempotency for protocol 1.1 writes` (single commit covers Steps 1-6).
+- Commit: `c9eaf9b` (feat: require idempotency for protocol 1.1 writes; single commit covers Steps 1-6).
 - Implementation: added `apps/api/idempotency.py` with a generic protocol-aware executor (request hash includes protocol version; pending/completed replay; deterministic `IDEMPOTENCY_CONFLICT` on changed payload or cross-protocol reuse; `IDEMPOTENCY_KEY_REQUIRED` for protocol 1.1 writes without a key). The seven write endpoints (`start_work`, `prepare_context`, `submit_context_proposal`, `complete_workflow_step`, `submit_skill_candidate`, `record_evidence`, `close_work`) now run through the executor, replacing the start-work-only helper; responses are normalized to JSON-storable structures before persistence (datetimes to ISO strings). The MCP registry requires `idempotency_key` on the seven write tools and `_dispatch` forwards it as an `Idempotency-Key` header only, never in the body.
 - GREEN evidence: focused idempotency suite `5 passed`; API integration suite `112 passed`; full Python suite counts recorded after the final commit.
 - Note: existing 1.1-header API tests were updated to send unique `Idempotency-Key` values; the transaction-boundaries test now accepts routes that delegate their committing UoW to `execute_idempotent`.
