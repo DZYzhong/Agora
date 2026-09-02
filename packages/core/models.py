@@ -173,10 +173,13 @@ class WritebackModel(Base):
 
 class UserModel(Base):
     __tablename__ = "users"
+    __table_args__ = (UniqueConstraint("org_id", "username", name="uq_users_org_username"),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     org_id: Mapped[str] = mapped_column(String, index=True)
+    username: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     display_name: Mapped[str] = mapped_column(String)
+    password_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String, default="active", index=True)
     is_placeholder: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
@@ -194,7 +197,23 @@ class CredentialModel(Base):
     token_prefix: Mapped[str] = mapped_column(String)
     status: Mapped[str] = mapped_column(String, default="active", index=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    single_use: Mapped[bool] = mapped_column(Boolean, default=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+
+class OrganizationMembershipModel(Base):
+    __tablename__ = "organization_memberships"
+    __table_args__ = (
+        UniqueConstraint("org_id", "user_id", name="uq_organization_memberships_org_user"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    org_id: Mapped[str] = mapped_column(String, index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    role: Mapped[str] = mapped_column(String, default="member")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
@@ -407,7 +426,7 @@ class SecurityAuditEventModel(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     org_id: Mapped[str] = mapped_column(String, index=True)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
     actor_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     actor_credential_id: Mapped[str | None] = mapped_column(ForeignKey("credentials.id"), nullable=True, index=True)
     actor_credential_kind: Mapped[str] = mapped_column(String, index=True)

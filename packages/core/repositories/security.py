@@ -51,3 +51,12 @@ class SecurityRepository:
             .limit(limit)
         )
         return list(self.session.scalars(statement).all())
+
+    def list_by_org(self, org_id: str, *, limit: int = 200) -> list[SecurityAuditEventModel]:
+        statement = (
+            select(SecurityAuditEventModel)
+            .where(SecurityAuditEventModel.org_id == org_id)
+            .order_by(SecurityAuditEventModel.created_at.desc(), SecurityAuditEventModel.id.desc())
+            .limit(limit)
+        )
+        return list(self.session.scalars(statement).all())
