@@ -104,6 +104,19 @@ function formatPin(value: string | null): string {
   return value ?? "Not pinned";
 }
 
+function stepStatusClass(status: string): string {
+  if (status === "completed") return "done";
+  if (status === "running") return "current";
+  if (status === "waiting" || status === "pending") return "waiting";
+  return "other";
+}
+
+function stepMarker(status: string): string {
+  if (status === "completed") return "✓";
+  if (status === "running") return "●";
+  return "○";
+}
+
 function metadataLabel(metadata: Record<string, unknown>): string {
   const path = metadata.path;
   if (typeof path === "string" && path.length > 0) return path;
@@ -245,6 +258,18 @@ export default async function WorkItemDetailPage({
           {item.workflow_execution ? <span className="asset-type">{item.workflow_execution.status}</span> : null}
         </div>
         {item.workflow_execution ? (
+          <>
+          <div className="stepper" aria-label="Workflow progress">
+            {[...item.workflow_execution.steps]
+              .sort((a, b) => a.order_index - b.order_index)
+              .map((step, index, sorted) => (
+                <div className={`step step-${stepStatusClass(step.status)}`} key={step.id}>
+                  <span className="step-dot" aria-hidden="true">{stepMarker(step.status)}</span>
+                  <span className="step-label">{step.title}</span>
+                  {index < sorted.length - 1 ? <span className="step-connector" aria-hidden="true" /> : null}
+                </div>
+              ))}
+          </div>
           <div className="event-list">
             {item.workflow_execution.steps.map((step) => (
               <article className="event-row" key={step.id}>
@@ -308,6 +333,7 @@ export default async function WorkItemDetailPage({
               </article>
             ))}
           </div>
+          </>
         ) : (
           <p className="muted">No workflow execution has been created for this work item.</p>
         )}

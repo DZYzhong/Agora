@@ -789,3 +789,14 @@ def test_pr_web_pending_queue_page_exists_and_is_linked():
     assert "/pending" in status_page
     home = Path("apps/web/app/projects/[projectId]/page.tsx").read_text()
     assert '/pending' in home
+
+
+def test_pr_web_workflow_stepper_visualizes_steps():
+    page = Path("apps/web/app/projects/[projectId]/work-items/[workItemId]/page.tsx").read_text()
+    assert 'className="stepper"' in page
+    assert "order_index" in page
+    assert "step-done" in page or "stepStatusClass" in page
+    styles = Path("apps/web/app/styles.css").read_text()
+    assert ".stepper" in styles
+    assert ".step-dot" in styles
+    assert ".step-current" in styles
