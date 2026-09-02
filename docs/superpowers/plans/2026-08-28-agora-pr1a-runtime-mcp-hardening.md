@@ -566,11 +566,11 @@ git commit -m "feat: expose safe workflow completion over mcp"
 
 - Modify: `tests/integration/mcp/test_local_connector_process.py`
 
-- [ ] **Step 1: Add failing stateful process test**
+- [x] **Step 1: Add failing stateful process test**
 
 In one real MCP process/session: list 1.1 tools; start with idempotency key; complete returned session; close it; assert ordered API paths, Agent auth, protocol/Connector/idempotency headers, and absence of absolute path, remote credential and source content. Calculate repository root from `Path(__file__).resolve()`, removing hard-coded `PYTHONPATH`.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 .venv/bin/pytest tests/integration/mcp/test_local_connector_process.py::test_stdio_process_completes_stateful_protocol_1_1_workflow -q
@@ -578,11 +578,11 @@ In one real MCP process/session: list 1.1 tools; start with idempotency key; com
 
 Expected: FAIL because completion and headers are unavailable.
 
-- [ ] **Step 3: Adjust only the stateful recorder fixture**
+- [x] **Step 3: Adjust only the stateful recorder fixture**
 
 Do not add production behavior in this step.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 ```bash
 .venv/bin/pytest tests/integration/mcp/test_local_connector_process.py tests/unit/mcp/test_stdio_server.py -q
@@ -590,12 +590,19 @@ Do not add production behavior in this step.
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/integration/mcp/test_local_connector_process.py
 git commit -m "test: verify stateful mcp 1.1 workflow process"
 ```
+
+**Execution record (2026-09-01):**
+
+- Commit: `test: verify stateful mcp 1.1 workflow process` (single commit covers Steps 1-5).
+- Implementation: added `test_stdio_process_completes_stateful_protocol_1_1_workflow` driving one real stdio MCP process through list-tools -> start -> complete -> close, asserting the ordered API paths, Agent `Authorization`, protocol/Connector/idempotency headers on every write, and the absence of absolute repo paths, remote credentials and source content in any uploaded payload. Repository root is now computed from `Path(__file__).resolve().parents[3]`; the hard-coded `PYTHONPATH` was removed.
+- GREEN evidence: local-connector process suite `2 passed`; full Python suite counts recorded after the final commit.
+- State: `implemented` and `automated verified`; PR1A black-box and exit criteria remain pending.
 
 ## Chunk 5: Verification and durable evidence
 
