@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { apiPost } from "../../../../lib/api";
 
 type ProjectStatus = {
@@ -150,6 +151,11 @@ export default async function ProjectStatusPage({ params }: { params: Promise<{ 
             <dd>{status.pending_approvals.skill_candidates}</dd>
           </div>
         </dl>
+        <div className="actions">
+          <Link className="button-link secondary-link" href={`/projects/${projectId}/pending`}>
+            Open pending queue
+          </Link>
+        </div>
       </section>
       <section className="panel">
         <h2>Blockers</h2>

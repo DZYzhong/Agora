@@ -772,3 +772,20 @@ def test_pr_web_context_revision_history_exists_and_is_linked():
 
     context_page = Path("apps/web/app/projects/[projectId]/context/page.tsx").read_text()
     assert "context/streams/" in context_page
+
+
+def test_pr_web_pending_queue_page_exists_and_is_linked():
+    page = Path("apps/web/app/projects/[projectId]/pending/page.tsx")
+    assert page.exists()
+    content = page.read_text()
+    assert "Pending actions" in content
+    assert "Context proposals awaiting approval" in content
+    assert "Skill candidates awaiting approval" in content
+    assert "Active work items" in content
+    assert 'status === "submitted"' in content
+    assert 'status === "candidate"' in content
+
+    status_page = Path("apps/web/app/projects/[projectId]/status/page.tsx").read_text()
+    assert "/pending" in status_page
+    home = Path("apps/web/app/projects/[projectId]/page.tsx").read_text()
+    assert '/pending' in home
