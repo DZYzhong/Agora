@@ -1,9 +1,9 @@
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, next } = await searchParams;
   return (
     <main className="page">
       <h1>Sign in</h1>
@@ -12,6 +12,7 @@ export default async function LoginPage({
         <p className="alert">Invalid username or password. Reauthentication may be required for approval actions.</p>
       )}
       <form className="panel form" action="/login/submit" method="post">
+        {next ? <input type="hidden" name="next" value={next} /> : null}
         <label>
           Username
           <input name="username" required autoComplete="username" />

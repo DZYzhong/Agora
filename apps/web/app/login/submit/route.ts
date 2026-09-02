@@ -6,6 +6,7 @@ export async function POST(request: Request) {
   const formData = await request.formData();
   const username = String(formData.get("username") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const next = String(formData.get("next") ?? "").trim() || "/projects";
 
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: "POST",
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
 
   const webResponse = new Response(null, {
     status: 303,
-    headers: { Location: "/projects" },
+    headers: { Location: next },
   });
   for (const setCookie of setCookies) {
     webResponse.headers.append("set-cookie", setCookie);

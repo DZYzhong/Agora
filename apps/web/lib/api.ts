@@ -1,5 +1,17 @@
 const API_BASE_URL = process.env.AGORA_API_URL ?? "http://localhost:8000";
 const WEB_HUMAN_TOKEN = process.env.AGORA_WEB_HUMAN_TOKEN;
+const WEB_ORIGIN = process.env.AGORA_WEB_ORIGIN ?? "http://127.0.0.1:13140";
+
+export class AgoraApiError extends Error {
+  status: number;
+  code: string | null;
+
+  constructor(status: number, message: string, code: string | null = null) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
 
 export async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -7,7 +19,7 @@ export async function apiGet<T>(path: string): Promise<T> {
     headers: authHeaders(),
   });
   if (!response.ok) {
-    throw new Error(await errorMessage(response));
+    throw await apiError(response);
   }
   return response.json() as Promise<T>;
 }
@@ -19,7 +31,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new Error(await errorMessage(response));
+    throw await apiError(response);
   }
   return response.json() as Promise<T>;
 }
@@ -31,7 +43,7 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new Error(await errorMessage(response));
+    throw await apiError(response);
   }
   return response.json() as Promise<T>;
 }
@@ -42,6 +54,14 @@ function authHeaders(): Record<string, string> {
 
 export const SESSION_COOKIE = "agora_session";
 export const CSRF_COOKIE = "agora_csrf";
+
+export function hasSessionCookie(request: Request): boolean {
+  return Boolean(request.headers.get("cookie")?.includes(`${SESSION_COOKIE}=`));
+}
+
+export function sessionLoginUrl(request: Request, next: string): string {
+  return `/login?next=${encodeURIComponent(next)}`;
+}
 
 function sessionCookieHeader(request: Request): Record<string, string> {
   const cookie = request.headers.get("cookie");
@@ -58,13 +78,17 @@ function csrfHeader(request: Request): Record<string, string> {
   return csrf ? { "X-CSRF-Token": csrf } : {};
 }
 
+function originHeader(): Record<string, string> {
+  return { Origin: WEB_ORIGIN };
+}
+
 export async function apiGetWithSession<T>(path: string, request: Request): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     cache: "no-store",
-    headers: sessionCookieHeader(request),
+    headers: { ...sessionCookieHeader(request), ...originHeader() },
   });
   if (!response.ok) {
-    throw new Error(await errorMessage(response));
+    throw await apiError(response);
   }
   return response.json() as Promise<T>;
 }
@@ -76,23 +100,33 @@ export async function apiPostWithSession<T>(path: string, body: unknown, request
       "content-type": "application/json",
       ...sessionCookieHeader(request),
       ...csrfHeader(request),
+      ...originHeader(),
     },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new Error(await errorMessage(response));
+    throw await apiError(response);
   }
   return response.json() as Promise<T>;
 }
 
-async function errorMessage(response: Response): Promise<string> {
+async function apiError(response: Response): Promise<AgoraApiError> {
+  let message = `Agora API request failed: ${response.status}`;
+  let code: string | null = null;
   try {
     const body = await response.json();
     if (typeof body.detail === "string") {
-      return body.detail;
+      message = body.detail;
+    } else if (body.detail && typeof body.detail === "object") {
+      const detail = body.detail as { code?: string; message?: string };
+      code = detail.code ?? null;
+      message = detail.message ?? message;
+    } else if (Array.isArray(body.detail)) {
+      const first = body.detail[0];
+      message = first?.msg ? String(first.msg) : message;
     }
   } catch {
-    // Fall through to the status-only message when the API does not return JSON.
+    // Fall through to the status-only message.
   }
-  return `Agora API request failed: ${response.status}`;
+  return new AgoraApiError(response.status, message, code);
 }

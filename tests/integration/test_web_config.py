@@ -687,3 +687,38 @@ def test_pr2_nginx_reverse_proxy_enforces_limits():
     assert "limit_req" in conf
     assert "proxy_pass http://agora_api" in conf
     assert "return 301 https://" in conf
+
+
+def test_pr_web_approval_loop_uses_session_and_reauth():
+    api_lib = Path("apps/web/lib/api.ts").read_text()
+    assert "AgoraApiError" in api_lib
+    assert "APPROVAL_CREDENTIAL_REQUIRED" in api_lib or "apiError" in api_lib
+
+    skill_route = Path("apps/web/app/projects/[projectId]/skills/[skillId]/approve/route.ts").read_text()
+    assert "apiPostWithSession" in skill_route
+    assert "hasSessionCookie" in skill_route
+    assert "APPROVAL_CREDENTIAL_REQUIRED" in skill_route
+    assert "/reauth" in skill_route
+
+    proposal_route = Path(
+        "apps/web/app/projects/[projectId]/context/proposals/[proposalId]/approve/route.ts"
+    ).read_text()
+    assert "apiPostWithSession" in proposal_route
+    assert "hasSessionCookie" in proposal_route
+    assert "APPROVAL_CREDENTIAL_REQUIRED" in proposal_route
+    assert "/reauth" in proposal_route
+
+
+def test_pr_web_reauth_page_and_login_next_exist():
+    reauth_page = Path("apps/web/app/reauth/page.tsx")
+    reauth_submit = Path("apps/web/app/reauth/submit/route.ts")
+    assert reauth_page.exists()
+    assert "password" in reauth_page.read_text()
+    assert "Reauthenticate" in reauth_page.read_text()
+    assert "/auth/reauth" in reauth_submit.read_text()
+    assert "apiPostWithSession" in reauth_submit.read_text()
+
+    login_submit = Path("apps/web/app/login/submit/route.ts").read_text()
+    login_page = Path("apps/web/app/login/page.tsx").read_text()
+    assert "next" in login_submit
+    assert "next" in login_page
