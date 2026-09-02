@@ -555,7 +555,7 @@ git commit -m "feat: expose safe workflow completion over mcp"
 
 **Execution record (2026-09-01):**
 
-- Commit: `feat: expose safe workflow completion over mcp` (single commit covers Steps 1-5).
+- Commit: `f876f51` (feat: expose safe workflow completion over mcp; single commit covers Steps 1-5).
 - Implementation: `_enforce_pr1a_content_boundary` checks the runtime environment and payload before persistence, independent of principal kind — summary-only completions succeed in development/production, non-empty artifacts return `PR1_UPLOAD_POLICY_REQUIRED`, any human confirmation returns `PR1_APPROVAL_POLICY_REQUIRED`; legacy artifact/confirmation compatibility remains only in isolated `AGORA_ENV=test`. The MCP 1.1 `agora_complete_workflow_step` schema now exposes only `idempotency_key`, `session_id`, `step_key` and `summary`, and the stdio adapter always sends empty artifacts and no confirmation.
 - GREEN evidence: focused boundary suite `3 passed`; MCP + API integration `155 passed`; full Python suite counts recorded after the final commit.
 - State: `implemented` and `automated verified`; PR1A black-box and exit criteria remain pending.
