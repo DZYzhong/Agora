@@ -81,11 +81,11 @@ Hash/verify round-trip; wrong password fails; parameters embedded in the hash st
 - Modify: `apps/api/main.py`, `apps/api/middleware.py` (CSRF + Origin enforcement on cookie-authenticated state changes)
 - Create: `tests/integration/api/test_auth_sessions.py`
 
-- [ ] **Step 1: Add failing tests** — login sets Secure/HttpOnly/SameSite=Strict cookie; session id never returned in body; wrong password rate-limited; logout revokes; CSRF token required for state change; Origin mismatch rejected; idle 30min / max 12h expiry enforced; reauth verifies password and issues fresh grant session.
+- [x] **Step 1: Add failing tests** — login sets Secure/HttpOnly/SameSite=Strict cookie; session id never returned in body; wrong password rate-limited; logout revokes; CSRF token required for state change; Origin mismatch rejected; idle 30min / max 12h expiry enforced; reauth verifies password and issues fresh grant session.
 - [x] **Step 2: Run RED**.
-- [ ] **Step 3: Implement**.
-- [ ] **Step 4: Run GREEN**.
-- [ ] **Step 5: Commit** `feat: add cookie sessions and csrf protection`.
+- [x] **Step 3: Implement**.
+- [x] **Step 4: Run GREEN**.
+- [x] **Step 5: Commit** `feat: add cookie sessions and csrf protection`.
 
 ## Chunk 3: Approval grants and denial matrix
 
@@ -100,11 +100,11 @@ Hash/verify round-trip; wrong password fails; parameters embedded in the hash st
 - Modify: `apps/api/auth.py` (`require_approval_capability` denial matrix)
 - Create: `tests/integration/api/test_approval_grants.py`
 
-- [ ] **Step 1: Add failing tests** — Agent token cannot approve; CI token cannot approve; Personal token cannot approve; Web human session can approve; grant is single-use, 5-min expiry, payload-digest bound; reuse/expired/mismatched digest rejected; low-risk workflow acknowledgment from Agent token remains allowed and is distinct from Approval.
+- [x] **Step 1: Add failing tests** — Agent token cannot approve; CI token cannot approve; Personal token cannot approve; Web human session can approve; grant is single-use, 5-min expiry, payload-digest bound; reuse/expired/mismatched digest rejected; low-risk workflow acknowledgment from Agent token remains allowed and is distinct from Approval.
 - [x] **Step 2: Run RED**.
-- [ ] **Step 3: Implement** grant issuance/consumption + denial matrix.
-- [ ] **Step 4: Run GREEN**.
-- [ ] **Step 5: Commit** `feat: enforce approval grants and credential denial matrix`.
+- [x] **Step 3: Implement** grant issuance/consumption + denial matrix.
+- [x] **Step 4: Run GREEN**.
+- [x] **Step 5: Commit** `feat: enforce approval grants and credential denial matrix`.
 
 ## Chunk 4: Web UI and verification
 
@@ -149,6 +149,18 @@ Hash/verify round-trip; wrong password fails; parameters embedded in the hash st
 - GREEN: `test_users_api.py` `8 passed`; CLI bootstrap test `1 passed`; full suite `410 passed, 2 skipped`.
 - Note: API-level org-admin denial is covered at unit level (`test_create_user_requires_org_admin`); HTTP-session-based denial testing lands with Task 4.
 - State: `implemented` and `automated verified`.
+
+### Task 4 (2026-09-02)
+
+- Commit: `40a4366` (feat: add cookie sessions and csrf protection).
+- Implementation: `web_sessions` table + `WebSessionRepository`; `apps/api/auth_session.py` with Argon2id login, sliding 30-min idle / 12-hour max session, double-submit CSRF cookie (`agora_csrf`, hash stored on the session), in-memory per-user+source login/reauth rate limiting, and reauthentication (5-min window). `apps/api/routers/auth.py` provides `/auth/login|logout|session|reauth`; `CsrfProtectionMiddleware` enforces Origin + `X-CSRF-Token` for cookie-authenticated state changes (bearer requests exempt). `get_current_principal` now falls back to the session cookie when no bearer token is present.
+- GREEN: `test_auth_sessions.py` `10 passed`; full suite `420 passed, 2 skipped`.
+
+### Task 5 (2026-09-02)
+
+- Commit: `e47d5c3` (feat: enforce approval grants and credential denial matrix).
+- Implementation: `approval_grants` table + repository + `packages/core/services/approval_grants.py`: grants bound to human user, object type/id, payload digest, decision, policy version, 5-minute expiry, single-use; `require_approval_capability` enforces the denial matrix — Agent/CI/Personal bearer tokens denied (`APPROVAL_CREDENTIAL_REQUIRED`), reauthenticated Web human sessions approve directly, grants consumed with full binding checks. `/approval-grants` issues grants from reauthenticated sessions; `approve_context_proposal` and `approve_skill` enforce capability before the project-role check. Existing production-auth approval tests converted to the Web-session flow.
+- GREEN: `test_approval_grants.py` `9 passed`; full suite `429 passed, 2 skipped`.
 
 ---
 
