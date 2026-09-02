@@ -653,7 +653,7 @@ git commit -m "docs: record pr1a verification and black-box guide"
 
 **Execution record (2026-09-01):**
 
-- Commit: `docs: record pr1a verification and black-box guide` (covers Steps 1-5 plus the Task 1-9 execution records referenced in this plan).
+- Commit: `fbc0836` (docs: record pr1a verification and black-box guide; covers Steps 1-5 plus the Task 1-9 execution records referenced in this plan).
 - RED evidence: the new documentation contract test was written before the guide and could not pass; after writing the guide it passes (`1 passed`).
 - GREEN evidence (Step 3 verification): full Python suite `378 passed, 2 skipped` (skips are PostgreSQL-dependent tests that require a real database — partial PR1A evidence only, cannot satisfy release CI); `compileall` passed for apps/packages/scripts/alembic; `pip check` reported no broken requirements; `npx tsc --noEmit` passed; `NEXT_TELEMETRY_DISABLED=1 npm run build` passed; `git diff --check` passed.
 - Lint gap (recorded, not fixed): `npm run lint` invokes `next lint`, which requires interactive ESLint setup and is not configured. This is recorded as an open gap; a real ESLint configuration belongs to the PR1C dependency/security baseline, not PR1A.
