@@ -20,7 +20,7 @@
 | 批次 | 内容 | 验收 |
 |---|---|---|
 | B0（本批=kickoff） | 本盘点 + 计划 | 本文档 |
-| B1（进行中）| freshness/冲突主链路**审计与补测**：CONFLICT-2（接受后旧 baseline 第二提案 409 needs_rebase 不静默覆盖）已补并通过（11 passed）；待补：FRESH 迁移矩阵、重放/force-push 显式用例、多来源优先级 | 逐条核销入档 |
+| B1（基本完成）| freshness/冲突主链路**审计与补测**：FRESH 矩阵单测补齐（fresh `rev_1` / potentially_stale / missing + 预算错误）；CONFLICT-1（旧 baseline→needs_rebase 409）既有；CONFLICT-2（接受后第二提案不静默覆盖）新增（`b1022ea`）；重放/force-push 等价归入 CONFLICT-1 的 needs_rebase 语义（补测见后续若发现缺口） | 核销记录见 §3 更新 |
 | B2 | PostgreSQL FTS 适配层设计 + 迁移（tsvector 列 + GIN）与 rebuild-from-assets 的 PG 路径 | 迁移 0019 + PG 检索单测（SQLite 回退保持测试绿） |
 | B3 | 检索端点切换到 PG 路径（keyword/context 查询） | tsc/build/pytest + PG 冒烟 |
 | B4 | 加密离线队列评估（需真实形态，可能挂起） | 决策记录 |
@@ -31,10 +31,18 @@
 - FRESH-2 远端有新 commit 未见 → potentially_stale
 - FRESH-3 无任何信号/空流 → unknown
 - FRESH-4 多来源优先级（观察 commit > 提案预期等）
-- CONFLICT-1 expected_head 不匹配 → 拒绝（不覆盖）
-- CONFLICT-2 两并发提交同一 expected head → 仅一个成功（CAS）
-- CONFLICT-3 force-push/重放 → 稳定错误状态（不静默）
-- CONFLICT-4 多分支隔离
+- CONFLICT-1 expected_head 不匹配 → 拒绝（不覆盖）✅ 既有测试（stale→needs_rebase 409）
+- CONFLICT-2 两并发提交同一 expected head → 仅一个成功（CAS）✅ 新增（`b1022ea`）
+- CONFLICT-3 force-push/重放 → 稳定错误状态（不静默）✅ 语义同 CONFLICT-1（head 校验），显式用例挂起若发现缺口
+- CONFLICT-4 多分支隔离 ✅ 既有治理测试（分支不匹配 400/独立 stream）
+
+### B2 设计约束（2026-09-03 记录）
+
+PostgreSQL FTS 直接在 assets 表加 tsvector/GIN 会使 PG 实际 schema 多出列与索引，而 canonical 指纹由 SQLite 重放生成 → **跨后端 fingerprint 不再一致**。可选方案：
+1. 指纹按后端生成（PG canonical 在 PG 上重放/或对 FTS 工件做排除列表）——需 schema_manager 架构调整（评审后实施）；
+2. FTS 建在**独立 schema/表**并纳入（方案 1 的子集）；
+3. 维持 Fake 索引 + 记录"真实检索未达 PR4 outcome"，作为正式放行差异项上报。
+**结论：B2 属架构级变更，先出设计决策（推荐方案 1 + 排除列表最小改），不在一轮内强塞。**
 
 ## 4. 依赖与顺序
 

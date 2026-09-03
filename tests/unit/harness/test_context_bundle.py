@@ -80,3 +80,30 @@ def test_context_bundle_returns_stable_budget_error_for_tiny_budget():
         )
 
     assert exc.value.code == "TOKEN_BUDGET_TOO_SMALL"
+
+
+def test_context_bundle_with_accepted_revision_is_fresh_and_not_provisional():
+    from packages.core.models import ContextRevisionModel
+
+    revision = ContextRevisionModel(
+        id="rev_1",
+        commit_sha="abc123def456",
+    )
+    bundle = build_context_bundle(
+        session_id="sess_1",
+        query="refund retry",
+        token_budget=1200,
+        context_pack=_context_pack(),
+        accepted_revision=revision,
+    )
+
+    assert bundle["provisional"] is False
+    assert bundle["freshness"] == {
+        "repository_relation": "same_project",
+        "workspace_state": "unknown",
+        "context_coverage": "fresh",
+        "proposal_state": "none",
+        "accepted_revision_id": "rev_1",
+        "observed_commit_sha": "abc123def456",
+        "recommended_action": "use_accepted_context",
+    }
