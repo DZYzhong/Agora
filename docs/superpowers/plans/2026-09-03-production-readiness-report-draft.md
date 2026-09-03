@@ -18,9 +18,9 @@
 | PR2 部署 `PR2-COMPOSE-*`/`WORKER-*` | ✅ | compose healthy；worker 租约/重试/死信测试；/ready 503 语义 |
 | PR2 恢复 `PR2-DR-*` | 本机部分 ✅（`983f19a` 加密备份→恢复演练证据）；**干净主机/RPO/RTO ⛔** | 运行手册 §11 |
 | PR3 权限 `PR3-RBAC-*` | ✅ 自动化 | 41 行矩阵 + B4 UI（540+ passed） |
-| PR4 上下文 `PR4-FRESH-*`/`CONFLICT-*` | 部分（CONFLICT-2 已自动化 `b1022ea`）；矩阵补测 + PG FTS ⏳ | 计划 `2026-09-03-pr4-context-consistency.md` |
-| PR5 性能 `PR5-PERF-*` | ⛔ 未做（需固定基准 + 50 并发 30 分钟） | 待 PR4 后安排 |
-| PR5 运维 `PR5-OPS-*` | 部分 ✅（安全响应头 `58f54b2`、指标 `/metrics`）；告警规则/演练 ⏳ | 升级/回滚/备份手册（运行手册 §3-4） |
+| PR4 上下文 `PR4-FRESH-*`/`CONFLICT-*` | 主链路 ✅（FRESH fresh/stale/missing 单测 + CONFLICT-1/2/4 自动化）；**PG FTS（真实检索）⛔ 设计门**（tsvector 与跨后端指纹冲突，见计划 B2 决策记录） | 计划 `2026-09-03-pr4-context-consistency.md` |
+| PR5 性能 `PR5-PERF-*` | ⛔ 未做（需固定基准 + 50 并发 30 分钟） | 环境门 |
+| PR5 运维 `PR5-OPS-*` | 部分 ✅：安全响应头 `58f54b2`、`/metrics` 证据 + 告警规则建议 + retention 证据（`2b7df25`，见 `docs/development/ops-metrics-and-alerts.zh-CN.md`）；Alertmanager 接线/演练 ⏳ | 升级/回滚/备份手册（运行手册 §3-4/§11） |
 | PR6 黑盒 `PR6-E2E-*` | ⛔ | 待用户多角色真实黑盒 |
 
 ## 3. 已关缺陷/风险
