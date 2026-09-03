@@ -160,14 +160,25 @@ export default async function ProjectDetailPage({
           </div>
         </section>
       ) : (
-        <section className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-white/60 px-5 py-4 text-sm text-slate-400">
-          {lang === "zh"
-            ? "暂无进行中的 AI 会话。"
-            : "No AI tool sessions are running right now."}
+        <section className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-slate-200 bg-white/60 px-5 py-4">
+          <p className="text-sm text-slate-400">
+            {lang === "zh"
+              ? "暂无进行中的 AI 会话。"
+              : "No AI tool sessions are running right now."}
+          </p>
+          <Link
+            href={`/projects/${project.id}/sessions`}
+            className="text-sm font-medium text-blue-600 hover:text-blue-700"
+          >
+            {t("allSessions")} →
+          </Link>
         </section>
       )}
 
-      <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <h2 className="mt-10 text-xs font-semibold uppercase tracking-wider text-slate-400">
+        {lang === "zh" ? "模块入口" : "Workspace"}
+      </h2>
+      <section className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {NAV_TILES.map((tile) => (
           <Link
             key={tile.href}

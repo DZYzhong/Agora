@@ -10,7 +10,8 @@ export default async function LoginPage({
   const t = makeT("login", lang);
 
   return (
-    <main className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center bg-slate-50 px-4 py-12">
+    <main className="relative flex min-h-[calc(100vh-3.5rem)] items-center justify-center overflow-hidden bg-slate-50 px-4 py-12">
+      <div aria-hidden="true" className="pointer-events-none absolute -top-40 left-1/2 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-blue-100/60 blur-3xl" />
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-xl font-bold text-white shadow-sm">
@@ -19,6 +20,7 @@ export default async function LoginPage({
           <h1 className="text-xl font-semibold tracking-tight text-slate-900">
             {t("title")}
           </h1>
+          <p className="mt-1.5 text-sm text-slate-400">Agora · Team AI Project Harness</p>
         </div>
 
         {error === "invalid_credentials" && (
