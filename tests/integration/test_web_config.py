@@ -934,3 +934,20 @@ def test_ops_release_artifacts_are_present_and_pinned():
     assert (docs / "local-production-runbook.zh-CN.md").exists()
     manual = (docs / "deployment-manual.zh-CN.md").read_text()
     assert "postgres:16" in manual and "nginx:1.27-alpine" in manual and "prom/prometheus:v2.54.1" in manual
+
+
+def test_web_sidebar_shell_and_pathname_header_exist():
+    layout = Path("apps/web/app/layout.tsx").read_text()
+    assert "Sidebar" in layout
+    assert "x-pathname" in layout
+    assert "standalone" in layout
+    middleware = Path("apps/web/middleware.ts").read_text()
+    assert "x-pathname" in middleware
+    assert "/members/:path*" in middleware
+    sidebar = Path("apps/web/components/Sidebar.tsx").read_text()
+    assert "orgMembers" in sidebar
+    assert 'href: "/members"' in sidebar
+    assert "/lang?lang=" in sidebar
+    i18n = Path("apps/web/lib/i18n.ts").read_text()
+    assert "orgMembers" in i18n
+    assert "组织成员" in i18n

@@ -8,22 +8,35 @@ const SESSION_COOKIE = "agora_session";
 // gated so the bearer flow keeps working without a browser login.
 const isProduction = process.env.AGORA_ENV === "production";
 
+function withPathname(request: NextRequest): NextResponse {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
+  return NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+}
+
 export function middleware(request: NextRequest) {
-  if (!isProduction) {
-    return NextResponse.next();
-  }
   const { pathname } = request.nextUrl;
-  if (pathname === "/login" || pathname.startsWith("/login") || pathname.startsWith("/reauth") || pathname.startsWith("/users")) {
-    return NextResponse.next();
+  if (!isProduction) {
+    return withPathname(request);
+  }
+  if (
+    pathname === "/login" ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/reauth") ||
+    pathname.startsWith("/users")
+  ) {
+    return withPathname(request);
   }
   if (!request.cookies.get(SESSION_COOKIE)) {
     const url = new URL("/login", request.url);
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
-  return NextResponse.next();
+  return withPathname(request);
 }
 
 export const config = {
-  matcher: ["/projects/:path*", "/"],
+  matcher: ["/projects/:path*", "/users/:path*", "/members/:path*", "/login/:path*", "/reauth/:path*", "/"],
 };

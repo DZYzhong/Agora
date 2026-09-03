@@ -54,6 +54,7 @@ const DICTIONARY: Record<string, Dict> = {
     signIn: { zh: "登录", en: "Sign in" },
     projects: { zh: "项目", en: "Projects" },
     users: { zh: "用户", en: "Users" },
+    orgMembers: { zh: "组织成员", en: "Members" },
     back: { zh: "返回", en: "Back" },
     all: { zh: "全部", en: "All" },
     archive: { zh: "归档", en: "Archive" },
