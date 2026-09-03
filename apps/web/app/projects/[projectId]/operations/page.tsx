@@ -1,8 +1,10 @@
 import { apiGet } from "../../../../lib/api";
+import { currentLang } from "../../../../lib/i18n";
+import { Card, Page, PageHeader } from "../../../../components/ui";
 
 type CountMap = Record<string, number>;
 
-type ProjectOperationsSummary = {
+type Summary = {
   format: string;
   generated_at: string;
   schema_revision: string;
@@ -14,93 +16,110 @@ type ProjectOperationsSummary = {
     git_remotes: string[];
     default_branch: string | null;
   };
-  assets: {
-    total: number;
-    by_type: CountMap;
-    by_source: CountMap;
-  };
-  work_items: {
-    total: number;
-    by_status: CountMap;
-    by_stage: CountMap;
-    by_source: CountMap;
-  };
-  context: {
-    streams: number;
-    revisions: number;
-    proposals_by_status: CountMap;
-  };
-  quality: {
-    evidence_by_status: CountMap;
-    evidence_by_type: CountMap;
-  };
-  skills: {
-    skills_by_status: CountMap;
-    versions_by_status: CountMap;
-    runs_by_status: CountMap;
-  };
-  approvals: {
-    decisions: CountMap;
-  };
-  security: {
-    decisions: CountMap;
-    actions: CountMap;
-  };
-  repository_signals: {
-    by_status: CountMap;
-    by_type: CountMap;
-  };
-  pull_request_signals: {
-    by_status: CountMap;
-    by_action: CountMap;
-  };
+  assets: { total: number; by_type: CountMap; by_source: CountMap };
+  work_items: { total: number; by_status: CountMap; by_stage: CountMap; by_source: CountMap };
+  context: { streams: number; revisions: number; proposals_by_status: CountMap };
+  quality: { evidence_by_status: CountMap; evidence_by_type: CountMap };
+  skills: { skills_by_status: CountMap; versions_by_status: CountMap; runs_by_status: CountMap };
+  approvals: { decisions: CountMap };
+  security: { decisions: CountMap; actions: CountMap };
+  repository_signals: { by_status: CountMap; by_type: CountMap };
+  pull_request_signals: { by_status: CountMap; by_action: CountMap };
 };
 
-export default async function ProjectOperationsPage({ params }: { params: Promise<{ projectId: string }> }) {
+function MiniStats({ values }: { values: CountMap }) {
+  const entries = Object.keys(values).length ? Object.entries(values) : [["—", 0]];
+  return (
+    <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+      {entries.map(([key, count]) => (
+        <div key={key} className="flex items-center justify-between gap-2 text-sm">
+          <dt className="truncate font-mono text-xs text-slate-400">{key}</dt>
+          <dd className="font-semibold text-slate-700">{count}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function SummaryPanel({
+  title,
+  total,
+  maps,
+}: {
+  title: string;
+  total?: number;
+  maps: [string, CountMap][];
+}) {
+  return (
+    <Card className="p-5">
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+        {typeof total === "number" ? (
+          <span className="text-2xl font-semibold tracking-tight text-slate-900">{total}</span>
+        ) : null}
+      </div>
+      <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+        {maps.map(([label, values]) => (
+          <div key={label}>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+            <MiniStats values={values} />
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+export default async function ProjectOperationsPage({
+  params,
+}: {
+  params: Promise<{ projectId: string }>;
+}) {
   const { projectId } = await params;
-  let summary: ProjectOperationsSummary | null = null;
+  const lang = await currentLang();
+  const zh = lang === "zh";
+
+  let summary: Summary | null = null;
   try {
-    summary = await apiGet<ProjectOperationsSummary>(`/projects/${projectId}/operations-summary`);
+    summary = await apiGet<Summary>(`/projects/${projectId}/operations-summary`);
   } catch {
     summary = null;
   }
 
   if (!summary) {
     return (
-      <main className="page">
-        <h1>Operations summary</h1>
-        <p className="alert">Unable to load operations summary.</p>
-      </main>
+      <Page>
+        <PageHeader title={zh ? "运营摘要" : "Operations summary"} />
+        <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {zh ? "无法加载运营摘要。" : "Unable to load operations summary."}
+        </div>
+      </Page>
     );
   }
 
   return (
-    <main className="page">
-      <h1>Operations summary</h1>
-      <p className="muted">
-        {summary.project.name} · {summary.project.slug} · {summary.schema_revision}
-      </p>
-      <section className="panel status-panel">
-        <p className="eyebrow">Project</p>
-        <dl className="status-metrics">
-          <div>
-            <dt>Status</dt>
-            <dd>{summary.project.status}</dd>
-          </div>
-          <div>
-            <dt>Default branch</dt>
-            <dd>{summary.project.default_branch ?? "Not set"}</dd>
-          </div>
-          <div>
-            <dt>Generated</dt>
-            <dd>{new Date(summary.generated_at).toLocaleString()}</dd>
-          </div>
-        </dl>
-      </section>
-      <section className="grid">
-        <SummaryPanel title="Assets" total={summary.assets.total} maps={[["Types", summary.assets.by_type], ["Sources", summary.assets.by_source]]} />
+    <Page>
+      <PageHeader
+        title={zh ? "运营摘要" : "Operations summary"}
+        subtitle={`${summary.project.name} · ${summary.project.slug}`}
+        meta={
+          <span className="rounded-full bg-white px-3 py-1 font-mono text-xs text-slate-400 ring-1 ring-inset ring-slate-200">
+            {summary.schema_revision}
+          </span>
+        }
+      />
+
+      <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryPanel
-          title="Work items"
+          title="Assets"
+          total={summary.assets.total}
+          maps={[
+            [zh ? "类型" : "Types", summary.assets.by_type],
+            [zh ? "来源" : "Sources", summary.assets.by_source],
+          ]}
+        />
+        <SummaryPanel
+          title={zh ? "工作项" : "Work items"}
           total={summary.work_items.total}
           maps={[
             ["Status", summary.work_items.by_status],
@@ -109,7 +128,7 @@ export default async function ProjectOperationsPage({ params }: { params: Promis
           ]}
         />
         <SummaryPanel
-          title="Context governance"
+          title={zh ? "上下文治理" : "Context governance"}
           total={summary.context.streams + summary.context.revisions}
           maps={[
             ["Streams", { total: summary.context.streams }],
@@ -118,7 +137,7 @@ export default async function ProjectOperationsPage({ params }: { params: Promis
           ]}
         />
         <SummaryPanel
-          title="Quality evidence"
+          title={zh ? "质量证据" : "Quality evidence"}
           maps={[
             ["Status", summary.quality.evidence_by_status],
             ["Types", summary.quality.evidence_by_type],
@@ -134,14 +153,14 @@ export default async function ProjectOperationsPage({ params }: { params: Promis
         />
         <SummaryPanel title="Approvals" maps={[["Decisions", summary.approvals.decisions]]} />
         <SummaryPanel
-          title="Security audit"
+          title={zh ? "安全审计" : "Security audit"}
           maps={[
             ["Decisions", summary.security.decisions],
             ["Actions", summary.security.actions],
           ]}
         />
         <SummaryPanel
-          title="Repository signals"
+          title={zh ? "仓库信号" : "Repository signals"}
           maps={[
             ["Status", summary.repository_signals.by_status],
             ["Types", summary.repository_signals.by_type],
@@ -149,37 +168,6 @@ export default async function ProjectOperationsPage({ params }: { params: Promis
           ]}
         />
       </section>
-    </main>
-  );
-}
-
-function SummaryPanel({ title, total, maps }: { title: string; total?: number; maps: [string, CountMap][] }) {
-  return (
-    <section className="panel status-panel">
-      <div>
-        <p className="eyebrow">{title}</p>
-        {typeof total === "number" ? <h2>{total}</h2> : null}
-      </div>
-      {maps.map(([label, values]) => (
-        <div key={label}>
-          <h3>{label}</h3>
-          <dl className="status-metrics compact-metrics">
-            {Object.keys(values).length ? (
-              Object.entries(values).map(([key, count]) => (
-                <div key={key}>
-                  <dt>{key}</dt>
-                  <dd>{count}</dd>
-                </div>
-              ))
-            ) : (
-              <div>
-                <dt>None</dt>
-                <dd>0</dd>
-              </div>
-            )}
-          </dl>
-        </div>
-      ))}
-    </section>
+    </Page>
   );
 }
