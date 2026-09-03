@@ -41,3 +41,18 @@
 - 根因 2（产品缺陷，已修复 `3c3d59c`）：stdio 客户端 `raise_for_status()` 把带 `code`/`message`/`next_actions` 的协议结构化 4xx 压成一句 "404 Not Found"；修复后协议结构化非 2xx 作为正常工具结果返回（含 `http_status`），其余 4xx/5xx 错误文本带响应体；`agora_start_work` 工具描述补充 next_actions 指引。mcp 单测 39 passed。
 - 环境重建（本机栈）：项目 `agora-bb-demo`（slug `agora-bb-demo`，remote `github.com/dzyzhong/agora-bb-demo`，default main，active）；agent 用户（Local Bootstrap User）owner 成员（201）。
 - 复验（真实 MCP dispatch，agent token）：`agora_start_work` 200 → `session_id`/AG-200 work item；`agora_prepare_context` 200（level empty——项目尚无 assets，属预期）；`agora_close_work` 200（探针 session 已关闭）。
+
+## 6. 自助黑盒 A1→A5 全链路复验 PASS（2026-09-03）
+
+驱动方式：真实 stdio MCP server 进程（`python -m apps.mcp.server`，JSON-RPC over stdin/stdout，与 Cursor 同一通道）；人工批准以 admin 凭据经 login→/auth/reauth→approve API 模拟 Web 操作。清理了此前半途流程在演示项目产生的提案/修订/会话（本地演示库卫生），在干净状态复验。
+
+| 步 | 动作 | 结果 |
+|---|---|---|
+| A1 | `agora_start_work`（repo_remote agora-bb-demo）→ session `81b111b3`；`agora_prepare_context` | 200；level empty + provisional（新项目预期）；next_action plan_context |
+| A2 | `agora_submit_context_proposal`（task_update，cb547f4→be7c21c6） | proposal `3a5f394f` submitted |
+| A3 | admin reauth + approve（revision_signal observed be7c21c6） | **approved**；accepted revision `5db3d2b4`；流 head 更新 |
+| A4 | `agora_record_evidence`（local_test passed）+ `agora_complete_workflow_step`（analysis） | evidence 落库；analysis **completed** → 推进 design |
+| A5 | `agora_close_work` | session **closed**（生成 writeback 供人审阅） |
+| 验证 | `/harness/get-project-status`（admin 视角） | delivery_readiness **ready**；quality **passing**；pending_approvals 0；evidence 可见 |
+
+用户试用指引：`docs/development/agora-usage-manual.zh-CN.md`（两端操作 + URL + 排查表 + 术语）。
