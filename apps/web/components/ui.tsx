@@ -64,12 +64,12 @@ export function Card({
 export type Tone = "green" | "amber" | "red" | "slate" | "blue" | "violet";
 
 const TONE_CLASSES: Record<Tone, { pill: string; dot: string }> = {
-  green: { pill: "bg-emerald-50 text-emerald-700 ring-emerald-600/20", dot: "bg-emerald-500" },
-  amber: { pill: "bg-amber-50 text-amber-700 ring-amber-600/20", dot: "bg-amber-500" },
-  red: { pill: "bg-red-50 text-red-700 ring-red-600/20", dot: "bg-red-500" },
-  slate: { pill: "bg-fill text-ink-2 ring-slate-500/10", dot: "bg-slate-400" },
-  blue: { pill: "bg-blue-50 text-blue-700 ring-blue-600/20", dot: "bg-blue-500" },
-  violet: { pill: "bg-violet-50 text-violet-700 ring-violet-600/20", dot: "bg-violet-500" },
+  green: { pill: "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-400/30", dot: "bg-emerald-500 dark:bg-emerald-400" },
+  amber: { pill: "bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-400/30", dot: "bg-amber-500 dark:bg-amber-400" },
+  red: { pill: "bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-950 dark:text-red-300 dark:ring-red-400/30", dot: "bg-red-500 dark:bg-red-400" },
+  slate: { pill: "bg-fill text-ink-2 ring-slate-500/10 dark:text-ink-2 dark:ring-ink-4/30", dot: "bg-slate-400 dark:bg-ink-3" },
+  blue: { pill: "bg-blue-50 text-blue-700 ring-blue-600/20 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-400/30", dot: "bg-blue-500 dark:bg-blue-400" },
+  violet: { pill: "bg-violet-50 text-violet-700 ring-violet-600/20 dark:bg-violet-950 dark:text-violet-300 dark:ring-violet-400/30", dot: "bg-violet-500 dark:bg-violet-400" },
 };
 
 export function Badge({

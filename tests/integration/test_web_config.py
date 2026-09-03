@@ -653,8 +653,8 @@ def test_pr1b_web_users_management_pages_exist():
 
 
 def test_pr1b_web_nav_links_to_users():
-    nav = Path("apps/web/components/Nav.tsx").read_text()
-    assert 'href="/users"' in nav
+    nav = Path("apps/web/components/Sidebar.tsx").read_text()
+    assert 'href: "/users"' in nav
 
 
 def test_pr1c_eslint_is_configured_and_non_interactive():
@@ -738,18 +738,18 @@ def test_pr_web_reauth_page_and_login_next_exist():
     assert "next" in login_page
 
 
-def test_pr_web_nav_shows_sign_in_out_and_middleware_guards_production():
-    nav = Path("apps/web/components/Nav.tsx").read_text()
+def test_pr_web_sidebar_shows_sign_in_out_and_middleware_guards_production():
+    nav = Path("apps/web/components/Sidebar.tsx").read_text()
     assert 'cookies()' in nav or 'cookieStore' in nav
     assert "agora_session" in nav
-    # Bilingual nav: sign-in/out labels resolve through the i18n dictionary;
-    # both languages must be defined and the logout action present.
+    # Bilingual sidebar: sign-in/out labels resolve through the i18n
+    # dictionary; both languages must be defined and the logout action present.
     assert "signOut" in nav
     assert "signIn" in nav
     assert "退出登录" in Path("apps/web/lib/i18n.ts").read_text()
     assert "Sign out" in Path("apps/web/lib/i18n.ts").read_text()
     assert '/logout' in nav
-    assert 'agora_lang' in nav or 'lang?' in nav
+    assert '/lang?lang=' in nav
 
     middleware = Path("apps/web/middleware.ts").read_text()
     assert "AGORA_ENV" in middleware
