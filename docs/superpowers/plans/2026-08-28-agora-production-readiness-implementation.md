@@ -200,7 +200,12 @@ PR4 exit gate:
 
 ## Chunk 5: PR5 Operations and defense-in-depth
 
-Separate implementation plan required after PR4 exit.
+Current execution state (2026-09-03): defense-in-depth baseline landed —
+security response headers on API and nginx (`58f54b2`), metrics endpoint
+evidence and alert-rule suggestions plus retention CLI usage documented in
+`docs/development/ops-metrics-and-alerts.zh-CN.md`. PR5-PERF (50 concurrent,
+30-minute p95) and Alertmanager/Grafana wiring require a production/benchmark
+environment.
 
 Outcomes:
 
