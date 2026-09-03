@@ -148,8 +148,13 @@ audit (`tests/integration/api/test_credentials_api.py`, migration 0018 adds
 credentials.label); **B3 disable propagation hardening implemented** —
 disabling a user now revokes credentials, web sessions and all unconsumed
 approval grants with an audited reason (`tests/integration/api/
-test_disable_propagation.py`). PR3 exit gate (PR3-RBAC-* matrix,
-real-identity black-box) remains open.
+test_disable_propagation.py`); **B5 RBAC matrix automation implemented** —
+41-row principal×action matrix over membership and credential management,
+adding two hardening rules it surfaced (identity management is human-only:
+agent/CI tokens denied with HUMAN_CREDENTIAL_REQUIRED; the project owner role
+is reserved to the project owner or an org admin) (`tests/integration/
+test_rbac_matrix.py`). PR3-RBAC-* matrix is now automated; the real-identity
+black-box remains open.
 
 Outcomes:
 

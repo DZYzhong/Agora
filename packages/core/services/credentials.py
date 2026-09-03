@@ -55,6 +55,9 @@ def _audit(
 def _require_org_admin(session: Session, *, actor, org_id: str) -> None:
     if actor.is_bypass:
         return
+    if not actor.is_human:
+        raise CredentialError("HUMAN_CREDENTIAL_REQUIRED", "Identity management requires a human credential")
+    
     membership = IdentityRepository(session).get_org_membership(
         org_id=org_id, user_id=actor.user_id
     )

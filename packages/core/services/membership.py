@@ -56,6 +56,9 @@ def _audit(
 def _require_org_admin(session: Session, *, actor, org_id: str) -> None:
     if actor.is_bypass:
         return
+    if not actor.is_human:
+        raise MembershipError("HUMAN_CREDENTIAL_REQUIRED", "Identity management requires a human credential")
+    
     membership = IdentityRepository(session).get_org_membership(
         org_id=org_id, user_id=actor.user_id
     )
@@ -88,6 +91,8 @@ def _require_project_manager(
 ) -> None:
     if actor.is_bypass:
         return
+    if not actor.is_human:
+        raise MembershipError("HUMAN_CREDENTIAL_REQUIRED", "Identity management requires a human credential")
     if _org_role_of(session, actor=actor, org_id=project.org_id) in ADMIN_ROLES:
         return
     role = _project_role_of(session, actor=actor, project=project)
@@ -96,6 +101,16 @@ def _require_project_manager(
             "PROJECT_MANAGER_REQUIRED",
             "This action requires a project owner/admin or organization admin",
         )
+
+
+def _can_grant_project_owner(session: Session, *, actor, project: ProjectModel) -> bool:
+    """Granting/regranting the project owner role is reserved to the project
+    owner or an organization admin (mirrors the org owner rule)."""
+    if actor.is_bypass:
+        return True
+    if _org_role_of(session, actor=actor, org_id=project.org_id) in ADMIN_ROLES:
+        return True
+    return _project_role_of(session, actor=actor, project=project) == "owner"
 
 
 def _require_role_allowed(role: str, allowed: set[str], scope: str) -> None:
@@ -291,6 +306,11 @@ def add_project_member(
     project = _resolve_project(session, project_id)
     _require_project_manager(session, actor=actor, project=project)
     _require_role_allowed(role, PROJECT_ROLES, "project")
+    if role == "owner" and not _can_grant_project_owner(session, actor=actor, project=project):
+        raise MembershipError(
+            "OWNER_ROLE_RESERVED",
+            "The project owner role can only be granted by the project owner or an org admin",
+        )
     repo = IdentityRepository(session)
     user = _resolve_user(
         repo, org_id=project.org_id, user_id=user_id, username=username
@@ -323,6 +343,11 @@ def set_project_member_role(
     project = _resolve_project(session, project_id)
     _require_project_manager(session, actor=actor, project=project)
     _require_role_allowed(role, PROJECT_ROLES, "project")
+    if role == "owner" and not _can_grant_project_owner(session, actor=actor, project=project):
+        raise MembershipError(
+            "OWNER_ROLE_RESERVED",
+            "The project owner role can only be granted by the project owner or an org admin",
+        )
     repo = IdentityRepository(session)
     user = _resolve_user(
         repo, org_id=project.org_id, user_id=user_id, username=None

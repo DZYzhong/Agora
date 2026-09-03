@@ -25,7 +25,8 @@ class IssueCredentialRequest(BaseModel):
     expires_at: str | None = None
 
 
-_FORBIDDEN = {"ORG_ADMIN_REQUIRED", "KIND_NOT_ALLOWED"}
+_FORBIDDEN = {
+    "HUMAN_CREDENTIAL_REQUIRED","ORG_ADMIN_REQUIRED", "KIND_NOT_ALLOWED"}
 _NOT_FOUND = {"USER_NOT_FOUND", "CREDENTIAL_NOT_FOUND"}
 
 

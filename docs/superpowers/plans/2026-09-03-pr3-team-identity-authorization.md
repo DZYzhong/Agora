@@ -27,7 +27,7 @@
 | B2（已完成 2026-09-03）| API token 生命周期：签发（human/agent/ci + label + expires_at）/列出（隐藏明文）/轮换（吊销旧+发新）+ 审计 | `tests/integration/api/test_credentials_api.py` 5 passed + 迁移 0018（credentials.label）|
 | B3（已完成 2026-09-03）| disable 全链传播：credentials + web sessions + unconsumed approval grants 全部失效，user.disable 审计含三类计数 | `tests/integration/api/test_disable_propagation.py` |
 | B4 | 用户/成员管理 UI（与 Web UI 重设计批次协同） | tsc/build + web-config 契约 |
-| B5 | principal×action 矩阵自动化 + docs: record + roadmap | PR3-RBAC-* 绿 |
+| B5（已完成 2026-09-03）| principal×action RBAC 矩阵自动化：成员/凭据管理 41 行矩阵（含 agent/ci 禁用身份管理、项目 owner 保留、跨 org 拒绝）；补 owner-reserved 项目规则与 human-only 门 | `tests/integration/test_rbac_matrix.py` 41 passed |
 
 ## 4. 依赖与顺序
 
