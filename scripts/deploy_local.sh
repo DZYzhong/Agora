@@ -12,7 +12,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-COMPOSE=(docker-compose -f "$ROOT/infra/docker-compose.yml")
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE=(docker compose -f "$ROOT/infra/docker-compose.yml")
+elif docker-compose version >/dev/null 2>&1; then
+  COMPOSE=(docker-compose -f "$ROOT/infra/docker-compose.yml")
+else
+  echo "ERROR: neither 'docker compose' nor 'docker-compose' is available" >&2
+  exit 2
+fi
 CERTS_DIR="$ROOT/.agora/certs"
 ENV_FILE="$ROOT/infra/.env"
 API_HTTPS="https://127.0.0.1:8443"

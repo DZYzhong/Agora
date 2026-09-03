@@ -25,6 +25,10 @@
 | B5 | 监控/告警实际接线 | Prometheus + Alertmanager/Grafana 部署目标与告警接收人（规则文件 A4 已备） |
 | B6 | 备份存储目标 | 离主机/异地加密备份落点与轮换策略（脚本 A5 就绪后指定目标） |
 
+## A7. 新服务器部署手册（2026-09-03 新增）
+
+✅ `deployment-manual.zh-CN.md`：组件与版本清单、运维前置准备（Docker/Compose 版本、资源/端口自检、镜像源）、部署步骤（secrets/证书-IP/Admin 引导/冒烟）、验证清单、运维要点、生产加固建议；`deploy_local.sh` 现自动探测 `docker compose`/`docker-compose`。
+
 ## C. 真实环境执行（黑盒/演练，需主机与时间窗）
 
 | # | 事项 | 验收标准 |
