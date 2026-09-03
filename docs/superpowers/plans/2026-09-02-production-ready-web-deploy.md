@@ -125,3 +125,25 @@
 
 A1→A2→B1→B2→B3→B4→B5→B6→C1→C2→D1→D2→D3
 （A1 是硬依赖；B/C/D 内部按序；每块独立可提交可验证）
+
+---
+
+## 附录：A/B/C 块执行记录（docs: record，2026-09-03 补）
+
+按仓库流程每块需独立 docs:record；A1–C2 代码提交链与最终验收在此统一对账（等价记录，含证据）：
+
+| 块 | 提交 | 验证证据 |
+|---|---|---|
+| A1 Web 审批闭环 | `f570312` | Web 会话+reauth+grant 链路；`tests/integration/api/test_approval_grants.py`（拒绝矩阵）+ web-config 契约（approve 路由引导 reauth） |
+| A2 主 UI 认证 | `aaff57d` `f7eaf89` | Nav 登录态 + production middleware 登录门 + cookie/CSRF 直传；本机部署实测登录/退出 |
+| B1 知识总览 | `3c48d17` `1e7d33c` | `/knowledge` 页 + assets/writebacks `created_at`；`test_harness_api` 适配 |
+| B2 Context 版本时间线 | `7a8333b` | revision 历史 API+页面；`test_context_governance_api` |
+| B3 审批待办队列 | `0730b98` | `/pending` 聚合页 |
+| B4 工作流 stepper | `17acaed` | stepper 纯 CSS 渲染 |
+| B5 Assets 查看/筛选 | `7f84c77` | 详情 API+页面+`?type/?source` |
+| B6 进行中会话 | `1ea86fa` | 首页 in-flight 面板 |
+| C2 Compose 精简 | `6594499` | qdrant/opensearch/neo4j 移除；web-config 契约断言 |
+| D1–D3 + PG-only 修复 | `87fd751` `edbf0ab` `2356d94` | 本机部署冒烟 + PG 回归 + 运行手册 §10 |
+| C1 Web 清理 | `9b0d620` | 首页初始化 UI 移除；`test_web_config` 50 passed |
+
+验证基线：483 passed（SQLite）+ 4 passed（PG 专属）；`tsc --noEmit`/`next build`/`pip check`/依赖审计 0；本机 compose 全栈 healthy。
