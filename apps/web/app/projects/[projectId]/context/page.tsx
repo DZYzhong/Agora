@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { apiGet } from "../../../../lib/api";
+import { currentLang } from "../../../../lib/i18n";
+import { relativeTime } from "../../../../lib/format";
+import { Badge, Card, EmptyState, Page, PageHeader, SectionLabel } from "../../../../components/ui";
 
-type Project = {
-  id: string;
-  name: string;
-  slug: string;
-};
+type Project = { id: string; name: string; slug: string };
 
 type ContextState = {
   session_id: string;
@@ -21,11 +20,7 @@ type ContextState = {
     observed_commit_sha?: string | null;
     recommended_action?: string;
   };
-  budget: {
-    estimated_tokens?: number;
-    token_budget?: number;
-    included_assets?: number;
-  } | null;
+  budget: { estimated_tokens?: number; token_budget?: number; included_assets?: number } | null;
   created_at: string;
 };
 
@@ -61,13 +56,21 @@ type ContextProposal = {
   updated_at: string;
 };
 
-function healthLabel(state: ContextState | null): string {
-  if (!state) return "missing";
-  return state.provisional ? "provisional" : "accepted";
+function healthLabel(state: ContextState | null, zh: boolean): { text: string; tone: "green" | "amber" | "slate" } {
+  if (!state) return { text: zh ? "缺失" : "missing", tone: "slate" };
+  if (state.provisional) return { text: zh ? "临时" : "provisional", tone: "amber" };
+  return { text: zh ? "已接受" : "accepted", tone: "green" };
 }
 
-export default async function ContextStatePage({ params }: { params: Promise<{ projectId: string }> }) {
+export default async function ContextStatePage({
+  params,
+}: {
+  params: Promise<{ projectId: string }>;
+}) {
   const { projectId } = await params;
+  const lang = await currentLang();
+  const zh = lang === "zh";
+
   const project = await apiGet<Project>(`/projects/${projectId}`);
   let workItems: WorkItem[] = [];
   let streams: ContextStream[] = [];
@@ -91,149 +94,206 @@ export default async function ContextStatePage({ params }: { params: Promise<{ p
     .map((item) => item.latest_context_state)
     .filter((state): state is ContextState => state !== null)
     .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0];
+  const health = healthLabel(latest ?? null, zh);
 
   return (
-    <main className="page">
-      <div className="page-header">
-        <div>
-          <h1>Context state</h1>
-          <p className="muted">{project.name} / {project.slug}</p>
-        </div>
-        <Link className="button-link secondary-link" href={`/projects/${project.id}`}>
-          Back to project
-        </Link>
-      </div>
+    <Page>
+      <PageHeader
+        title={zh ? "上下文状态" : "Context state"}
+        subtitle={`${project.name} / ${project.slug}`}
+        actions={
+          <Link
+            href={`/projects/${project.id}`}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            ← {zh ? "返回项目" : "Back to project"}
+          </Link>
+        }
+      />
 
-      <section className="panel status-panel">
-        <div className="session-header">
+      <Card className="mt-6 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="eyebrow">Project context</p>
-            <h2>{latest ? healthLabel(latest) : "No uploaded context"}</h2>
-            <p className="muted">P1 indexed material is treated as provisional until a reviewed context revision is accepted.</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+              {zh ? "项目上下文" : "Project context"}
+            </p>
+            <div className="mt-1 flex items-center gap-3">
+              <h2 className="text-lg font-semibold text-slate-900">
+                {latest ? health.text : zh ? "暂无上传上下文" : "No uploaded context"}
+              </h2>
+              <Badge tone={health.tone}>{health.text}</Badge>
+            </div>
+            <p className="mt-1 text-xs text-slate-400">
+              {zh
+                ? "P1 已索引材料在被审阅的上下文修订接受前视为临时内容。"
+                : "P1 indexed material is treated as provisional until a reviewed context revision is accepted."}
+            </p>
           </div>
-          <span className="asset-type">{withContext.length}/{workItems.length} tasks</span>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+            {withContext.length}/{workItems.length} {zh ? "任务" : "tasks"}
+          </span>
         </div>
-        <dl className="status-metrics">
+        <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 pt-4 text-sm lg:grid-cols-4">
           <div>
-            <dt>Latest update</dt>
-            <dd>{latest ? new Date(latest.created_at).toLocaleString() : "None"}</dd>
+            <dt className="text-xs text-slate-400">{zh ? "最近更新" : "Latest update"}</dt>
+            <dd className="text-slate-700">
+              {latest ? relativeTime(latest.created_at, lang) : "—"}
+            </dd>
           </div>
           <div>
-            <dt>Coverage</dt>
-            <dd>{latest?.freshness.context_coverage ?? "unknown"}</dd>
+            <dt className="text-xs text-slate-400">{zh ? "覆盖度" : "Coverage"}</dt>
+            <dd className="text-slate-700">{latest?.freshness.context_coverage ?? "unknown"}</dd>
           </div>
           <div>
-            <dt>Recommended action</dt>
-            <dd>{latest?.freshness.recommended_action ?? "ai_tool_upload_context"}</dd>
+            <dt className="text-xs text-slate-400">{zh ? "建议动作" : "Recommended action"}</dt>
+            <dd className="truncate font-mono text-xs text-slate-600">
+              {latest?.freshness.recommended_action ?? "ai_tool_upload_context"}
+            </dd>
           </div>
           <div>
-            <dt>Estimated tokens</dt>
-            <dd>{latest?.budget?.estimated_tokens ?? "Unknown"}</dd>
+            <dt className="text-xs text-slate-400">{zh ? "估算 tokens" : "Estimated tokens"}</dt>
+            <dd className="text-slate-700">
+              {latest?.budget?.estimated_tokens ?? (zh ? "未知" : "Unknown")}
+            </dd>
           </div>
         </dl>
-      </section>
+      </Card>
 
-      <section className="work-table" aria-label="Context state by work item">
-        <div className="work-row work-header">
-          <span>Task</span>
-          <span>State</span>
-          <span>Coverage</span>
-          <span>Updated</span>
-          <span>Action</span>
-        </div>
-        {workItems.map((item) => {
-          const state = item.latest_context_state;
-          return (
-            <Link className="work-row" href={`/projects/${project.id}/work-items/${item.id}`} key={item.id}>
-              <span>
-                <strong>{item.external_key ? `${item.external_key} · ${item.title}` : item.title}</strong>
-                <small>{item.session_count} sessions · {item.participants.length || "no"} participants</small>
-              </span>
-              <span>
-                <span className="asset-type">{healthLabel(state)}</span>
-              </span>
-              <span>{state?.freshness.context_coverage ?? "unknown"}</span>
-              <span>{state ? new Date(state.created_at).toLocaleString() : "Not uploaded"}</span>
-              <span>{state?.freshness.recommended_action ?? "ai_tool_upload_context"}</span>
-            </Link>
-          );
-        })}
-      </section>
-
-      <section className="panel">
-        <h2>Context streams</h2>
-        {streams.length ? (
-          <div className="event-list">
-            {streams.map((stream) => (
-              <article className="event-row" key={stream.id}>
-                <div className="session-header">
-                  <div>
-                    <strong>{stream.name} · {stream.branch}</strong>
-                    <p className="asset-uri">{stream.head_revision_id ? `Head revision present` : "No accepted head"}</p>
-                  </div>
-                  <span className="asset-type">{stream.status}</span>
-                </div>
-                <p className="muted">Updated {new Date(stream.updated_at).toLocaleString()}</p>
-                <div className="actions">
-                  <Link className="button-link secondary-link" href={`/projects/${project.id}/context/streams/${stream.id}`}>
-                    View revision history
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p className="muted">No ContextStream exists yet. An AI tool can submit an initial ContextProposal for review.</p>
-        )}
-      </section>
-
-      <section className="panel">
-        <h2>Context proposals</h2>
-        {proposals.length ? (
-          <div className="event-list">
-            {proposals.map((proposal) => (
-              <article className="event-row" key={proposal.id}>
-                <div className="session-header">
-                  <div>
-                    <strong>{proposal.title}</strong>
-                    <p className="asset-uri">{proposal.type} · {proposal.target_branch}</p>
-                  </div>
-                  <span className="asset-type">{proposal.status}</span>
-                </div>
-                <p>{proposal.summary}</p>
-                <dl className="status-metrics">
-                  <div>
-                    <dt>Expected head</dt>
-                    <dd>{proposal.expected_head_revision_id ?? "None"}</dd>
-                  </div>
-                  <div>
-                    <dt>Accepted revision</dt>
-                    <dd>{proposal.accepted_revision_id ?? "Not accepted"}</dd>
-                  </div>
-                  <div>
-                    <dt>Updated</dt>
-                    <dd>{new Date(proposal.updated_at).toLocaleString()}</dd>
-                  </div>
-                </dl>
-                <div className="actions">
-                  <Link className="button-link secondary-link" href={`/projects/${project.id}/context/proposals/${proposal.id}`}>
-                    View proposal
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p className="muted">No ContextProposal has been uploaded for review.</p>
-        )}
-      </section>
-
-      {workItems.length === 0 ? (
-        <section className="panel">
-          <h2>No task context yet</h2>
-          <p className="muted">When an AI tool starts work and uploads a context bundle, Agora will show the task-level state here.</p>
-        </section>
+      {workItems.length ? (
+        <>
+          <SectionLabel>{zh ? "按工作项查看上下文" : "Context state by work item"}</SectionLabel>
+          <Card className="mt-3 divide-y divide-slate-100">
+            {workItems.map((item) => {
+              const state = item.latest_context_state;
+              const itemHealth = healthLabel(state ?? null, zh);
+              return (
+                <Link
+                  href={`/projects/${project.id}/work-items/${item.id}`}
+                  key={item.id}
+                  className="flex flex-wrap items-center gap-x-6 gap-y-1 px-5 py-3.5 transition hover:bg-slate-50"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="font-medium text-slate-900">
+                      {item.external_key ? `${item.external_key} · ${item.title}` : item.title}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-slate-400">
+                      {item.session_count} sessions ·{" "}
+                      {item.participants.length || (zh ? "无" : "no")}{" "}
+                      {zh ? "参与者" : "participants"}
+                    </span>
+                  </span>
+                  <Badge tone={itemHealth.tone}>{itemHealth.text}</Badge>
+                  <span className="w-24 truncate font-mono text-xs text-slate-500">
+                    {state?.freshness.context_coverage ?? "unknown"}
+                  </span>
+                  <span className="w-28 text-xs text-slate-400">
+                    {state ? relativeTime(state.created_at, lang) : zh ? "未上传" : "Not uploaded"}
+                  </span>
+                </Link>
+              );
+            })}
+          </Card>
+        </>
       ) : null}
-    </main>
+
+      <SectionLabel>{zh ? "上下文流" : "Context streams"}</SectionLabel>
+      {streams.length ? (
+        <div className="mt-3 grid gap-4 lg:grid-cols-2">
+          {streams.map((stream) => (
+            <Card key={stream.id} className="flex items-start justify-between gap-3 p-5">
+              <div className="min-w-0">
+                <h3 className="truncate text-[15px] font-semibold text-slate-900">
+                  {stream.name} · <span className="font-mono text-sm">{stream.branch}</span>
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-400">
+                  {stream.head_revision_id
+                    ? zh
+                      ? "已存在 head 修订"
+                      : "Head revision present"
+                    : zh
+                      ? "暂无已接受 head"
+                      : "No accepted head"}
+                </p>
+                <p className="mt-2 text-xs text-slate-400">
+                  {zh ? "更新于" : "Updated"}{" "}
+                  <time dateTime={stream.updated_at}>{relativeTime(stream.updated_at, lang)}</time>
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                <Badge tone={stream.status === "active" ? "green" : "slate"}>{stream.status}</Badge>
+                <Link
+                  href={`/projects/${project.id}/context/streams/${stream.id}`}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                >
+                  {zh ? "查看版本历史" : "View revision history"} →
+                </Link>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="mt-3 p-5 text-sm text-slate-400">
+          {zh
+            ? "暂无 ContextStream。AI 工具可提交初始 ContextProposal 供审阅。"
+            : "No ContextStream exists yet. An AI tool can submit an initial ContextProposal for review."}
+        </Card>
+      )}
+
+      <SectionLabel>{zh ? "上下文提案" : "Context proposals"}</SectionLabel>
+      {proposals.length ? (
+        <div className="mt-3 grid gap-4 lg:grid-cols-2">
+          {proposals.map((proposal) => (
+            <Card key={proposal.id} className="flex flex-col p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="truncate text-[15px] font-semibold text-slate-900">
+                    {proposal.title}
+                  </h3>
+                  <p className="mt-0.5 font-mono text-xs text-slate-400">
+                    {proposal.type} · {proposal.target_branch}
+                  </p>
+                </div>
+                <Badge
+                  tone={
+                    proposal.status === "accepted"
+                      ? "green"
+                      : proposal.status === "submitted"
+                        ? "amber"
+                        : "slate"
+                  }
+                >
+                  {proposal.status}
+                </Badge>
+              </div>
+              <p className="mt-2 line-clamp-2 text-sm text-slate-500">{proposal.summary}</p>
+              <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-sm">
+                <div>
+                  <dt className="text-xs text-slate-400">{zh ? "期望 head" : "Expected head"}</dt>
+                  <dd className="truncate font-mono text-[11px] text-slate-600">
+                    {proposal.expected_head_revision_id ?? "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-400">{zh ? "已接受修订" : "Accepted revision"}</dt>
+                  <dd className="truncate font-mono text-[11px] text-slate-600">
+                    {proposal.accepted_revision_id ?? (zh ? "未接受" : "Not accepted")}
+                  </dd>
+                </div>
+              </dl>
+              <Link
+                href={`/projects/${project.id}/context/proposals/${proposal.id}`}
+                className="mt-3 text-sm font-medium text-blue-600 hover:text-blue-700"
+              >
+                {zh ? "查看提案" : "View proposal"} →
+              </Link>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="mt-3 p-5 text-sm text-slate-400">
+          {zh ? "暂无待审提案。" : "No ContextProposal has been uploaded for review."}
+        </Card>
+      )}
+    </Page>
   );
 }
