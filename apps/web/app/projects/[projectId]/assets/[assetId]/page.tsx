@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { apiGet } from "../../../../../lib/api";
+import { currentLang } from "../../../../../lib/i18n";
+import { relativeTime } from "../../../../../lib/format";
+import { Badge, Card, Page, PageHeader } from "../../../../../components/ui";
 
 type AssetDetail = {
   id: string;
@@ -19,6 +22,9 @@ export default async function AssetDetailPage({
   params: Promise<{ projectId: string; assetId: string }>;
 }) {
   const { projectId, assetId } = await params;
+  const lang = await currentLang();
+  const zh = lang === "zh";
+
   let asset: AssetDetail | null = null;
   try {
     asset = await apiGet(`/projects/${projectId}/assets/${assetId}`);
@@ -28,35 +34,59 @@ export default async function AssetDetailPage({
 
   if (!asset) {
     return (
-      <main className="page">
-        <h1>Asset</h1>
-        <p className="alert">Unable to load asset.</p>
-      </main>
+      <Page>
+        <PageHeader title={zh ? "资产" : "Asset"} />
+        <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {zh ? "无法加载资产。" : "Unable to load asset."}
+        </div>
+      </Page>
     );
   }
 
   return (
-    <main className="page">
-      <div className="session-header">
-        <div>
-          <p className="eyebrow">{asset.type} · {asset.source}</p>
-          <h1>{asset.title}</h1>
+    <Page>
+      <PageHeader
+        title={asset.title}
+        subtitle={asset.summary ?? undefined}
+        meta={
+          <span className="flex items-center gap-2">
+            <Badge tone="violet" dot={false}>
+              {asset.type}
+            </Badge>
+            <Badge tone="slate" dot={false}>
+              {asset.source}
+            </Badge>
+          </span>
+        }
+        actions={
+          <Link
+            href={`/projects/${projectId}/assets`}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            ← {zh ? "返回资产列表" : "Back to assets"}
+          </Link>
+        }
+      />
+
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs text-slate-400">
+        <span>{asset.source_uri}</span>
+        <span>
+          {zh ? "哈希" : "Hash"} {asset.content_hash?.slice(0, 12) ?? "unknown"}
+        </span>
+        <span>
+          {zh ? "创建于" : "Created"}{" "}
+          {asset.created_at ? relativeTime(asset.created_at, lang) : "—"}
+        </span>
+      </div>
+
+      <Card className="mt-6">
+        <div className="border-b border-slate-100 px-5 py-3.5">
+          <h2 className="text-sm font-semibold text-slate-900">{zh ? "内容" : "Content"}</h2>
         </div>
-        <span className="asset-type">{asset.source_uri}</span>
-      </div>
-      {asset.summary ? <p className="muted">{asset.summary}</p> : null}
-      <section className="panel">
-        <h2>Content</h2>
-        <pre className="writeback-content">{asset.content}</pre>
-      </section>
-      <p className="muted">
-        Hash {asset.content_hash?.slice(0, 12) ?? "unknown"} · Created {asset.created_at ? new Date(asset.created_at).toLocaleString() : "Unknown"}
-      </p>
-      <div className="actions">
-        <Link className="button-link secondary-link" href={`/projects/${projectId}/assets`}>
-          Back to assets
-        </Link>
-      </div>
-    </main>
+        <pre className="max-h-[36rem] overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-sm leading-relaxed text-slate-700">
+          {asset.content}
+        </pre>
+      </Card>
+    </Page>
   );
 }
