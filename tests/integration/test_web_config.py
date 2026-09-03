@@ -811,13 +811,10 @@ def test_pr_web_pending_queue_page_exists_and_is_linked():
 
 def test_pr_web_workflow_stepper_visualizes_steps():
     page = Path("apps/web/app/projects/[projectId]/work-items/[workItemId]/page.tsx").read_text()
-    assert 'className="stepper"' in page
+    assert 'aria-label="Workflow progress"' in page
     assert "order_index" in page
-    assert "step-done" in page or "stepStatusClass" in page
-    styles = Path("apps/web/app/styles.css").read_text()
-    assert ".stepper" in styles
-    assert ".step-dot" in styles
-    assert ".step-current" in styles
+    assert "stepStatusClass" in page
+    assert "stepMarker" in page
 
 
 def test_pr_web_asset_content_view_and_filters_exist():
