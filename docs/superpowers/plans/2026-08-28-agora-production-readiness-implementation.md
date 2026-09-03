@@ -124,6 +124,7 @@ Current execution state (2026-09-02): A1/A2/B1-B6/C2/D1-D3 完成并自动验证
 Outcomes (2026-09-02 本机部署实测记录见 `docs/development/local-production-runbook.zh-CN.md` §10)：
 
 - Web 审批闭环（会话 + reauth + grant）、cookie 会话 UI、Nav 登录态、production 中间件登录门。
+- **Web UI/UE 主流重设计全量铺开完成（2026-09-03）**：Tailwind v4 + 双语（中/EN）+ 21 页统一设计系统（评审稿 `2026-09-03-web-ui-redesign-review.zh-CN.md` §10-12），旧 styles.css 摘除；每批 tsc/build/pytest 绿。
 - 知识总览、context 版本时间线、审批待办队列、workflow stepper、asset 查看/筛选、进行中会话看板。
 - Compose 收敛到实际服务集；secrets 走 gitignored `infra/.env`；nginx TLS API 入口（8443）。
 - 一键脚本 `scripts/deploy_local.sh` + `infra/env.production.example` + 本机生产运行手册。

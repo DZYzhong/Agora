@@ -161,3 +161,28 @@
 
 - 预览阶段 layout 同时加载 `theme.css` 与旧 `styles.css`（Tailwind preflight 可能轻微影响未改造页），铺开时逐页摘除旧类。
 - C1 已完成：项目首页不再有任何服务端本地初始化 UI（面板/历史已随首页重设计移除）。
+
+---
+
+## 11. 评审通过 & 铺开排期（2026-09-03 10:0x）
+
+用户拍板："细节 OK，开始全量铺开 21 页；12:00 开始执行。"
+
+- 铺开范围（评审稿 §6 B1–B6 合并为连续批次，预览风格为基线）：
+  1. 壳与认证：reauth 页 + middleware/未登录态 + 语言切换沿用
+  2. 列表页族：work-items、sessions、assets、writebacks、skills、context、knowledge、users、pending、operations、security（表格/状态徽章/空态/筛选）
+  3. 详情页族：work-item 详情（stepper 语义化）、session 详情、asset 详情、context 提案/来源/流版本页、proposal approve 表单
+  4. 收尾：旧 styles.css 摘除 + 全局样式核对 + 视觉走查 + 契约测试更新
+- 每批验收：`tsc --noEmit` + `next build` + pytest（web_config 等）+ 更新双语词典。
+
+## 12. 全量铺开完成（2026-09-03 12:00 起执行完毕）
+
+用户 12:00 放行后，21 页全部按设计系统铺开并逐批验证提交（tsc 0 / next build 0 / test_web_config 50 passed / 全量 534 passed）：
+
+- 列表/概览族：login、projects、项目 home、reauth、sessions、work-items、assets、writebacks、skills、pending、knowledge、operations、security、status、users、context、根页 `/`
+- 详情族：work-item（含 Tailwind stepper）、session audit、asset、context proposal（人工审阅表单）、context source、stream revisions
+- 收尾：旧 `styles.css` 摘除（layout 仅加载 `theme.css`）；共享 UI 原语（`components/ui.tsx`）统一卡片/表格/徽章/空态/分节
+- 双语：默认中文，右上角 中/EN 切换（`agora_lang` cookie），`<html lang>` 随动
+- 提交链：`23d2104` `b122f0e` `f96228f` `c3ba73d` `2994922` `b0b3bb1` `03f65e9` `fd9278d` `0036955` `7bdb78e` `e3b709b` `7a5ae46` `4052bd3`
+
+遗留（诚实记录）：B6 之后的深色模式/侧边栏导航骨架属"进阶"，未纳入本次铺开范围；`skills` 页更新/审批表单语义原样保留。
