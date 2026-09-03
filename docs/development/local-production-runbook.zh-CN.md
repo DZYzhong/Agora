@@ -161,3 +161,10 @@ docker-compose -f infra/docker-compose.yml logs -f api worker web
   2. 跨后端 schema fingerprint 差异：PG 布尔默认值 `false` vs SQLite `0`、部分唯一索引谓词 `= ANY (ARRAY[...])` vs `IN (...)`、`::TYPE` 强制转换、以及按表主键推导列级 `primary_key` —— 已在 `schema_manager._schema_signature` 归一化，PG 与 canonical SQLite 指纹一致。
 - 环境安全修复：compose 不再把 `.env.example` 占位 token（`replace-with-*`）注入容器（原先会被当真实凭据写入 DB）；真实随机 secrets 走 gitignored 的 `infra/.env`；web 不再携带静态占位 Bearer（改为纯 cookie 会话）。
 - PG 专属测试（隔离 postgres 实例）：rollback / idempotency 唯一性 / audit 多态 actor / fingerprint 一致 —— 4 passed。
+
+## 11. 2026-09-03 加密备份恢复演练（本机 DR 可做部分）
+
+- 命令：`pg_dump -U agora -d agora | openssl enc -aes-256-cbc -pbkdf2`（passphrase 走 env）→ 101,136 字节加密文件；解密后灌入 scratch PostgreSQL。
+- 结果：0 SQL 错误；`alembic_version=20260902_0018`；users=3 / projects=1 与源库一致；**恢复后 schema fingerprint 与 canonical 一致**（`ensure_schema` 可启动）。
+- 演练发现并修复：pg_dump/restore 会把部分唯一索引谓词改写为逐字面量加括号 `ARRAY[('OWNER')::text,...]` → 归一化新增单字面量去括号（`schema_manager`），回归单测 `test_normalized_predicate_unwraps_dump_wrapped_in_list_literals`。
+- 挂起：干净主机全量恢复 + RPO≤24h/RTO≤4h 实测（需真实环境）。

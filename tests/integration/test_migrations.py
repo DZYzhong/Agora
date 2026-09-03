@@ -376,3 +376,16 @@ def test_downgrade_to_p1_keeps_p1_tables_and_reupgrade_restores_p2(tmp_path):
 
 def test_alembic_config_file_is_committed():
     assert Path("alembic.ini").exists()
+
+
+def test_normalized_predicate_unwraps_dump_wrapped_in_list_literals():
+    """pg_dump/restore renders IN-lists as individually wrapped literals
+    (('OWNER'), ('ADMIN')); normalization must fold both renderings."""
+    from packages.core.schema_manager import _normalized_predicate
+
+    canonical = _normalized_predicate("role IN ('owner', 'admin')")
+    dumped = _normalized_predicate(
+        "((role)::text = ANY (ARRAY[('owner'::character varying)::text, ('admin'::character varying)::text]))"
+    )
+    assert canonical == "ROLE IN ('OWNER', 'ADMIN')"
+    assert dumped == canonical

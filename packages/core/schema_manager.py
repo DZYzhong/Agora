@@ -89,6 +89,7 @@ _PG_ANY_ARRAY_RE = re.compile(r"(\S+?) = ANY \(ARRAY\[([^\]]*)\]\)")
 _PG_ALL_ARRAY_RE = re.compile(r"(\S+?) (?:<>|!=) ALL \(ARRAY\[([^\]]*)\]\)")
 _DOUBLE_WRAPPED_ARRAY_RE = re.compile(r"\(\(ARRAY\[([^\]]*)\]\)\)")
 _BARE_IDENTIFIER_PARENS_RE = re.compile(r"^\(([A-Z0-9_]+)\)(?=\s|$)")
+_WRAPPED_LITERAL_RE = re.compile(r"\(('[^']*')\)")
 
 
 def _fold_any_array(match: re.Match[str]) -> str:
@@ -133,6 +134,9 @@ def _normalized_predicate(value: Any) -> str | None:
     predicate = _PG_ALL_ARRAY_RE.sub(_fold_all_array, predicate)
     predicate = _strip_outer_parens(predicate)
     predicate = _BARE_IDENTIFIER_PARENS_RE.sub(r"\1", predicate)
+    # pg_dump/restore re-renders IN-list elements as individually wrapped
+    # literals (('OWNER'), ('ADMIN')); unwrap single-literal parens.
+    predicate = _WRAPPED_LITERAL_RE.sub(r"\1", predicate)
     return predicate
 
 
