@@ -16,8 +16,8 @@ type User = {
 type UsersResponse = { users: User[] };
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
-const labelClass = "mb-1 block text-xs font-medium text-slate-500";
+  "w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
+const labelClass = "mb-1 block text-xs font-medium text-ink-2";
 
 function sessionRequest(): Request {
   return new Request("http://web", {
@@ -61,14 +61,14 @@ export default async function UsersPage({
             : "Manage local Agora accounts. New users receive a one-time activation token."
         }
         meta={
-          <span className="rounded-full bg-white px-3 py-1 text-sm text-slate-500 ring-1 ring-inset ring-slate-200">
+          <span className="rounded-full bg-surface px-3 py-1 text-sm text-ink-2 ring-1 ring-inset ring-edge">
             {users.length}
           </span>
         }
         actions={
           <Link
             href="/members"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-canvas"
           >
             {zh ? "组织成员" : "Organization members"} →
           </Link>
@@ -99,7 +99,7 @@ export default async function UsersPage({
               ? `请通过已认证的外部渠道将令牌发送给 ${params.username}。30 分钟有效且只能使用一次。`
               : `Send the following token to ${params.username} over an authenticated external channel. It expires in 30 minutes and can only be used once.`}
           </p>
-          <pre className="mt-3 overflow-auto rounded-lg bg-white px-4 py-3 font-mono text-sm text-slate-800 ring-1 ring-inset ring-emerald-200">
+          <pre className="mt-3 overflow-auto rounded-lg bg-surface px-4 py-3 font-mono text-sm text-ink ring-1 ring-inset ring-emerald-200">
             {params.activation_token}
           </pre>
         </Card>
@@ -115,14 +115,14 @@ export default async function UsersPage({
               ? `请通过已认证的外部渠道将令牌发送给 ${params.username}。15 分钟有效且只能使用一次。`
               : `Send the following token to ${params.username} over an authenticated external channel. It expires in 15 minutes and can only be used once.`}
           </p>
-          <pre className="mt-3 overflow-auto rounded-lg bg-white px-4 py-3 font-mono text-sm text-slate-800 ring-1 ring-inset ring-blue-200">
+          <pre className="mt-3 overflow-auto rounded-lg bg-surface px-4 py-3 font-mono text-sm text-ink ring-1 ring-inset ring-blue-200">
             {params.reset_token}
           </pre>
         </Card>
       ) : null}
 
       <Card className="mt-6 p-5">
-        <h2 className="text-sm font-semibold text-slate-900">{zh ? "创建用户" : "Create user"}</h2>
+        <h2 className="text-sm font-semibold text-ink">{zh ? "创建用户" : "Create user"}</h2>
         <form action="/users/create" method="post" className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
           <label className="block">
             <span className={labelClass}>Username</span>
@@ -152,20 +152,20 @@ export default async function UsersPage({
             <Card key={user.id} className="flex flex-col p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="truncate text-[15px] font-semibold text-slate-900">
+                  <h3 className="truncate text-[15px] font-semibold text-ink">
                     {user.display_name}
                   </h3>
-                  <p className="mt-0.5 truncate font-mono text-xs text-slate-400">
+                  <p className="mt-0.5 truncate font-mono text-xs text-ink-3">
                     {user.username ?? "(no username)"}
                   </p>
                 </div>
                 <Badge tone={user.status === "active" ? "green" : "slate"}>{user.status}</Badge>
               </div>
-              <p className="mt-1 font-mono text-[11px] text-slate-300">{user.id}</p>
-              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+              <p className="mt-1 font-mono text-[11px] text-ink-3">{user.id}</p>
+              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-edge-1 pt-3">
                 <Link
                   href={`/users/${user.id}/credentials`}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50"
+                  className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50"
                 >
                   {zh ? "凭据" : "Credentials"}
                 </Link>
@@ -174,7 +174,7 @@ export default async function UsersPage({
                     <input type="hidden" name="user_id" value={user.id} />
                     <button
                       type="submit"
-                      className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+                      className="rounded-lg border border-red-200 bg-surface px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
                     >
                       {zh ? "禁用" : "Disable"}
                     </button>
@@ -194,7 +194,7 @@ export default async function UsersPage({
                   <input type="hidden" name="user_id" value={user.id} />
                   <button
                     type="submit"
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                    className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink-2 hover:bg-canvas"
                   >
                     {zh ? "重置密码" : "Reset password"}
                   </button>

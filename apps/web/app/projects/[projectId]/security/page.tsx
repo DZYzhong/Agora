@@ -43,7 +43,7 @@ export default async function ProjectSecurityPage({
         title={zh ? "安全审计" : "Security audit"}
         subtitle={zh ? "本项目的敏感治理决策。" : "Sensitive governance decisions for this project."}
         meta={
-          <span className="rounded-full bg-white px-3 py-1 text-sm text-slate-500 ring-1 ring-inset ring-slate-200">
+          <span className="rounded-full bg-surface px-3 py-1 text-sm text-ink-2 ring-1 ring-inset ring-edge">
             {events.length}
           </span>
         }
@@ -67,29 +67,29 @@ export default async function ProjectSecurityPage({
             ]}
           >
             {events.map((event) => (
-              <tr key={event.id} className="align-top transition hover:bg-slate-50">
+              <tr key={event.id} className="align-top transition hover:bg-canvas">
                 <td className="px-5 py-3">
                   <Badge tone={decisionTone(event.decision)}>{event.decision}</Badge>
                 </td>
                 <td className="px-5 py-3">
-                  <span className="font-mono text-xs text-slate-700">{event.action}</span>
+                  <span className="font-mono text-xs text-ink">{event.action}</span>
                 </td>
                 <td className="px-5 py-3">
-                  <span className="text-xs text-slate-500">{event.actor_credential_kind}</span>
-                  <span className="mt-0.5 block font-mono text-[11px] text-slate-400">
+                  <span className="text-xs text-ink-2">{event.actor_credential_kind}</span>
+                  <span className="mt-0.5 block font-mono text-[11px] text-ink-3">
                     {event.actor_user_id}
                   </span>
                 </td>
                 <td className="px-5 py-3">
-                  <span className="text-xs text-slate-500">{event.target_type}</span>
-                  <span className="mt-0.5 block font-mono text-[11px] text-slate-400">
+                  <span className="text-xs text-ink-2">{event.target_type}</span>
+                  <span className="mt-0.5 block font-mono text-[11px] text-ink-3">
                     {event.target_id}
                   </span>
                 </td>
-                <td className="max-w-xs px-5 py-3 text-xs text-slate-500">
+                <td className="max-w-xs px-5 py-3 text-xs text-ink-2">
                   {event.reason ?? "—"}
                 </td>
-                <td className="whitespace-nowrap px-5 py-3 text-xs text-slate-400">
+                <td className="whitespace-nowrap px-5 py-3 text-xs text-ink-3">
                   {relativeTime(event.created_at, lang)}
                 </td>
               </tr>

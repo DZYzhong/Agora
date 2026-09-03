@@ -165,9 +165,9 @@ export default async function KnowledgePage({
       <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpi.map((stat) => (
           <Card key={stat.key} className="p-5">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{stat.key}</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">{stat.value}</p>
-            <p className="mt-1 truncate text-xs text-slate-400">{stat.hint}</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-ink-3">{stat.key}</p>
+            <p className="mt-1 text-3xl font-semibold tracking-tight text-ink">{stat.value}</p>
+            <p className="mt-1 truncate text-xs text-ink-3">{stat.hint}</p>
           </Card>
         ))}
       </section>
@@ -177,18 +177,18 @@ export default async function KnowledgePage({
         <Card className="mt-3">
           <Table headers={[zh ? "类型" : "Kind", zh ? "标题" : "Title", zh ? "时间" : "When"]}>
             {timeline.map((item, index) => (
-              <tr key={`${item.kind}-${index}`} className="transition hover:bg-slate-50">
+              <tr key={`${item.kind}-${index}`} className="transition hover:bg-canvas">
                 <td className="px-5 py-3">
-                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                  <span className="rounded-md bg-fill px-2 py-0.5 text-xs font-medium text-ink-2">
                     {kindLabel[item.kind] ? kindLabel[item.kind][lang] : item.kind}
                   </span>
                 </td>
                 <td className="px-5 py-3">
-                  <Link href={item.href} className="font-medium text-slate-800 hover:text-blue-700">
+                  <Link href={item.href} className="font-medium text-ink hover:text-blue-700">
                     {item.title}
                   </Link>
                 </td>
-                <td className="px-5 py-3 text-sm text-slate-400">{relativeTime(item.at, lang)}</td>
+                <td className="px-5 py-3 text-sm text-ink-3">{relativeTime(item.at, lang)}</td>
               </tr>
             ))}
           </Table>
@@ -214,12 +214,12 @@ export default async function KnowledgePage({
           <Link
             key={link.href}
             href={link.href}
-            className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-px hover:border-blue-200 hover:shadow"
+            className="group rounded-2xl border border-edge bg-surface p-4 shadow-sm transition hover:-translate-y-px hover:border-blue-200 hover:shadow"
           >
-            <span className="text-[15px] font-semibold text-slate-900 group-hover:text-blue-700">
+            <span className="text-[15px] font-semibold text-ink group-hover:text-blue-700">
               {link.title} →
             </span>
-            <span className="mt-0.5 block text-xs text-slate-400">{link.hint}</span>
+            <span className="mt-0.5 block text-xs text-ink-3">{link.hint}</span>
           </Link>
         ))}
       </section>

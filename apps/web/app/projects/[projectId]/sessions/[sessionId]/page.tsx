@@ -78,8 +78,8 @@ type SessionAudit = {
   events: Array<{ id: string; event_type: string; payload: Record<string, unknown>; created_at: string }>;
 };
 
-const dt = "text-xs text-slate-400";
-const dd = "text-slate-700";
+const dt = "text-xs text-ink-3";
+const dd = "text-ink";
 
 function StatusPill({ children, tone }: { children: string; tone?: "green" | "red" | "amber" | "slate" | "blue" }) {
   return <Badge tone={tone ?? "slate"}>{children}</Badge>;
@@ -128,14 +128,14 @@ export default async function SessionAuditPage({
             {audit.work_item ? (
               <Link
                 href={`/projects/${projectId}/work-items/${audit.work_item.id}`}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-canvas"
               >
                 {zh ? "查看工作项" : "View work item"}
               </Link>
             ) : null}
             <Link
               href={`/projects/${projectId}/sessions`}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+              className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-canvas"
             >
               ← {zh ? "会话列表" : "Sessions"}
             </Link>
@@ -166,7 +166,7 @@ export default async function SessionAuditPage({
             <dd>{audit.audit_counts.development_updates}</dd>
           </div>
         </dl>
-        <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 border-t border-slate-100 pt-3 text-sm sm:grid-cols-4">
+        <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 border-t border-edge-1 pt-3 text-sm sm:grid-cols-4">
           {(
             [
               ["Context", audit.audit_counts.context_packs],
@@ -176,8 +176,8 @@ export default async function SessionAuditPage({
             ] as [string, number][]
           ).map(([label, value]) => (
             <div key={label} className="flex items-center justify-between">
-              <dt className="text-slate-400">{label}</dt>
-              <dd className="font-semibold text-slate-800">{value}</dd>
+              <dt className="text-ink-3">{label}</dt>
+              <dd className="font-semibold text-ink">{value}</dd>
             </div>
           ))}
         </dl>
@@ -190,8 +190,8 @@ export default async function SessionAuditPage({
             <Card key={`${update.writeback_id}-${update.created_at}`} className="p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="text-[15px] font-semibold text-slate-900">{update.summary}</h3>
-                  <p className="mt-0.5 font-mono text-xs text-slate-400">
+                  <h3 className="text-[15px] font-semibold text-ink">{update.summary}</h3>
+                  <p className="mt-0.5 font-mono text-xs text-ink-3">
                     {update.writeback_type ?? "development_update"} · {update.writeback_status ?? "unknown"}
                   </p>
                 </div>
@@ -199,60 +199,60 @@ export default async function SessionAuditPage({
                   {update.accepted_asset_id ? "accepted" : "draft"}
                 </Badge>
               </div>
-              <div className="mt-3 grid gap-4 border-t border-slate-100 pt-3 sm:grid-cols-2">
+              <div className="mt-3 grid gap-4 border-t border-edge-1 pt-3 sm:grid-cols-2">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-3">
                     {zh ? "变更文件" : "Changed files"}
                   </p>
                   {update.changed_files.length ? (
                     <ul className="mt-2 space-y-1">
                       {update.changed_files.map((file) => (
                         <li key={`${update.writeback_id}-${file.path}`} className="flex items-center justify-between gap-2 text-sm">
-                          <code className="truncate font-mono text-xs text-slate-700">{file.path}</code>
-                          <span className="shrink-0 text-xs text-slate-400">
+                          <code className="truncate font-mono text-xs text-ink">{file.path}</code>
+                          <span className="shrink-0 text-xs text-ink-3">
                             {file.category} · {file.status}
                           </span>
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="mt-1 text-xs text-slate-400">—</p>
+                    <p className="mt-1 text-xs text-ink-3">—</p>
                   )}
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-3">
                     {zh ? "测试" : "Tests"}
                   </p>
                   {update.tests.length ? (
                     <ul className="mt-2 space-y-1">
                       {update.tests.map((test) => (
                         <li key={`${update.writeback_id}-${test.raw}`} className="flex items-center justify-between gap-2 text-sm">
-                          <code className="truncate font-mono text-xs text-slate-700">{test.command}</code>
-                          <span className="shrink-0 text-xs text-slate-400">{test.status}</span>
+                          <code className="truncate font-mono text-xs text-ink">{test.command}</code>
+                          <span className="shrink-0 text-xs text-ink-3">{test.status}</span>
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="mt-1 text-xs text-slate-400">{zh ? "无测试记录" : "No tests recorded."}</p>
+                    <p className="mt-1 text-xs text-ink-3">{zh ? "无测试记录" : "No tests recorded."}</p>
                   )}
                 </div>
               </div>
               <div className="mt-3 grid gap-4 sm:grid-cols-2">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-3">
                     {zh ? "风险" : "Risks"}
                   </p>
-                  <ul className="mt-1 list-disc space-y-0.5 pl-4 text-sm text-slate-600">
+                  <ul className="mt-1 list-disc space-y-0.5 pl-4 text-sm text-ink-2">
                     {update.risks.map((risk) => (
                       <li key={`${update.writeback_id}-${risk}`}>{risk}</li>
                     ))}
                   </ul>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-3">
                     {zh ? "后续" : "Follow-ups"}
                   </p>
-                  <ul className="mt-1 list-disc space-y-0.5 pl-4 text-sm text-slate-600">
+                  <ul className="mt-1 list-disc space-y-0.5 pl-4 text-sm text-ink-2">
                     {update.follow_ups.map((followUp) => (
                       <li key={`${update.writeback_id}-${followUp}`}>{followUp}</li>
                     ))}
@@ -260,7 +260,7 @@ export default async function SessionAuditPage({
                 </div>
               </div>
               {update.writeback_id ? (
-                <p className="mt-3 border-t border-slate-100 pt-2 font-mono text-xs text-slate-400">
+                <p className="mt-3 border-t border-edge-1 pt-2 font-mono text-xs text-ink-3">
                   Writeback: {update.writeback_id}
                 </p>
               ) : null}
@@ -268,7 +268,7 @@ export default async function SessionAuditPage({
           ))}
         </div>
       ) : (
-        <Card className="mt-3 p-5 text-sm text-slate-400">
+        <Card className="mt-3 p-5 text-sm text-ink-3">
           {zh ? "无结构化开发更新。" : "No structured development updates recorded."}
         </Card>
       )}
@@ -280,26 +280,26 @@ export default async function SessionAuditPage({
             <Card key={contextPack.id} className="p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-xs font-medium text-slate-400">ContextPack</p>
-                  <h3 className="text-[15px] font-semibold text-slate-900">{contextPack.level}</h3>
-                  <p className="mt-0.5 font-mono text-xs text-slate-400">{contextPack.id}</p>
+                  <p className="text-xs font-medium text-ink-3">ContextPack</p>
+                  <h3 className="text-[15px] font-semibold text-ink">{contextPack.level}</h3>
+                  <p className="mt-0.5 font-mono text-xs text-ink-3">{contextPack.id}</p>
                 </div>
                 <Badge tone="blue" dot={false}>
                   {contextPack.source_refs.length} {zh ? "来源" : "sources"}
                 </Badge>
               </div>
-              <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+              <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-canvas p-3 text-sm text-ink-2">
                 {contextPack.summary}
               </pre>
               {contextPack.source_refs.length ? (
                 <div className="mt-3 space-y-2">
                   {contextPack.source_refs.map((source) => (
-                    <div key={source.chunk_id} className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
-                      <p className="text-sm font-semibold text-slate-800">{source.title}</p>
-                      <p className="mt-0.5 font-mono text-xs text-slate-400">
+                    <div key={source.chunk_id} className="rounded-xl border border-edge-1 bg-fill/60 p-3">
+                      <p className="text-sm font-semibold text-ink">{source.title}</p>
+                      <p className="mt-0.5 font-mono text-xs text-ink-3">
                         {source.asset_type ?? "source"} · {source.source_uri ?? source.asset_id}
                       </p>
-                      {source.preview ? <p className="mt-1 text-sm text-slate-600">{source.preview}</p> : null}
+                      {source.preview ? <p className="mt-1 text-sm text-ink-2">{source.preview}</p> : null}
                     </div>
                   ))}
                 </div>
@@ -308,7 +308,7 @@ export default async function SessionAuditPage({
           ))}
         </div>
       ) : (
-        <Card className="mt-3 p-5 text-sm text-slate-400">{zh ? "无上下文包。" : "No context packs recorded."}</Card>
+        <Card className="mt-3 p-5 text-sm text-ink-3">{zh ? "无上下文包。" : "No context packs recorded."}</Card>
       )}
 
       <SectionLabel>{zh ? "技能运行" : "Skill runs"}</SectionLabel>
@@ -317,20 +317,20 @@ export default async function SessionAuditPage({
           {audit.skill_runs.map((run) => (
             <Card key={run.id} className="p-4">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold text-slate-800">{run.skill_name}</span>
+                <span className="text-sm font-semibold text-ink">{run.skill_name}</span>
                 <Badge tone={run.status === "failed" ? "red" : run.status === "running" ? "blue" : "slate"}>
                   {run.status}
                 </Badge>
               </div>
-              <p className="mt-1 text-xs text-slate-400">{relativeTime(run.created_at, lang)}</p>
-              <pre className="mt-2 max-h-48 overflow-auto rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+              <p className="mt-1 text-xs text-ink-3">{relativeTime(run.created_at, lang)}</p>
+              <pre className="mt-2 max-h-48 overflow-auto rounded-lg bg-canvas p-3 text-xs text-ink-2">
                 {JSON.stringify({ input: run.input, output: run.output, warnings: run.warnings }, null, 2)}
               </pre>
             </Card>
           ))}
         </div>
       ) : (
-        <Card className="mt-3 p-5 text-sm text-slate-400">{zh ? "无技能运行。" : "No skill runs recorded."}</Card>
+        <Card className="mt-3 p-5 text-sm text-ink-3">{zh ? "无技能运行。" : "No skill runs recorded."}</Card>
       )}
 
       <SectionLabel>{zh ? "写回" : "Writebacks"}</SectionLabel>
@@ -339,13 +339,13 @@ export default async function SessionAuditPage({
           {audit.writebacks.map((writeback) => (
             <Card key={writeback.id} className="p-4">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold text-slate-800">{writeback.title}</span>
+                <span className="text-sm font-semibold text-ink">{writeback.title}</span>
                 <Badge tone={writeback.status === "accepted" ? "green" : writeback.status === "rejected" ? "red" : "amber"} dot={false}>
                   {writeback.status}
                 </Badge>
               </div>
-              <p className="mt-0.5 font-mono text-xs text-slate-400">{writeback.type}</p>
-              <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+              <p className="mt-0.5 font-mono text-xs text-ink-3">{writeback.type}</p>
+              <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-canvas p-3 text-sm text-ink-2">
                 {writeback.content}
               </pre>
               {writeback.accepted_asset_id ? (
@@ -357,26 +357,26 @@ export default async function SessionAuditPage({
           ))}
         </div>
       ) : (
-        <Card className="mt-3 p-5 text-sm text-slate-400">{zh ? "无写回。" : "No writebacks recorded."}</Card>
+        <Card className="mt-3 p-5 text-sm text-ink-3">{zh ? "无写回。" : "No writebacks recorded."}</Card>
       )}
 
       <SectionLabel>{zh ? "时间线" : "Timeline"}</SectionLabel>
       {audit.events.length ? (
-        <Card className="mt-3 divide-y divide-slate-100">
+        <Card className="mt-3 divide-y divide-edge-1">
           {audit.events.map((event) => (
             <div key={event.id} className="px-5 py-3.5">
               <div className="flex items-center justify-between gap-3">
-                <span className="font-mono text-sm font-semibold text-slate-800">{event.event_type}</span>
-                <span className="text-xs text-slate-400">{relativeTime(event.created_at, lang)}</span>
+                <span className="font-mono text-sm font-semibold text-ink">{event.event_type}</span>
+                <span className="text-xs text-ink-3">{relativeTime(event.created_at, lang)}</span>
               </div>
-              <pre className="mt-2 max-h-40 overflow-auto rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+              <pre className="mt-2 max-h-40 overflow-auto rounded-lg bg-canvas p-3 text-xs text-ink-2">
                 {JSON.stringify(event.payload, null, 2)}
               </pre>
             </div>
           ))}
         </Card>
       ) : (
-        <Card className="mt-3 p-5 text-sm text-slate-400">{zh ? "无事件。" : "No events recorded."}</Card>
+        <Card className="mt-3 p-5 text-sm text-ink-3">{zh ? "无事件。" : "No events recorded."}</Card>
       )}
     </Page>
   );

@@ -33,8 +33,8 @@ function MiniStats({ values }: { values: CountMap }) {
     <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
       {entries.map(([key, count]) => (
         <div key={key} className="flex items-center justify-between gap-2 text-sm">
-          <dt className="truncate font-mono text-xs text-slate-400">{key}</dt>
-          <dd className="font-semibold text-slate-700">{count}</dd>
+          <dt className="truncate font-mono text-xs text-ink-3">{key}</dt>
+          <dd className="font-semibold text-ink">{count}</dd>
         </div>
       ))}
     </dl>
@@ -53,15 +53,15 @@ function SummaryPanel({
   return (
     <Card className="p-5">
       <div className="flex items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+        <h3 className="text-sm font-semibold text-ink">{title}</h3>
         {typeof total === "number" ? (
-          <span className="text-2xl font-semibold tracking-tight text-slate-900">{total}</span>
+          <span className="text-2xl font-semibold tracking-tight text-ink">{total}</span>
         ) : null}
       </div>
-      <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+      <div className="mt-3 space-y-3 border-t border-edge-1 pt-3">
         {maps.map(([label, values]) => (
           <div key={label}>
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-ink-3">{label}</p>
             <MiniStats values={values} />
           </div>
         ))}
@@ -103,7 +103,7 @@ export default async function ProjectOperationsPage({
         title={zh ? "运营摘要" : "Operations summary"}
         subtitle={`${summary.project.name} · ${summary.project.slug}`}
         meta={
-          <span className="rounded-full bg-white px-3 py-1 font-mono text-xs text-slate-400 ring-1 ring-inset ring-slate-200">
+          <span className="rounded-full bg-surface px-3 py-1 font-mono text-xs text-ink-3 ring-1 ring-inset ring-edge">
             {summary.schema_revision}
           </span>
         }

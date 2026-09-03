@@ -16,8 +16,8 @@ type Member = {
 };
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
-const labelClass = "mb-1 block text-xs font-medium text-slate-500";
+  "w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
+const labelClass = "mb-1 block text-xs font-medium text-ink-2";
 
 const PROJECT_ROLES = [
   "owner",
@@ -75,7 +75,7 @@ export default async function ProjectMembersPage({
         actions={
           <Link
             href={`/projects/${projectId}`}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-canvas"
           >
             ← {zh ? "返回项目" : "Back to project"}
           </Link>
@@ -99,7 +99,7 @@ export default async function ProjectMembersPage({
       ) : null}
 
       <Card className="mt-6 p-5">
-        <h2 className="text-sm font-semibold text-slate-900">{zh ? "添加成员" : "Add member"}</h2>
+        <h2 className="text-sm font-semibold text-ink">{zh ? "添加成员" : "Add member"}</h2>
         <form action={`/projects/${projectId}/members/add`} method="post" className="mt-4 grid gap-3 sm:grid-cols-3">
           <label className="block">
             <span className={labelClass}>{zh ? "用户名（或用户 ID）" : "Username (or user id)"}</span>
@@ -136,8 +136,8 @@ export default async function ProjectMembersPage({
             {members.map((member) => (
               <tr key={member.user.id} className="align-middle">
                 <td className="px-5 py-3">
-                  <span className="font-medium text-slate-900">{member.user.display_name}</span>
-                  <span className="mt-0.5 block font-mono text-xs text-slate-400">
+                  <span className="font-medium text-ink">{member.user.display_name}</span>
+                  <span className="mt-0.5 block font-mono text-xs text-ink-3">
                     {member.user.username}
                   </span>
                 </td>
@@ -152,7 +152,7 @@ export default async function ProjectMembersPage({
                       <select
                         name="role"
                         defaultValue={member.role}
-                        className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm outline-none"
+                        className="rounded-lg border border-slate-300 bg-surface px-2 py-1 text-sm shadow-sm outline-none"
                       >
                         {PROJECT_ROLES.map((role) => (
                           <option key={role} value={role}>
@@ -162,7 +162,7 @@ export default async function ProjectMembersPage({
                       </select>
                       <button
                         type="submit"
-                        className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                        className="rounded-lg border border-slate-300 bg-surface px-2.5 py-1 text-xs font-medium text-ink-2 hover:bg-canvas"
                       >
                         {zh ? "改角色" : "Set role"}
                       </button>
@@ -170,7 +170,7 @@ export default async function ProjectMembersPage({
                     <form action={`/projects/${projectId}/members/${member.user.id}/remove`} method="post">
                       <button
                         type="submit"
-                        className="rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                        className="rounded-lg border border-red-200 bg-surface px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
                       >
                         {zh ? "移除" : "Remove"}
                       </button>

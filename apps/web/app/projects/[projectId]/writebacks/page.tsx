@@ -44,7 +44,7 @@ export default async function WritebacksPage({
             : "Review AI-generated knowledge drafts before accepting them into the project."
         }
         meta={
-          <span className="rounded-full bg-white px-3 py-1 text-sm text-slate-500 ring-1 ring-inset ring-slate-200">
+          <span className="rounded-full bg-surface px-3 py-1 text-sm text-ink-2 ring-1 ring-inset ring-edge">
             {writebacks.length}
           </span>
         }
@@ -63,27 +63,27 @@ export default async function WritebacksPage({
         <section className="mt-6 grid gap-4 lg:grid-cols-2">
           {writebacks.map((writeback) => (
             <Card key={writeback.id} className="flex flex-col">
-              <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+              <div className="flex items-start justify-between gap-3 border-b border-edge-1 px-5 py-4">
                 <div className="min-w-0">
-                  <p className="text-xs font-medium text-slate-400">
+                  <p className="text-xs font-medium text-ink-3">
                     {writeback.type === "development_update"
                       ? zh
                         ? "开发更新"
                         : "Development update"
                       : writeback.type}
                   </p>
-                  <h3 className="mt-0.5 truncate text-[15px] font-semibold text-slate-900">
+                  <h3 className="mt-0.5 truncate text-[15px] font-semibold text-ink">
                     {writeback.title}
                   </h3>
                 </div>
                 <Badge tone={statusTone(writeback.status)}>{writeback.status}</Badge>
               </div>
-              <pre className="max-h-48 flex-1 overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-sm leading-relaxed text-slate-600">
+              <pre className="max-h-48 flex-1 overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-sm leading-relaxed text-ink-2">
                 {writeback.content}
               </pre>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-edge-1 px-5 py-3">
                 {writeback.accepted_asset_id ? (
-                  <span className="truncate font-mono text-xs text-slate-400">
+                  <span className="truncate font-mono text-xs text-ink-3">
                     {zh ? "已接受资产" : "Accepted asset"}: {writeback.accepted_asset_id}
                   </span>
                 ) : (
@@ -102,7 +102,7 @@ export default async function WritebacksPage({
                     <form action={`/projects/${projectId}/writebacks/${writeback.id}/reject`} method="post">
                       <button
                         type="submit"
-                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-red-50 hover:text-red-600"
+                        className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink-2 hover:bg-red-50 hover:text-red-600"
                       >
                         {zh ? "拒绝" : "Reject"}
                       </button>
@@ -111,7 +111,7 @@ export default async function WritebacksPage({
                 ) : (
                   <Link
                     href={`/projects/${projectId}/writebacks`}
-                    className="text-xs text-slate-400"
+                    className="text-xs text-ink-3"
                   >
                     {writeback.status}
                   </Link>

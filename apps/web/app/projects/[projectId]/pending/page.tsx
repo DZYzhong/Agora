@@ -84,7 +84,7 @@ export default async function PendingPage({
         actions={
           <Link
             href={`${base}/status`}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-canvas"
           >
             ← {zh ? "返回项目状态" : "Back to project status"}
           </Link>
@@ -92,8 +92,8 @@ export default async function PendingPage({
       />
 
       <Card className="mt-6">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-900">
+        <div className="flex items-center justify-between border-b border-edge-1 px-5 py-4">
+          <h2 className="text-sm font-semibold text-ink">
             {zh ? "待批准的上下文提案" : "Context proposals awaiting approval"}
           </h2>
           <Badge tone={queue.proposals.length ? "amber" : "green"}>
@@ -103,19 +103,19 @@ export default async function PendingPage({
         {queue.proposals.length ? (
           <Table headers={[zh ? "标题" : "Title", zh ? "分支" : "Branch", zh ? "更新" : "Updated"]}>
             {queue.proposals.map((proposal) => (
-              <tr key={proposal.id} className="transition hover:bg-slate-50">
+              <tr key={proposal.id} className="transition hover:bg-canvas">
                 <td className="px-5 py-3.5">
                   <Link
                     href={`${base}/context/proposals/${proposal.id}`}
-                    className="font-medium text-slate-900 hover:text-blue-700"
+                    className="font-medium text-ink hover:text-blue-700"
                   >
                     {proposal.title}
                   </Link>
                 </td>
-                <td className="px-5 py-3.5 font-mono text-xs text-slate-500">
+                <td className="px-5 py-3.5 font-mono text-xs text-ink-2">
                   {proposal.target_branch}
                 </td>
-                <td className="px-5 py-3.5 text-sm text-slate-400">
+                <td className="px-5 py-3.5 text-sm text-ink-3">
                   {proposal.updated_at
                     ? new Date(proposal.updated_at).toLocaleString()
                     : zh
@@ -126,15 +126,15 @@ export default async function PendingPage({
             ))}
           </Table>
         ) : (
-          <p className="px-5 py-8 text-center text-sm text-slate-400">
+          <p className="px-5 py-8 text-center text-sm text-ink-3">
             {zh ? "暂无待批提案。" : "No context proposals waiting."}
           </p>
         )}
       </Card>
 
       <Card className="mt-4">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-900">
+        <div className="flex items-center justify-between border-b border-edge-1 px-5 py-4">
+          <h2 className="text-sm font-semibold text-ink">
             {zh ? "待批准的技能候选" : "Skill candidates awaiting approval"}
           </h2>
           <Badge tone={queue.skillCandidates.length ? "amber" : "green"}>
@@ -144,26 +144,26 @@ export default async function PendingPage({
         {queue.skillCandidates.length ? (
           <Table headers={[zh ? "名称" : "Name", "Slug"]}>
             {queue.skillCandidates.map((skill) => (
-              <tr key={skill.id} className="transition hover:bg-slate-50">
+              <tr key={skill.id} className="transition hover:bg-canvas">
                 <td className="px-5 py-3.5">
-                  <Link href={`${base}/skills`} className="font-medium text-slate-900 hover:text-blue-700">
+                  <Link href={`${base}/skills`} className="font-medium text-ink hover:text-blue-700">
                     {skill.name}
                   </Link>
                 </td>
-                <td className="px-5 py-3.5 font-mono text-xs text-slate-500">{skill.slug}</td>
+                <td className="px-5 py-3.5 font-mono text-xs text-ink-2">{skill.slug}</td>
               </tr>
             ))}
           </Table>
         ) : (
-          <p className="px-5 py-8 text-center text-sm text-slate-400">
+          <p className="px-5 py-8 text-center text-sm text-ink-3">
             {zh ? "暂无技能候选。" : "No skill candidates waiting."}
           </p>
         )}
       </Card>
 
       <Card className="mt-4">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-900">
+        <div className="flex items-center justify-between border-b border-edge-1 px-5 py-4">
+          <h2 className="text-sm font-semibold text-ink">
             {zh ? "进行中的工作项" : "Active work items"}
           </h2>
           <Badge tone={queue.activeWorkItems.length ? "blue" : "green"}>
@@ -173,11 +173,11 @@ export default async function PendingPage({
         {queue.activeWorkItems.length ? (
           <Table headers={[zh ? "工作项" : "Work item", zh ? "阶段" : "Stage"]}>
             {queue.activeWorkItems.map((item) => (
-              <tr key={item.id} className="transition hover:bg-slate-50">
+              <tr key={item.id} className="transition hover:bg-canvas">
                 <td className="px-5 py-3.5">
                   <Link
                     href={`${base}/work-items/${item.id}`}
-                    className="font-medium text-slate-900 hover:text-blue-700"
+                    className="font-medium text-ink hover:text-blue-700"
                   >
                     {item.external_key ? `${item.external_key} · ${item.title}` : item.title}
                   </Link>
@@ -191,7 +191,7 @@ export default async function PendingPage({
             ))}
           </Table>
         ) : (
-          <p className="px-5 py-8 text-center text-sm text-slate-400">
+          <p className="px-5 py-8 text-center text-sm text-ink-3">
             {zh
               ? "没有进行中的工作项。人工确认发生在 AI 工具内部，工作项详情页展示工作流审计。"
               : "No active work items. Human confirmations happen inside the AI tool; the work item detail page shows the workflow audit."}

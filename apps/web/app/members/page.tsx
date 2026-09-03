@@ -16,8 +16,8 @@ type Member = {
 };
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
-const labelClass = "mb-1 block text-xs font-medium text-slate-500";
+  "w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
+const labelClass = "mb-1 block text-xs font-medium text-ink-2";
 
 function sessionRequest(): Request {
   return new Request("http://web", {
@@ -52,14 +52,14 @@ export default async function OrgMembersPage({
         title={zh ? "组织成员" : "Organization members"}
         subtitle={zh ? "管理 local-org 的成员与组织角色" : "Manage members and roles of local-org"}
         meta={
-          <span className="rounded-full bg-white px-3 py-1 text-sm text-slate-500 ring-1 ring-inset ring-slate-200">
+          <span className="rounded-full bg-surface px-3 py-1 text-sm text-ink-2 ring-1 ring-inset ring-edge">
             {members.length}
           </span>
         }
         actions={
           <Link
             href="/users"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-canvas"
           >
             ← {zh ? "返回用户" : "Back to users"}
           </Link>
@@ -83,7 +83,7 @@ export default async function OrgMembersPage({
       ) : null}
 
       <Card className="mt-6 p-5">
-        <h2 className="text-sm font-semibold text-slate-900">{zh ? "添加成员" : "Add member"}</h2>
+        <h2 className="text-sm font-semibold text-ink">{zh ? "添加成员" : "Add member"}</h2>
         <form action="/members/add" method="post" className="mt-4 grid gap-3 sm:grid-cols-3">
           <label className="block">
             <span className={labelClass}>{zh ? "用户名（或用户 ID）" : "Username (or user id)"}</span>
@@ -117,8 +117,8 @@ export default async function OrgMembersPage({
             {members.map((member) => (
               <tr key={member.user.id} className="align-middle">
                 <td className="px-5 py-3">
-                  <span className="font-medium text-slate-900">{member.user.display_name}</span>
-                  <span className="mt-0.5 block font-mono text-xs text-slate-400">
+                  <span className="font-medium text-ink">{member.user.display_name}</span>
+                  <span className="mt-0.5 block font-mono text-xs text-ink-3">
                     {member.user.username} · {member.user.id.slice(0, 8)}
                   </span>
                 </td>
@@ -129,7 +129,7 @@ export default async function OrgMembersPage({
                 </td>
                 <td className="px-5 py-3">
                   {member.role === "owner" ? (
-                    <span className="text-xs text-slate-300">
+                    <span className="text-xs text-ink-3">
                       {zh ? "owner 不可在此调整" : "owner is not adjustable here"}
                     </span>
                   ) : (
@@ -138,14 +138,14 @@ export default async function OrgMembersPage({
                         <select
                           name="role"
                           defaultValue={member.role}
-                          className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm outline-none"
+                          className="rounded-lg border border-slate-300 bg-surface px-2 py-1 text-sm shadow-sm outline-none"
                         >
                           <option value="member">{zh ? "成员" : "Member"}</option>
                           <option value="admin">{zh ? "管理员" : "Admin"}</option>
                         </select>
                         <button
                           type="submit"
-                          className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                          className="rounded-lg border border-slate-300 bg-surface px-2.5 py-1 text-xs font-medium text-ink-2 hover:bg-canvas"
                         >
                           {zh ? "改角色" : "Set role"}
                         </button>
@@ -153,7 +153,7 @@ export default async function OrgMembersPage({
                       <form action={`/members/${member.user.id}/remove`} method="post">
                         <button
                           type="submit"
-                          className="rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                          className="rounded-lg border border-red-200 bg-surface px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
                         >
                           {zh ? "移除" : "Remove"}
                         </button>

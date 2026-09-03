@@ -98,7 +98,7 @@ export default async function ProjectStatusPage({
         actions={
           <Link
             href={`/projects/${projectId}/pending`}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-canvas"
           >
             {zh ? "打开待办队列" : "Open pending queue"} →
           </Link>
@@ -107,54 +107,54 @@ export default async function ProjectStatusPage({
 
       <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-5">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-3">
             {zh ? "工作项" : "Work items"}
           </p>
-          <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">
+          <p className="mt-1 text-3xl font-semibold tracking-tight text-ink">
             {status.work_item_counts.total}
           </p>
-          <p className="mt-1 text-xs text-slate-400">
+          <p className="mt-1 text-xs text-ink-3">
             {zh ? "进行中" : "Active"} {status.work_item_counts.active} ·{" "}
             {zh ? "完成" : "Completed"} {status.work_item_counts.completed}
           </p>
         </Card>
         <Card className="p-5">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+            <p className="text-xs font-medium uppercase tracking-wide text-ink-3">
               {zh ? "交付就绪" : "Delivery readiness"}
             </p>
             <Badge tone={readinessTone}>{status.delivery_readiness.state}</Badge>
           </div>
-          <p className="mt-3 text-sm leading-relaxed text-slate-500">
+          <p className="mt-3 text-sm leading-relaxed text-ink-2">
             {status.delivery_readiness.reason}
           </p>
         </Card>
         <Card className="p-5">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-3">
             {zh ? "质量证据" : "Quality evidence"}
           </p>
           <dl className="mt-2 space-y-1">
             {Object.entries(status.quality_counts).map(([qualityState, count]) => (
               <div key={qualityState} className="flex items-center justify-between text-sm">
-                <dt className="text-slate-500">{qualityState}</dt>
-                <dd className="font-semibold text-slate-800">{count}</dd>
+                <dt className="text-ink-2">{qualityState}</dt>
+                <dd className="font-semibold text-ink">{count}</dd>
               </div>
             ))}
           </dl>
         </Card>
         <Card className="p-5">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-3">
             {zh ? "待批审批" : "Pending approvals"}
           </p>
           <div className="mt-2 space-y-1 text-sm">
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">{zh ? "上下文提案" : "Context proposals"}</span>
+              <span className="text-ink-2">{zh ? "上下文提案" : "Context proposals"}</span>
               <span className="font-semibold text-amber-600">
                 {status.pending_approvals.context_proposals}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">{zh ? "技能候选" : "Skill candidates"}</span>
+              <span className="text-ink-2">{zh ? "技能候选" : "Skill candidates"}</span>
               <span className="font-semibold text-amber-600">
                 {status.pending_approvals.skill_candidates}
               </span>
@@ -170,8 +170,8 @@ export default async function ProjectStatusPage({
             <dl className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
               {Object.entries(status.quality_dimensions).map(([dimension, counts]) => (
                 <div key={dimension}>
-                  <dt className="text-sm font-semibold text-slate-800">{dimension}</dt>
-                  <dd className="mt-1 text-xs text-slate-500">
+                  <dt className="text-sm font-semibold text-ink">{dimension}</dt>
+                  <dd className="mt-1 text-xs text-ink-2">
                     {zh ? "通过" : "passed"} {counts.passed ?? 0} ·{" "}
                     {zh ? "失败" : "failed"} {counts.failed ?? 0} ·{" "}
                     {zh ? "警告" : "warning"} {counts.warning ?? 0}
@@ -195,18 +195,18 @@ export default async function ProjectStatusPage({
                 <td className="px-5 py-3">
                   <Link
                     href={`/projects/${projectId}/work-items/${blocker.work_item_id}`}
-                    className="font-medium text-slate-800 hover:text-blue-700"
+                    className="font-medium text-ink hover:text-blue-700"
                   >
                     {blocker.work_item_title}
                   </Link>
                 </td>
-                <td className="px-5 py-3 text-sm text-slate-500">{blocker.reason}</td>
+                <td className="px-5 py-3 text-sm text-ink-2">{blocker.reason}</td>
               </tr>
             ))}
           </Table>
         </Card>
       ) : (
-        <Card className="mt-3 p-5 text-sm text-slate-400">
+        <Card className="mt-3 p-5 text-sm text-ink-3">
           {zh ? "暂无阻塞项。" : "No blockers recorded."}
         </Card>
       )}
@@ -229,12 +229,12 @@ export default async function ProjectStatusPage({
                 <td className="px-5 py-3">
                   <Link
                     href={`/projects/${projectId}/work-items/${item.id}`}
-                    className="block max-w-xs font-medium text-slate-900 hover:text-blue-700"
+                    className="block max-w-xs font-medium text-ink hover:text-blue-700"
                   >
                     {item.external_key ? `${item.external_key} · ${item.title}` : item.title}
                   </Link>
                 </td>
-                <td className="px-5 py-3 text-xs text-slate-500">{item.stage}</td>
+                <td className="px-5 py-3 text-xs text-ink-2">{item.stage}</td>
                 <td className="px-5 py-3">
                   <Badge tone="slate" dot={false}>
                     {item.status}
@@ -260,17 +260,17 @@ export default async function ProjectStatusPage({
                             {link.provider}:{link.external_key}
                           </a>
                         ) : (
-                          <span key={link.id} className="block truncate font-mono text-slate-500">
+                          <span key={link.id} className="block truncate font-mono text-ink-2">
                             {link.provider}:{link.external_key}
                           </span>
                         ),
                       )}
                     </div>
                   ) : (
-                    <span className="text-slate-400">—</span>
+                    <span className="text-ink-3">—</span>
                   )}
                 </td>
-                <td className="max-w-[10rem] px-5 py-3 font-mono text-xs text-slate-500">
+                <td className="max-w-[10rem] px-5 py-3 font-mono text-xs text-ink-2">
                   {item.quality_gaps.map((gap) => gap.code).join(", ") || "—"}
                 </td>
               </tr>
@@ -295,18 +295,18 @@ export default async function ProjectStatusPage({
           {status.work_items.flatMap((item) =>
             item.quality_evidence.map((evidence) => (
               <tr key={evidence.id} className="align-top">
-                <td className="px-5 py-3 text-sm font-medium text-slate-700">
+                <td className="px-5 py-3 text-sm font-medium text-ink">
                   {item.external_key ? `${item.external_key} · ${item.title}` : item.title}
                 </td>
-                <td className="px-5 py-3 text-xs text-slate-500">{evidence.evidence_type}</td>
+                <td className="px-5 py-3 text-xs text-ink-2">{evidence.evidence_type}</td>
                 <td className="px-5 py-3">
                   <Badge tone={evidence.status === "passed" ? "green" : evidence.status === "failed" ? "red" : "amber"} dot={false}>
                     {evidence.status}
                   </Badge>
                 </td>
-                <td className="max-w-xs px-5 py-3 text-sm text-slate-600">{evidence.conclusion}</td>
+                <td className="max-w-xs px-5 py-3 text-sm text-ink-2">{evidence.conclusion}</td>
                 <td className="max-w-xs px-5 py-3">
-                  <span className="block truncate font-mono text-xs text-slate-400">
+                  <span className="block truncate font-mono text-xs text-ink-3">
                     {evidence.command ?? evidence.output_summary ?? "—"}
                   </span>
                 </td>

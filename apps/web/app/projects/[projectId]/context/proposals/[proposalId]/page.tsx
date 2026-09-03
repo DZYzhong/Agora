@@ -30,10 +30,10 @@ function pretty(value: unknown): string {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
-const labelClass = "mb-1 block text-xs font-medium text-slate-500";
-const dt = "text-xs text-slate-400";
-const dd = "font-mono text-xs text-slate-600 break-all";
+  "w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
+const labelClass = "mb-1 block text-xs font-medium text-ink-2";
+const dt = "text-xs text-ink-3";
+const dd = "font-mono text-xs text-ink-2 break-all";
 
 function statusTone(status: string) {
   if (status === "approved" || status === "accepted") return "green" as const;
@@ -70,7 +70,7 @@ export default async function ContextProposalPage({
         actions={
           <Link
             href={`/projects/${project.id}/context`}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-canvas"
           >
             ← {zh ? "返回上下文" : "Back to context"}
           </Link>
@@ -84,12 +84,12 @@ export default async function ContextProposalPage({
       ) : null}
 
       <Card className="mt-6 p-5">
-        <h2 className="text-lg font-semibold text-slate-900">{proposal.title}</h2>
-        <p className="mt-1 text-sm text-slate-500">{proposal.summary}</p>
-        <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        <h2 className="text-lg font-semibold text-ink">{proposal.title}</h2>
+        <p className="mt-1 text-sm text-ink-2">{proposal.summary}</p>
+        <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 border-t border-edge-1 pt-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <dt className={dt}>{zh ? "类型" : "Type"}</dt>
-            <dd className="text-slate-700">{proposal.type}</dd>
+            <dd className="text-ink">{proposal.type}</dd>
           </div>
           <div>
             <dt className={dt}>{zh ? "目标分支" : "Target branch"}</dt>
@@ -116,8 +116,8 @@ export default async function ContextProposalPage({
 
       {proposal.status !== "approved" ? (
         <Card className="mt-4 p-5">
-          <h2 className="text-sm font-semibold text-slate-900">{zh ? "人工审阅" : "Human review"}</h2>
-          <p className="mt-1 text-xs text-slate-400">
+          <h2 className="text-sm font-semibold text-ink">{zh ? "人工审阅" : "Human review"}</h2>
+          <p className="mt-1 text-xs text-ink-3">
             {zh ? "修订信号（revision signal）" : "Revision signal"}
           </p>
           <form
@@ -138,7 +138,7 @@ export default async function ContextProposalPage({
               <span className={labelClass}>{zh ? "观察到的 head SHA" : "Observed head SHA"}</span>
               <input name="observed_head_sha" defaultValue={proposal.to_commit_sha ?? ""} className={inputClass} />
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-600 sm:col-span-2">
+            <label className="flex items-center gap-2 text-sm text-ink-2 sm:col-span-2">
               <input
                 type="checkbox"
                 name="contains_to_commit"
@@ -151,7 +151,7 @@ export default async function ContextProposalPage({
               <span className={labelClass}>{zh ? "合并目标分支" : "Merge target branch"}</span>
               <input name="merge_target_branch" defaultValue="" className={inputClass} />
             </label>
-            <label className="flex items-center gap-2 self-end text-sm text-slate-600">
+            <label className="flex items-center gap-2 self-end text-sm text-ink-2">
               <input type="checkbox" name="merged_to_target" className="h-4 w-4 rounded border-slate-300" />
               {zh ? "已合并到目标分支" : "Merged to target branch"}
             </label>
@@ -171,21 +171,21 @@ export default async function ContextProposalPage({
 
       <SectionLabel>{zh ? "上下文内容" : "Context content"}</SectionLabel>
       <Card className="mt-3">
-        <pre className="max-h-[32rem] overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-sm text-slate-600">
+        <pre className="max-h-[32rem] overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-sm text-ink-2">
           {pretty(proposal.content)}
         </pre>
       </Card>
 
       <SectionLabel>{zh ? "来源锚点" : "Source anchors"}</SectionLabel>
       <Card className="mt-3">
-        <pre className="max-h-80 overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-sm text-slate-600">
+        <pre className="max-h-80 overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-sm text-ink-2">
           {pretty(proposal.source_anchors)}
         </pre>
       </Card>
 
       <SectionLabel>{zh ? "来源追踪" : "Provenance"}</SectionLabel>
       <Card className="mt-3">
-        <pre className="max-h-80 overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-sm text-slate-600">
+        <pre className="max-h-80 overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-sm text-ink-2">
           {pretty(proposal.provenance)}
         </pre>
       </Card>

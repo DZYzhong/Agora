@@ -10,13 +10,13 @@ export async function Nav() {
   const switchTo = lang === "zh" ? "en" : "zh";
 
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
+    <header className="sticky top-0 z-20 border-b border-edge bg-surface/90 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/projects" className="flex items-center gap-2.5">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">
             A
           </span>
-          <span className="text-[15px] font-semibold tracking-tight text-slate-900">
+          <span className="text-[15px] font-semibold tracking-tight text-ink">
             Agora
           </span>
         </Link>
@@ -24,13 +24,13 @@ export async function Nav() {
         <nav className="flex items-center gap-1 sm:gap-2" aria-label="Primary">
           <Link
             href="/projects"
-            className="rounded-md px-2.5 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            className="rounded-md px-2.5 py-1.5 text-sm font-medium text-ink-2 hover:bg-fill hover:text-ink"
           >
             {t("projects")}
           </Link>
           <Link
             href="/users"
-            className="rounded-md px-2.5 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            className="rounded-md px-2.5 py-1.5 text-sm font-medium text-ink-2 hover:bg-fill hover:text-ink"
           >
             {t("users")}
           </Link>
@@ -39,7 +39,7 @@ export async function Nav() {
 
           <Link
             href={`/lang?lang=${switchTo}&next=/projects`}
-            className="rounded-md px-2.5 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            className="rounded-md px-2.5 py-1.5 text-sm font-medium text-ink-2 hover:bg-fill hover:text-ink"
             title="Switch language"
           >
             {switchTo === "en" ? "EN" : "中"}
@@ -49,7 +49,7 @@ export async function Nav() {
             <form action="/logout" method="post">
               <button
                 type="submit"
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-canvas"
               >
                 {t("signOut")}
               </button>

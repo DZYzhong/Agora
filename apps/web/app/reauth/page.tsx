@@ -10,7 +10,7 @@ export default async function ReauthPage({
   const t = makeT("reauth", lang);
 
   return (
-    <main className="relative flex min-h-[calc(100vh-3.5rem)] items-center justify-center overflow-hidden bg-slate-50 px-4 py-12">
+    <main className="relative flex min-h-[calc(100vh-3.5rem)] items-center justify-center overflow-hidden bg-canvas px-4 py-12">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute -top-40 left-1/2 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-amber-100/50 blur-3xl"
@@ -26,7 +26,7 @@ export default async function ReauthPage({
               />
             </svg>
           </span>
-          <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+          <h1 className="text-xl font-semibold tracking-tight text-ink">
             {t("title")}
           </h1>
         </div>
@@ -43,11 +43,11 @@ export default async function ReauthPage({
         <form
           action="/reauth/submit"
           method="post"
-          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+          className="rounded-2xl border border-edge bg-surface p-6 shadow-sm"
         >
           {next ? <input type="hidden" name="next" value={next} /> : null}
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-slate-700">
+            <span className="mb-1.5 block text-sm font-medium text-ink">
               {t("password")}
             </span>
             <input
@@ -56,7 +56,7 @@ export default async function ReauthPage({
               required
               autoComplete="current-password"
               autoFocus
-              className="block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="block w-full rounded-lg border border-slate-300 bg-surface px-3.5 py-2 text-sm text-ink shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </label>
           <button
@@ -65,7 +65,7 @@ export default async function ReauthPage({
           >
             {t("confirm")}
           </button>
-          <p className="mt-4 text-center text-xs leading-relaxed text-slate-400">
+          <p className="mt-4 text-center text-xs leading-relaxed text-ink-3">
             {t("subtitle")}
           </p>
         </form>

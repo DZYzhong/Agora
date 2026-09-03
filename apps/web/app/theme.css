@@ -7,6 +7,32 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     "PingFang SC", "Microsoft YaHei", sans-serif;
+
+  /* semantic surface/text tokens (light defaults) */
+  --color-canvas: #f8fafc;   /* slate-50 page background */
+  --color-surface: #ffffff; /* cards */
+  --color-fill: #f1f5f9;    /* slate-100 subtle fills/chips */
+  --color-edge: #e2e8f0;    /* slate-200 borders */
+  --color-edge-1: #f1f5f9;  /* slate-100 hairline borders */
+  --color-ink: #0f172a;     /* slate-900 primary text */
+  --color-ink-2: #475569;   /* slate-600 secondary text */
+  --color-ink-3: #94a3b8;   /* slate-400 muted text */
+  --color-ink-4: #cbd5e1;   /* slate-300 faint text */
+}
+
+/* Dark mode follows the operating system preference. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-canvas: #0b1220;
+    --color-surface: #101a2e;
+    --color-fill: #1b2740;
+    --color-edge: #26314d;
+    --color-edge-1: #1d2940;
+    --color-ink: #e2e8f0;
+    --color-ink-2: #94a3b8;
+    --color-ink-3: #64748b;
+    --color-ink-4: #475569;
+  }
 }
 
 html {
@@ -14,5 +40,5 @@ html {
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-canvas text-ink antialiased;
 }

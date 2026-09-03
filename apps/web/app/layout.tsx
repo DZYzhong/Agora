@@ -25,7 +25,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
   return (
     <html lang={lang}>
-      <body className="min-h-screen bg-slate-50">
+      <body className="min-h-screen bg-canvas">
         {standalone ? (
           <>{children}</>
         ) : (

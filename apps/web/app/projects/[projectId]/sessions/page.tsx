@@ -47,7 +47,7 @@ function statusTone(status: string) {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
+  "w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
 
 export default async function SessionsPage({
   params,
@@ -76,21 +76,21 @@ export default async function SessionsPage({
         title={zh ? "会话" : "Sessions"}
         subtitle={zh ? "AI 工具工作会话与审计计数" : "AI tool work sessions and audit counts"}
         meta={
-          <span className="rounded-full bg-white px-3 py-1 text-sm text-slate-500 ring-1 ring-inset ring-slate-200">
+          <span className="rounded-full bg-surface px-3 py-1 text-sm text-ink-2 ring-1 ring-inset ring-edge">
             {sessions.length}
           </span>
         }
       />
 
-      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-900">{zh ? "筛选" : "Filters"}</h2>
+      <section className="mt-6 rounded-2xl border border-edge bg-surface p-5 shadow-sm">
+        <h2 className="text-sm font-semibold text-ink">{zh ? "筛选" : "Filters"}</h2>
         <form
           className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.4fr_auto_auto]"
           action={`/projects/${projectId}/sessions`}
           method="get"
         >
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-500">
+            <span className="mb-1 block text-xs font-medium text-ink-2">
               {zh ? "意图" : "Intent"}
             </span>
             <select name="intent" defaultValue={filters.intent ?? ""} className={inputClass}>
@@ -102,7 +102,7 @@ export default async function SessionsPage({
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-500">
+            <span className="mb-1 block text-xs font-medium text-ink-2">
               {zh ? "状态" : "Status"}
             </span>
             <select name="status" defaultValue={filters.status ?? ""} className={inputClass}>
@@ -113,7 +113,7 @@ export default async function SessionsPage({
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-500">
+            <span className="mb-1 block text-xs font-medium text-ink-2">
               {zh ? "搜索" : "Search"}
             </span>
             <input
@@ -133,7 +133,7 @@ export default async function SessionsPage({
           </button>
           <Link
             href={`/projects/${projectId}/sessions`}
-            className="self-end rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-center text-sm font-medium text-slate-600 hover:bg-slate-50"
+            className="self-end rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-center text-sm font-medium text-ink-2 hover:bg-canvas"
           >
             {zh ? "清除" : "Clear"}
           </Link>
@@ -154,53 +154,53 @@ export default async function SessionsPage({
           {sessions.map((session) => (
             <article
               key={session.id}
-              className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200"
+              className="flex flex-col rounded-2xl border border-edge bg-surface p-5 shadow-sm transition hover:border-blue-200"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-xs font-medium text-slate-400">{session.agent_type}</p>
-                  <h3 className="mt-0.5 truncate text-[15px] font-semibold text-slate-900">
+                  <p className="text-xs font-medium text-ink-3">{session.agent_type}</p>
+                  <h3 className="mt-0.5 truncate text-[15px] font-semibold text-ink">
                     {session.intent}
                   </h3>
-                  <p className="mt-0.5 truncate font-mono text-xs text-slate-400">{session.id}</p>
+                  <p className="mt-0.5 truncate font-mono text-xs text-ink-3">{session.id}</p>
                 </div>
                 <Badge tone={statusTone(session.status)}>{session.status}</Badge>
               </div>
-              <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-sm">
+              <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-edge-1 pt-3 text-sm">
                 <div>
-                  <dt className="text-xs text-slate-400">{zh ? "工作项" : "Work item"}</dt>
-                  <dd className="truncate text-slate-700">
+                  <dt className="text-xs text-ink-3">{zh ? "工作项" : "Work item"}</dt>
+                  <dd className="truncate text-ink">
                     {session.work_item
                       ? session.work_item.title
                       : session.task_id ?? (zh ? "未设置" : "Not set")}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-slate-400">{zh ? "任务键" : "Task key"}</dt>
-                  <dd className="truncate font-mono text-xs text-slate-600">
+                  <dt className="text-xs text-ink-3">{zh ? "任务键" : "Task key"}</dt>
+                  <dd className="truncate font-mono text-xs text-ink-2">
                     {session.work_item?.external_key ?? session.task_id ?? "—"}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-slate-400">{zh ? "开始" : "Started"}</dt>
-                  <dd className="text-slate-700">{relativeTime(session.created_at, lang)}</dd>
+                  <dt className="text-xs text-ink-3">{zh ? "开始" : "Started"}</dt>
+                  <dd className="text-ink">{relativeTime(session.created_at, lang)}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-slate-400">{zh ? "关闭" : "Closed"}</dt>
-                  <dd className="text-slate-700">
+                  <dt className="text-xs text-ink-3">{zh ? "关闭" : "Closed"}</dt>
+                  <dd className="text-ink">
                     {session.closed_at ? relativeTime(session.closed_at, lang) : zh ? "进行中" : "Open"}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-slate-400">Context</dt>
-                  <dd className="text-slate-700">{session.audit_counts.context_packs}</dd>
+                  <dt className="text-xs text-ink-3">Context</dt>
+                  <dd className="text-ink">{session.audit_counts.context_packs}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-slate-400">{zh ? "技能运行" : "Skill runs"}</dt>
-                  <dd className="text-slate-700">{session.audit_counts.skill_runs}</dd>
+                  <dt className="text-xs text-ink-3">{zh ? "技能运行" : "Skill runs"}</dt>
+                  <dd className="text-ink">{session.audit_counts.skill_runs}</dd>
                 </div>
               </dl>
-              <div className="mt-4 flex items-center gap-3 border-t border-slate-100 pt-3">
+              <div className="mt-4 flex items-center gap-3 border-t border-edge-1 pt-3">
                 <Link
                   href={`/projects/${projectId}/sessions/${session.id}`}
                   className="text-sm font-medium text-blue-600 hover:text-blue-700"
@@ -210,7 +210,7 @@ export default async function SessionsPage({
                 {session.work_item ? (
                   <Link
                     href={`/projects/${projectId}/work-items/${session.work_item.id}`}
-                    className="text-sm font-medium text-slate-500 hover:text-slate-700"
+                    className="text-sm font-medium text-ink-2 hover:text-ink"
                   >
                     {zh ? "查看工作项" : "View work item"}
                   </Link>

@@ -18,8 +18,8 @@ type Credential = {
 };
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
-const labelClass = "mb-1 block text-xs font-medium text-slate-500";
+  "w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
+const labelClass = "mb-1 block text-xs font-medium text-ink-2";
 function credentialKindLabel(kind: string, lang: "zh" | "en"): string {
   const label =
     kind === "human"
@@ -78,7 +78,7 @@ export default async function CredentialsPage({
         actions={
           <Link
             href="/users"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-canvas"
           >
             ← {zh ? "返回用户" : "Back to users"}
           </Link>
@@ -112,14 +112,14 @@ export default async function CredentialsPage({
               ? `请立即保存并安全交付：${query.kind ?? ""} ${query.label ?? ""}`.trim()
               : `Save and deliver it securely now: ${query.kind ?? ""} ${query.label ?? ""}`.trim()}
           </p>
-          <pre className="mt-3 select-all overflow-auto rounded-lg bg-white px-4 py-3 font-mono text-sm text-slate-800 ring-1 ring-inset ring-amber-200">
+          <pre className="mt-3 select-all overflow-auto rounded-lg bg-surface px-4 py-3 font-mono text-sm text-ink ring-1 ring-inset ring-amber-200">
             {query.token}
           </pre>
         </Card>
       ) : null}
 
       <Card className="mt-6 p-5">
-        <h2 className="text-sm font-semibold text-slate-900">{zh ? "签发令牌" : "Issue a token"}</h2>
+        <h2 className="text-sm font-semibold text-ink">{zh ? "签发令牌" : "Issue a token"}</h2>
         <form action={`/users/${userId}/credentials/issue`} method="post" className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.2fr_auto]">
           <label className="block">
             <span className={labelClass}>{zh ? "类型" : "Kind"}</span>
@@ -146,7 +146,7 @@ export default async function CredentialsPage({
         </form>
       </Card>
 
-      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-slate-400">
+      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-ink-3">
         {zh ? "已签发令牌" : "Issued tokens"}
       </h2>
       {credentials.length === 0 ? (
@@ -163,14 +163,14 @@ export default async function CredentialsPage({
                   <Badge tone={credential.kind === "human" ? "blue" : credential.kind === "agent" ? "violet" : "slate"} dot={false}>
                     {credentialKindLabel(credential.kind, lang)}
                   </Badge>
-                  <span className="truncate text-sm font-medium text-slate-800">
+                  <span className="truncate text-sm font-medium text-ink">
                     {credential.label ?? credential.kind}
                   </span>
-                  <span className="font-mono text-xs text-slate-400">{credential.token_prefix}</span>
+                  <span className="font-mono text-xs text-ink-3">{credential.token_prefix}</span>
                 </div>
-                <p className="mt-0.5 font-mono text-[11px] text-slate-300">{credential.id}</p>
+                <p className="mt-0.5 font-mono text-[11px] text-ink-3">{credential.id}</p>
               </div>
-              <div className="flex items-center gap-3 text-xs text-slate-400">
+              <div className="flex items-center gap-3 text-xs text-ink-3">
                 <Badge tone={credential.status === "active" ? "green" : "slate"}>{credential.status}</Badge>
                 {credential.expires_at ? (
                   <span>
@@ -189,7 +189,7 @@ export default async function CredentialsPage({
                     <form action={`/users/${userId}/credentials/${credential.id}/rotate`} method="post">
                       <button
                         type="submit"
-                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                        className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink-2 hover:bg-canvas"
                       >
                         {zh ? "轮换" : "Rotate"}
                       </button>
@@ -197,14 +197,14 @@ export default async function CredentialsPage({
                     <form action={`/users/${userId}/credentials/${credential.id}/revoke`} method="post">
                       <button
                         type="submit"
-                        className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+                        className="rounded-lg border border-red-200 bg-surface px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
                       >
                         {zh ? "吊销" : "Revoke"}
                       </button>
                     </form>
                   </>
                 ) : (
-                  <span className="text-xs text-slate-300">
+                  <span className="text-xs text-ink-3">
                     {credential.status === "revoked" ? (zh ? "已吊销" : "revoked") : credential.status}
                   </span>
                 )}

@@ -119,8 +119,8 @@ function metadataLabel(metadata: Record<string, unknown>): string {
   return keys.length ? keys.join(", ") : "—";
 }
 
-const dt = "text-xs text-slate-400";
-const dd = "text-slate-700";
+const dt = "text-xs text-ink-3";
+const dd = "text-ink";
 
 export default async function WorkItemDetailPage({
   params,
@@ -166,7 +166,7 @@ export default async function WorkItemDetailPage({
         actions={
           <Link
             href={`/projects/${projectId}/work-items`}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-canvas"
           >
             ← {zh ? "工作项列表" : "Work items"}
           </Link>
@@ -175,10 +175,10 @@ export default async function WorkItemDetailPage({
 
       <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-5">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-3">
             {zh ? "任务状态" : "Task state"}
           </p>
-          <p className="mt-1 text-sm text-slate-500">{item.source}</p>
+          <p className="mt-1 text-sm text-ink-2">{item.source}</p>
           <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
             <div>
               <dt className={dt}>{zh ? "阶段" : "Stage"}</dt>
@@ -195,7 +195,7 @@ export default async function WorkItemDetailPage({
           </dl>
         </Card>
         <Card className="p-5 sm:col-span-1 lg:col-span-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-3">
             {zh ? "最近上下文状态" : "Latest context state"}
           </p>
           {context ? (
@@ -204,7 +204,7 @@ export default async function WorkItemDetailPage({
                 <Badge tone={context.provisional ? "amber" : "green"} dot={false}>
                   {context.provisional ? (zh ? "临时" : "provisional") : zh ? "已接受" : "accepted"}
                 </Badge>
-                <span className="font-mono text-xs text-slate-400">
+                <span className="font-mono text-xs text-ink-3">
                   {context.event_type} · {context.context_pack_id ?? "no pack id"}
                 </span>
               </div>
@@ -228,13 +228,13 @@ export default async function WorkItemDetailPage({
                   <dd className={dd}>{context.budget?.estimated_tokens ?? "?"}</dd>
                 </div>
               </dl>
-              <p className="mt-2 text-xs text-slate-400">
+              <p className="mt-2 text-xs text-ink-3">
                 {zh ? "更新于" : "Updated"}{" "}
                 <time dateTime={context.created_at}>{relativeTime(context.created_at, lang)}</time>
               </p>
             </>
           ) : (
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="mt-2 text-sm text-ink-3">
               {zh ? "AI 工具尚未为此工作项上传上下文。" : "No AI tool has uploaded context for this work item yet."}
             </p>
           )}
@@ -242,7 +242,7 @@ export default async function WorkItemDetailPage({
       </section>
 
       <Card className="mt-4 p-5">
-        <h2 className="text-sm font-semibold text-slate-900">{zh ? "能力固定" : "Capability pins"}</h2>
+        <h2 className="text-sm font-semibold text-ink">{zh ? "能力固定" : "Capability pins"}</h2>
         <dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
           <div>
             <dt className={dt}>{zh ? "上下文修订" : "Context revision"}</dt>
@@ -263,7 +263,7 @@ export default async function WorkItemDetailPage({
       {execution ? (
         <>
           <div
-            className="stepper mt-3 flex items-center gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm"
+            className="stepper mt-3 flex items-center gap-2 overflow-x-auto rounded-2xl border border-edge bg-surface px-5 py-4 shadow-sm"
             aria-label="Workflow progress"
           >
             {[...execution.steps]
@@ -279,7 +279,7 @@ export default async function WorkItemDetailPage({
                             ? "bg-blue-100 text-blue-700"
                             : stepStatusClass(step.status) === "amber"
                               ? "bg-amber-100 text-amber-700"
-                              : "bg-slate-100 text-slate-400"
+                              : "bg-fill text-ink-3"
                       }`}
                       aria-hidden="true"
                     >
@@ -288,10 +288,10 @@ export default async function WorkItemDetailPage({
                     <span
                       className={`text-sm font-medium ${
                         stepStatusClass(step.status) === "green"
-                          ? "text-slate-900"
+                          ? "text-ink"
                           : stepStatusClass(step.status) === "blue"
                             ? "text-blue-700"
-                            : "text-slate-400"
+                            : "text-ink-3"
                       }`}
                     >
                       {step.title}
@@ -309,14 +309,14 @@ export default async function WorkItemDetailPage({
               <Card key={step.id} className="p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="text-[15px] font-semibold text-slate-900">{step.title}</h3>
-                    <p className="mt-0.5 font-mono text-xs text-slate-400">{step.step_key}</p>
+                    <h3 className="text-[15px] font-semibold text-ink">{step.title}</h3>
+                    <p className="mt-0.5 font-mono text-xs text-ink-3">{step.step_key}</p>
                   </div>
                   <Badge tone={stepStatusClass(step.status) as "green" | "blue" | "amber" | "slate"}>
                     {step.status}
                   </Badge>
                 </div>
-                <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-sm">
+                <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-edge-1 pt-3 text-sm">
                   <div>
                     <dt className={dt}>{zh ? "必需产物" : "Required outputs"}</dt>
                     <dd className="truncate">
@@ -335,23 +335,23 @@ export default async function WorkItemDetailPage({
 
                 {step.artifacts.length ? (
                   <div className="mt-3 space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-ink-3">
                       {zh ? "步骤产物" : "Step outputs"}
                     </p>
                     {step.artifacts.map((artifact) => (
-                      <div key={artifact.id} className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+                      <div key={artifact.id} className="rounded-xl border border-edge-1 bg-fill/60 p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-800">{artifact.title}</p>
-                            <p className="mt-0.5 font-mono text-xs text-slate-400">
+                            <p className="text-sm font-semibold text-ink">{artifact.title}</p>
+                            <p className="mt-0.5 font-mono text-xs text-ink-3">
                               {artifact.type} · {metadataLabel(artifact.metadata)}
                             </p>
                           </div>
-                          <span className="shrink-0 text-xs text-slate-400">
+                          <span className="shrink-0 text-xs text-ink-3">
                             {relativeTime(artifact.created_at, lang)}
                           </span>
                         </div>
-                        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{artifact.content}</p>
+                        <p className="mt-2 whitespace-pre-wrap text-sm text-ink-2">{artifact.content}</p>
                       </div>
                     ))}
                   </div>
@@ -359,25 +359,25 @@ export default async function WorkItemDetailPage({
 
                 {step.human_confirmations.length ? (
                   <div className="mt-3 space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-ink-3">
                       {zh ? "人工确认" : "Human confirmations"}
                     </p>
                     {step.human_confirmations.map((confirmation) => (
-                      <div key={confirmation.id} className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+                      <div key={confirmation.id} className="rounded-xl border border-edge-1 bg-fill/60 p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <Badge tone={confirmation.decision === "approved" ? "green" : confirmation.decision === "rejected" ? "red" : "amber"} dot={false}>
                               {confirmation.decision}
                             </Badge>
-                            <p className="mt-1 font-mono text-xs text-slate-400">
+                            <p className="mt-1 font-mono text-xs text-ink-3">
                               {confirmation.confirmation_type} · {confirmation.confirmed_by_user_id}
                             </p>
                           </div>
-                          <span className="shrink-0 text-xs text-slate-400">
+                          <span className="shrink-0 text-xs text-ink-3">
                             {relativeTime(confirmation.created_at, lang)}
                           </span>
                         </div>
-                        <p className="mt-2 text-sm text-slate-600">{confirmation.comment ?? (zh ? "无评论" : "No comment")}</p>
+                        <p className="mt-2 text-sm text-ink-2">{confirmation.comment ?? (zh ? "无评论" : "No comment")}</p>
                       </div>
                     ))}
                   </div>
@@ -387,7 +387,7 @@ export default async function WorkItemDetailPage({
           </div>
         </>
       ) : (
-        <Card className="mt-3 p-5 text-sm text-slate-400">
+        <Card className="mt-3 p-5 text-sm text-ink-3">
           {zh ? "此工作项尚未创建工作流执行。" : "No workflow execution has been created for this work item."}
         </Card>
       )}
@@ -399,8 +399,8 @@ export default async function WorkItemDetailPage({
             <Card key={session.id} className="p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="truncate text-[15px] font-semibold text-slate-900">{session.intent}</h3>
-                  <p className="mt-0.5 truncate font-mono text-xs text-slate-400">
+                  <h3 className="truncate text-[15px] font-semibold text-ink">{session.intent}</h3>
+                  <p className="mt-0.5 truncate font-mono text-xs text-ink-3">
                     {session.agent_type} · {session.id}
                   </p>
                 </div>
@@ -408,7 +408,7 @@ export default async function WorkItemDetailPage({
                   {session.status}
                 </Badge>
               </div>
-              <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-sm">
+              <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-edge-1 pt-3 text-sm">
                 <div>
                   <dt className={dt}>{zh ? "开始" : "Started"}</dt>
                   <dd className={dd}>{relativeTime(session.created_at, lang)}</dd>

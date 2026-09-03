@@ -50,7 +50,7 @@ export default async function AssetsPage({
   const pillClass = (active: boolean) =>
     active
       ? "rounded-full bg-blue-600 px-3 py-1 text-sm font-medium text-white"
-      : "rounded-full bg-white px-3 py-1 text-sm font-medium text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50";
+      : "rounded-full bg-surface px-3 py-1 text-sm font-medium text-ink-2 ring-1 ring-inset ring-edge hover:bg-canvas";
 
   return (
     <Page>
@@ -58,7 +58,7 @@ export default async function AssetsPage({
         title={zh ? "资产" : "Assets"}
         subtitle={zh ? "归一化后的项目资产" : "Normalized project assets"}
         meta={
-          <span className="rounded-full bg-white px-3 py-1 text-sm text-slate-500 ring-1 ring-inset ring-slate-200">
+          <span className="rounded-full bg-surface px-3 py-1 text-sm text-ink-2 ring-1 ring-inset ring-edge">
             {filtered.length} / {assets.length}
           </span>
         }
@@ -102,16 +102,16 @@ export default async function AssetsPage({
           }
         />
       ) : (
-        <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="mt-6 overflow-hidden rounded-2xl border border-edge bg-surface shadow-sm">
           <Table headers={[zh ? "路径" : "Path", zh ? "类型" : "Type", zh ? "摘要" : "Summary"]}>
             {filtered.map((asset) => (
-              <tr key={asset.id} className="transition hover:bg-slate-50">
+              <tr key={asset.id} className="transition hover:bg-canvas">
                 <td className="px-5 py-3.5">
                   <Link href={`/projects/${projectId}/assets/${asset.id}`} className="block max-w-md">
-                    <span className="font-medium text-slate-900 hover:text-blue-700">
+                    <span className="font-medium text-ink hover:text-blue-700">
                       {asset.title}
                     </span>
-                    <span className="mt-0.5 block truncate font-mono text-xs text-slate-400">
+                    <span className="mt-0.5 block truncate font-mono text-xs text-ink-3">
                       {asset.source_uri}
                     </span>
                   </Link>
@@ -120,7 +120,7 @@ export default async function AssetsPage({
                   <Badge tone={typeTone(asset.type)}>{asset.type}</Badge>
                 </td>
                 <td className="max-w-md px-5 py-3.5">
-                  <p className="line-clamp-2 text-sm text-slate-500">{asset.summary ?? ""}</p>
+                  <p className="line-clamp-2 text-sm text-ink-2">{asset.summary ?? ""}</p>
                 </td>
               </tr>
             ))}

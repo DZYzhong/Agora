@@ -69,12 +69,12 @@ export default async function WorkItemsPage({
             : "Team tasks detected from AI tool sessions and project workflow activity."
         }
         meta={
-          <span className="rounded-full bg-white px-3 py-1 text-sm text-slate-500 ring-1 ring-inset ring-slate-200">
+          <span className="rounded-full bg-surface px-3 py-1 text-sm text-ink-2 ring-1 ring-inset ring-edge">
             {workItems.length}
           </span>
         }
         actions={
-          <Link href={`/projects/${projectId}`} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+          <Link href={`/projects/${projectId}`} className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-canvas">
             ← {zh ? "返回项目" : "Back to project"}
           </Link>
         }
@@ -90,7 +90,7 @@ export default async function WorkItemsPage({
           }
         />
       ) : (
-        <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="mt-6 overflow-hidden rounded-2xl border border-edge bg-surface shadow-sm">
           <Table
             headers={[
               zh ? "任务" : "Task",
@@ -105,7 +105,7 @@ export default async function WorkItemsPage({
               return (
                 <tr
                   key={item.id}
-                  className="cursor-pointer transition hover:bg-slate-50"
+                  className="cursor-pointer transition hover:bg-canvas"
                   onClick={undefined}
                 >
                   <td className="px-5 py-3.5">
@@ -113,25 +113,25 @@ export default async function WorkItemsPage({
                       href={`/projects/${projectId}/work-items/${item.id}`}
                       className="block"
                     >
-                      <span className="font-medium text-slate-900 hover:text-blue-700">
+                      <span className="font-medium text-ink hover:text-blue-700">
                         {item.external_key ? `${item.external_key} · ${item.title}` : item.title}
                       </span>
-                      <span className="mt-0.5 block max-w-xl truncate text-xs text-slate-400">
+                      <span className="mt-0.5 block max-w-xl truncate text-xs text-ink-3">
                         {item.description ?? item.source}
                       </span>
                     </Link>
                   </td>
                   <td className="px-5 py-3.5">
                     <Badge tone={statusTone(item.status)}>{item.status}</Badge>
-                    <span className="mt-0.5 block text-xs text-slate-400">{item.stage}</span>
+                    <span className="mt-0.5 block text-xs text-ink-3">{item.stage}</span>
                   </td>
-                  <td className="px-5 py-3.5 text-slate-700">{item.session_count}</td>
+                  <td className="px-5 py-3.5 text-ink">{item.session_count}</td>
                   <td className="px-5 py-3.5">
                     <Link
                       href={`/projects/${projectId}/work-items/${item.id}`}
                       className="block max-w-xs"
                     >
-                      <span className="font-medium text-slate-700">
+                      <span className="font-medium text-ink">
                         {state
                           ? `${state.provisional ? (zh ? "临时" : "Provisional") + " · " : ""}${
                               state.freshness.context_coverage ?? "unknown"
@@ -140,7 +140,7 @@ export default async function WorkItemsPage({
                             ? "无上下文"
                             : "No context"}
                       </span>
-                      <span className="mt-0.5 block text-xs text-slate-400">
+                      <span className="mt-0.5 block text-xs text-ink-3">
                         {state
                           ? relativeTime(state.created_at, lang)
                           : zh
@@ -149,7 +149,7 @@ export default async function WorkItemsPage({
                       </span>
                     </Link>
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600">
+                  <td className="px-5 py-3.5 text-ink-2">
                     {item.participants.length === 0
                       ? zh
                         ? "无"

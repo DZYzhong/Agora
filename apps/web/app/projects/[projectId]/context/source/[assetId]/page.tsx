@@ -49,7 +49,7 @@ export default async function ContextSourcePage({
         actions={
           <Link
             href={`/projects/${projectId}/context`}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-canvas"
           >
             ← {zh ? "返回上下文" : "Back to context"}
           </Link>
@@ -65,13 +65,13 @@ export default async function ContextSourcePage({
       {source ? (
         <div className="mt-6 space-y-4">
           <Card className="p-5">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{source.type}</p>
-            <h2 className="mt-1 text-lg font-semibold text-slate-900">{source.title}</h2>
-            <p className="mt-1 font-mono text-xs text-slate-400">
+            <p className="text-xs font-medium uppercase tracking-wide text-ink-3">{source.type}</p>
+            <h2 className="mt-1 text-lg font-semibold text-ink">{source.title}</h2>
+            <p className="mt-1 font-mono text-xs text-ink-3">
               {source.source_uri} · {source.asset_id}
             </p>
             {chunkId ? (
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-ink-2">
                 {zh ? "从" : "Opened from"} {chunkId}
                 {startLine && endLine ? ` · lines ${startLine}-${endLine}` : ""}
               </p>
@@ -83,10 +83,10 @@ export default async function ContextSourcePage({
             ) : null}
           </Card>
           <Card>
-            <div className="border-b border-slate-100 px-5 py-3.5">
-              <h3 className="text-sm font-semibold text-slate-900">{zh ? "内容" : "Content"}</h3>
+            <div className="border-b border-edge-1 px-5 py-3.5">
+              <h3 className="text-sm font-semibold text-ink">{zh ? "内容" : "Content"}</h3>
             </div>
-            <pre className="max-h-[40rem] overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-sm leading-relaxed text-slate-700">
+            <pre className="max-h-[40rem] overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-sm leading-relaxed text-ink">
               {source.content}
             </pre>
           </Card>

@@ -63,7 +63,7 @@ export default async function StreamRevisionsPage({
       <PageHeader
         title={zh ? "上下文修订历史" : "Context revision history"}
         subtitle={
-          <span className="text-sm text-slate-500">
+          <span className="text-sm text-ink-2">
             <Link href={`/projects/${projectId}/context`} className="text-blue-600 hover:underline">
               {zh ? "上下文" : "Context"}
             </Link>{" "}
@@ -75,14 +75,14 @@ export default async function StreamRevisionsPage({
       <Card className="mt-6 p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{zh ? "流" : "Stream"}</p>
-            <h2 className="mt-0.5 text-lg font-semibold text-slate-900">
+            <p className="text-xs font-medium uppercase tracking-wide text-ink-3">{zh ? "流" : "Stream"}</p>
+            <h2 className="mt-0.5 text-lg font-semibold text-ink">
               {stream.name} · <span className="font-mono text-base">{stream.branch}</span>
             </h2>
           </div>
           <Badge tone={stream.status === "active" ? "green" : "slate"}>{stream.status}</Badge>
         </div>
-        <p className="mt-2 text-sm text-slate-500">
+        <p className="mt-2 text-sm text-ink-2">
           {zh ? "Head 修订：" : "Head revision:"}{" "}
           <span className="font-mono text-xs">
             {stream.head_revision_id
@@ -106,18 +106,18 @@ export default async function StreamRevisionsPage({
             ]}
           >
             {ordered.map((revision) => (
-              <tr key={revision.id} className="transition hover:bg-slate-50">
+              <tr key={revision.id} className="transition hover:bg-canvas">
                 <td className="px-5 py-3">
-                  <span className="font-semibold text-slate-900">#{serial.get(revision.id)}</span>
-                  <span className="mt-0.5 block font-mono text-xs text-slate-400">
+                  <span className="font-semibold text-ink">#{serial.get(revision.id)}</span>
+                  <span className="mt-0.5 block font-mono text-xs text-ink-3">
                     {revision.id.slice(0, 8)} · {revision.schema_version}
                   </span>
                 </td>
-                <td className="px-5 py-3 font-mono text-xs text-slate-600">
+                <td className="px-5 py-3 font-mono text-xs text-ink-2">
                   {revision.commit_sha ?? "—"}
                 </td>
-                <td className="px-5 py-3 text-slate-700">{revision.source_anchors.length}</td>
-                <td className="px-5 py-3 text-sm text-slate-400">
+                <td className="px-5 py-3 text-ink">{revision.source_anchors.length}</td>
+                <td className="px-5 py-3 text-sm text-ink-3">
                   {revision.created_at ? relativeTime(revision.created_at, lang) : "—"}
                 </td>
                 <td className="px-5 py-3">
@@ -141,16 +141,16 @@ export default async function StreamRevisionsPage({
 
       {ordered.length ? (
         <Card className="mt-6">
-          <div className="border-b border-slate-100 px-5 py-3.5">
-            <h2 className="text-sm font-semibold text-slate-900">
+          <div className="border-b border-edge-1 px-5 py-3.5">
+            <h2 className="text-sm font-semibold text-ink">
               {zh ? "各版本内容" : "Content by version"}
             </h2>
           </div>
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-edge-1">
             {ordered.map((revision) => (
               <details key={`content-${revision.id}`} className="group px-5">
-                <summary className="flex cursor-pointer list-none items-center gap-2 py-3 text-sm font-medium text-slate-800 hover:text-blue-700">
-                  <span className="text-slate-400 transition group-open:rotate-90">›</span>
+                <summary className="flex cursor-pointer list-none items-center gap-2 py-3 text-sm font-medium text-ink hover:text-blue-700">
+                  <span className="text-ink-3 transition group-open:rotate-90">›</span>
                   #{serial.get(revision.id)} · {revision.schema_version}
                   {revision.is_head ? (
                     <Badge tone="green" dot={false}>
@@ -159,11 +159,11 @@ export default async function StreamRevisionsPage({
                   ) : null}
                 </summary>
                 <div className="pb-4">
-                  <pre className="max-h-96 overflow-auto rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+                  <pre className="max-h-96 overflow-auto rounded-lg bg-canvas p-3 text-xs text-ink-2">
                     {JSON.stringify(revision.content, null, 2)}
                   </pre>
                   {revision.source_anchors.length ? (
-                    <p className="mt-2 text-xs text-slate-400">
+                    <p className="mt-2 text-xs text-ink-3">
                       {zh ? "锚点" : "Anchors"}:{" "}
                       {revision.source_anchors
                         .map((anchor) => anchor.path)

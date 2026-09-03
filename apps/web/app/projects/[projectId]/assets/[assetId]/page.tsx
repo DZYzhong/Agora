@@ -61,14 +61,14 @@ export default async function AssetDetailPage({
         actions={
           <Link
             href={`/projects/${projectId}/assets`}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-canvas"
           >
             ← {zh ? "返回资产列表" : "Back to assets"}
           </Link>
         }
       />
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs text-slate-400">
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs text-ink-3">
         <span>{asset.source_uri}</span>
         <span>
           {zh ? "哈希" : "Hash"} {asset.content_hash?.slice(0, 12) ?? "unknown"}
@@ -80,10 +80,10 @@ export default async function AssetDetailPage({
       </div>
 
       <Card className="mt-6">
-        <div className="border-b border-slate-100 px-5 py-3.5">
-          <h2 className="text-sm font-semibold text-slate-900">{zh ? "内容" : "Content"}</h2>
+        <div className="border-b border-edge-1 px-5 py-3.5">
+          <h2 className="text-sm font-semibold text-ink">{zh ? "内容" : "Content"}</h2>
         </div>
-        <pre className="max-h-[36rem] overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-sm leading-relaxed text-slate-700">
+        <pre className="max-h-[36rem] overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-sm leading-relaxed text-ink">
           {asset.content}
         </pre>
       </Card>

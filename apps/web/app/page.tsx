@@ -41,10 +41,10 @@ export default async function Home() {
         <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-2xl font-bold text-white shadow-sm">
           A
         </span>
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+        <h1 className="text-3xl font-semibold tracking-tight text-ink">
           {zh ? "团队 AI 项目协作台" : "Team AI Project Harness"}
         </h1>
-        <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-slate-500">
+        <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-ink-2">
           {zh
             ? "Agora 管理 AI 工具在团队项目中的工作：上下文、审批、质量证据与知识沉淀都在同一个治理界面中。"
             : "Agora governs how AI tools work inside team projects — context, approvals, quality evidence and knowledge — in one place."}
@@ -62,17 +62,17 @@ export default async function Home() {
           <Link
             key={card.mono}
             href={card.href}
-            className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-px hover:border-blue-200 hover:shadow"
+            className="group rounded-2xl border border-edge bg-surface p-5 shadow-sm transition hover:-translate-y-px hover:border-blue-200 hover:shadow"
           >
             <span
               className={`flex h-9 w-9 items-center justify-center rounded-lg text-xs font-bold ${card.tint}`}
             >
               {card.mono}
             </span>
-            <span className="mt-3 block text-[15px] font-semibold text-slate-900 group-hover:text-blue-700">
+            <span className="mt-3 block text-[15px] font-semibold text-ink group-hover:text-blue-700">
               {card.title} →
             </span>
-            <span className="mt-1 block text-xs leading-relaxed text-slate-400">{card.hint}</span>
+            <span className="mt-1 block text-xs leading-relaxed text-ink-3">{card.hint}</span>
           </Link>
         ))}
       </section>
