@@ -1,8 +1,9 @@
 import asyncio
 
 import httpx
+import pytest
 
-from apps.mcp.server import _dispatch, _post, list_tools
+from apps.mcp.server import _dispatch, _error_text, _post, list_tools
 from packages.core.services.mcp_tools import (
     TOOL_DEFINITIONS,
     canonical_tool_names,
@@ -128,6 +129,73 @@ def test_stdio_post_sends_current_protocol_and_connector_headers(monkeypatch):
     assert result == {"ok": True}
     assert captured["headers"]["Agora-Protocol-Version"] == "1.1"
     assert captured["headers"]["Agora-Connector-Version"] == "0.1.0"
+
+
+def _fake_async_client(monkeypatch, response_factory):
+    captured = {}
+
+    class FakeAsyncClient:
+        def __init__(self, *, base_url, timeout):
+            captured["base_url"] = base_url
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, path, *, json, headers):
+            return response_factory(path)
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeAsyncClient)
+    return captured
+
+
+def test_stdio_post_returns_protocol_structured_4xx_as_normal_result(monkeypatch):
+    """Protocol-structured non-2xx (clarification with next_actions) must be
+    returned as a readable result, not hidden behind '404 Not Found'."""
+
+    def response_factory(path):
+        request = httpx.Request("POST", "https://127.0.0.1:8443" + path)
+        return httpx.Response(
+            404,
+            json={
+                "detail": {
+                    "protocol_version": "1.1",
+                    "code": "PROJECT_UNRESOLVED",
+                    "message": "No Agora project is bound to repository github.com/x/y.",
+                    "next_actions": [{"type": "clarify", "reason": "No project bound."}],
+                }
+            },
+            request=request,
+        )
+
+    _fake_async_client(monkeypatch, response_factory)
+
+    result = asyncio.run(_post("/harness/start-work", {"user_message": "task"}))
+
+    assert result["http_status"] == 404
+    assert result["detail"]["code"] == "PROJECT_UNRESOLVED"
+    assert result["detail"]["next_actions"][0]["type"] == "clarify"
+
+
+def test_stdio_post_raises_for_non_protocol_4xx_and_error_text_keeps_body(monkeypatch):
+    """Plain 4xx bodies (e.g. session-not-found) still raise, and the error
+    text surfaced to agents includes the HTTP response body."""
+
+    def response_factory(path):
+        request = httpx.Request("POST", "https://127.0.0.1:8443" + path)
+        return httpx.Response(404, json={"detail": "Session not found"}, request=request)
+
+    _fake_async_client(monkeypatch, response_factory)
+
+    with pytest.raises(httpx.HTTPStatusError) as excinfo:
+        asyncio.run(_post("/harness/close-work", {"session_id": "missing"}))
+
+    error_text = _error_text(excinfo.value)
+    assert "404" in error_text
+    assert "Session not found" in error_text
+    assert error_text.startswith("Client error")
 
 
 def test_stdio_submit_context_proposal_dispatches_to_harness(monkeypatch):

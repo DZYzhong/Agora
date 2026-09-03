@@ -230,7 +230,7 @@ def _search_knowledge_payload(arguments: dict[str, Any]) -> dict[str, Any]:
 TOOL_DEFINITIONS: tuple[McpToolDefinition, ...] = (
     McpToolDefinition(
         name="agora_start_work",
-        description="Start an Agora work session for project-aware AI work. Use this before local code analysis. The user_message may include the project name or slug; repo_remote is optional fallback.",
+        description="Start an Agora work session for project-aware AI work. Use this before local code analysis. The user_message may include the project name or slug; repo_remote is optional fallback. If the response carries code PROJECT_UNRESOLVED (or similar) with next_actions, follow those actions: typically re-call passing repo_remote (your repo origin) or naming the project in user_message.",
         properties=(
             _str("user_message", "Original user request, including project name/slug when available."),
             _str("repo_remote", "Optional git origin remote. Agora also accepts normalized remotes without username or .git suffix."),

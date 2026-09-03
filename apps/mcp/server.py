@@ -43,8 +43,32 @@ async def _post(path: str, payload: dict[str, Any], *, idempotency_key: str | No
         headers["Authorization"] = f"Bearer {AGORA_AGENT_TOKEN}"
     async with httpx.AsyncClient(base_url=AGORA_API_URL, timeout=30) as client:
         response = await client.post(path, json=payload, headers=headers)
-        response.raise_for_status()
+        status = getattr(response, "status_code", None)
+        if status is not None and status >= 400:
+            detail = _protocol_detail(response)
+            if detail is not None:
+                # Protocol-structured non-2xx (e.g. a PROJECT_UNRESOLVED
+                # clarification carrying next_actions) is an expected harness
+                # response, not a transport failure. Hand it back as a normal
+                # result so agents can act on code/message/next_actions — the
+                # same semantics the local harness dispatch path uses.
+                body = response.json()
+                return {"http_status": status, **(body if isinstance(body, dict) else {})}
+            response.raise_for_status()
         return response.json()
+
+
+def _protocol_detail(response) -> dict[str, Any] | None:
+    """Return the structured ``detail`` when the body is a protocol response."""
+    try:
+        body = response.json()
+    except Exception:
+        return None
+    if isinstance(body, dict):
+        detail = body.get("detail")
+        if isinstance(detail, dict) and detail.get("code"):
+            return detail
+    return None
 
 
 async def list_tools(_ctx, _params) -> types.ListToolsResult:
@@ -60,7 +84,26 @@ async def call_tool(_ctx, params: types.CallToolRequestParams) -> types.CallTool
             structuredContent=result,
         )
     except Exception as exc:
-        return types.CallToolResult(content=[types.TextContent(text=str(exc))], isError=True)
+        return types.CallToolResult(content=[types.TextContent(text=_error_text(exc))], isError=True)
+
+
+def _error_text(exc: Exception) -> str:
+    """Enrich transport errors with the HTTP response body when available.
+
+    Without this, ``httpx.HTTPStatusError`` reduces a detailed server error to
+    ``Client error '404 Not Found' for url ...`` and agents cannot see the
+    actual ``detail`` payload (e.g. session-not-found reasons).
+    """
+    text = str(exc)
+    response = getattr(exc, "response", None)
+    if response is not None:
+        try:
+            body_text = response.text
+        except Exception:
+            body_text = None
+        if body_text:
+            text = f"{text}\nHTTP response body: {body_text[:2000]}"
+    return text
 
 
 async def _dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
