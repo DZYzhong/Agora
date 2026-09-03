@@ -175,7 +175,14 @@ PR3 exit gate:
 
 ## Chunk 4: PR4 Context consistency and PostgreSQL retrieval
 
-Separate implementation plan required after PR3 exit.
+Plan: `docs/superpowers/plans/2026-09-03-pr4-context-consistency.md`
+
+Current execution state (2026-09-03): kickoff plan committed (796bb8e); B1
+determinism audit started — CONFLICT-2 (stale-baseline second proposal is
+marked needs_rebase, never silently overwrites) automated in
+`test_context_governance_api.py`; remaining B1 scenarios (FRESH transition
+matrix, replay/force-push explicit cases, multi-source priority) and B2
+PostgreSQL FTS follow.
 
 Outcomes:
 
