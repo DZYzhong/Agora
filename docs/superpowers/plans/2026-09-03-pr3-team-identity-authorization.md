@@ -33,3 +33,20 @@
 
 - 依赖 C1（首页/用户页清理）与 UI 重设计评审结论（B4 样式基线）。
 - 本机可完整自动化 B1-B3/B5；B4 依赖 UI 评审通过；真实多身份黑盒仍需用户配合。
+
+## 5. B0 现状盘点结论（2026-09-03 完成）
+
+代码走查（`auth_admin.set_user_enabled/revoke_credential`、`auth_session.resolve_session_principal`、`approval_grants.require_approval_capability`、`IdentityRepository`）：
+
+| 项 | 现状 | PR3 差距 |
+|---|---|---|
+| Disable 后凭据 | disable 立即 `revoke_user_credentials`（human/agent/ci/activation/reset 全部 revoked）+ 置 disabled + 审计 `user.disable`（含吊销数） | ✅ 已满足 |
+| Disable 后 Web 会话 | `resolve_session_principal` 发现 user 非 active → 吊销会话并拒绝；下一请求即失效 | ✅ 已满足（惰性吊销+即时拒绝） |
+| Disable 后审批 grant | grant 需以本人 web_session 主体消费；用户禁用后主体解析失败 → grant 实际不可用 | ⚠️ 行为正确但**未显式吊销 grant 行**、无审计；建议 B1/B3 补显式吊销+审计 |
+| 凭据吊销（单条） | org admin `revoke_credential` + 审计 `credential.revoke`；endpoint 已有 | ✅ 已满足（UI 缺，B2/B4） |
+| 成员/角色管理 | 仅 bootstrap/org admin 二元；project_memberships 有 role 字段但无管理 API/UI | ❌ B1 核心 |
+| Token 生命周期（签发/scope/过期/轮换） | 仅 env bootstrap + activation/reset 单次凭据 | ❌ B2 核心 |
+| RBAC principal×action 矩阵自动化 | 部分（审批拒绝矩阵测试存在） | ❌ B5 补全 |
+| 审计覆盖面 | user.disable/enable、credential.revoke/reset_issue、user.create、审批决策等已审计 | ⚠️ 补 grant 吊销/签发、成员变更审计（B1/B2） |
+
+**B0 结论**：disable 传播主线已达标（凭据即时吊销、会话惰性吊销+拒绝、grant 因主体不可达而失效）；PR3 首批代码批次 = B1（组织/项目成员管理 API + 角色受控枚举 + 显式 grant 吊销与成员变更审计），随后 B2 token 生命周期、B5 矩阵自动化。
