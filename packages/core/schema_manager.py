@@ -24,6 +24,13 @@ MIGRATION_REQUIRED = "MIGRATION_REQUIRED"
 P1_REVISION = "20260813_0001"
 ROOT_DIR = Path(__file__).resolve().parents[2]
 
+# PostgreSQL-only full-text search artifacts (migration 20260902_0019) are
+# derived search data, not source-of-truth schema. They cannot exist on the
+# SQLite canonical replay, so they are excluded here by an explicit allowlist
+# (column name and index names); everything else is still drift-checked.
+FTS_ASSET_TSV_COLUMN = "search_tsv"
+FTS_INDEX_NAMES = {"ix_assets_search_tsv_gin"}
+
 
 class MigrationRequiredError(RuntimeError):
     def __init__(self, message: str):
@@ -166,6 +173,8 @@ def _schema_signature(bind: Engine | Connection) -> dict[str, Any]:
         pk_columns = set(inspector.get_pk_constraint(table_name).get("constrained_columns") or ())
         columns = []
         for column in inspector.get_columns(table_name):
+            if column["name"] == FTS_ASSET_TSV_COLUMN:
+                continue
             column_type = _normalized_type(column["type"])
             default = None if column.get("default") is None else str(column["default"])
             # PostgreSQL reports boolean server defaults as `true`/`false` while
@@ -202,6 +211,7 @@ def _schema_signature(bind: Engine | Connection) -> dict[str, Any]:
             )
             for index in inspector.get_indexes(table_name)
             if not index.get("duplicates_constraint")
+            and index["name"] not in FTS_INDEX_NAMES
         )
         unique_constraints = sorted(
             tuple(constraint["column_names"])

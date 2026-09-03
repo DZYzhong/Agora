@@ -154,3 +154,63 @@ def test_postgres_schema_fingerprint_matches_canonical():
             assert _schema_signature(connection) == _canonical_signature(heads[0])
     finally:
         engine.dispose()
+
+
+def test_postgres_fts_search_indexes_and_ranks_assets():
+    """PR4: the PostgreSQL FTS path (migration 20260902_0019) searches a
+    project's assets and the fingerprint stays canonical (FTS artifacts are
+    excluded from the cross-backend signature)."""
+    from packages.core.models import AssetModel
+    from packages.storage.postgres_fts import has_fts_support, rebuild_signal, search_assets
+
+    engine = create_app_engine(POSTGRES_URL)
+    session = _session()
+    marker = f"pg-fts-{utc_now().timestamp()}"
+    try:
+        with SqlAlchemyUnitOfWork(session) as uow:
+            user = UserModel(org_id=marker, display_name="FTS User")
+            project = ProjectModel(org_id=marker, name="FTS Project", slug=marker)
+            session.add_all([user, project])
+            session.flush()
+            project_id = project.id
+            session.add_all(
+                [
+                    AssetModel(
+                        org_id=marker,
+                        project_id=project_id,
+                        type="code_file",
+                        source="upload",
+                        source_uri="src/payments/refund.py",
+                        title="Refund retry idempotency",
+                        content="Refund retry uses idempotency keys and rollback evidence.",
+                        summary="refund retry evidence",
+                    ),
+                    AssetModel(
+                        org_id=marker,
+                        project_id=project_id,
+                        type="doc",
+                        source="upload",
+                        source_uri="docs/onboarding.md",
+                        title="Team onboarding",
+                        content="How new engineers onboard to the repository.",
+                        summary="onboarding guide",
+                    ),
+                ]
+            )
+            uow.commit()
+
+        assert has_fts_support(engine) is True
+        signal = rebuild_signal(engine)
+        assert signal["total_assets"] >= 2
+        assert signal["fts_indexed"] >= 2
+
+        with engine.connect() as connection:
+            hits = search_assets(connection, project_id=project_id, query="refund retry")
+            assert hits, "expected FTS hits for refund retry"
+            assert hits[0]["title"] == "Refund retry idempotency"
+            unrelated = search_assets(connection, project_id=project_id, query="onboarding")
+            assert unrelated and unrelated[0]["title"] == "Team onboarding"
+    finally:
+        session.rollback()
+        session.close()
+        engine.dispose()
