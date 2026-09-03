@@ -913,8 +913,10 @@ def test_ops_release_artifacts_are_present_and_pinned():
     services = compose["services"]
     for name in ("api", "web", "nginx", "postgres", "redis", "prometheus", "local-connector", "worker", "migrate"):
         assert name in services, name
-    for name in ("api", "web", "nginx", "postgres", "redis", "prometheus", "local-connector", "worker"):
+    for name in ("api", "web", "nginx", "postgres", "redis", "prometheus", "worker"):
         assert services[name].get("restart") == "unless-stopped", name
+    # stdio MCP server container intentionally exits without a stdin client.
+    assert services["local-connector"].get("restart") == "no"
     assert services["prometheus"]["ports"] == ["9091:9090"]
 
     monitoring = Path("infra/monitoring")

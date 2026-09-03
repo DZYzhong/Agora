@@ -50,7 +50,8 @@ ensure_certificates() {
     mkdir -p "$CERTS_DIR"
     openssl req -x509 -newkey rsa:2048 -nodes \
       -keyout "$CERTS_DIR/agora.key" -out "$CERTS_DIR/agora.crt" \
-      -days 365 -subj "/CN=localhost"
+      -days 365 -subj "/CN=localhost" \
+      -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
   fi
 }
 
