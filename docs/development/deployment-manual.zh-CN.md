@@ -71,6 +71,9 @@ scripts/deploy_local.sh --bootstrap-admin <admin用户名> '<强密码>'
 
 # 3.5 冒烟（就绪+登录页+安全头）
 scripts/deploy_local.sh --smoke
+
+# 3.6 生产验收（一条命令，覆盖手册 §4）
+scripts/verify_production.sh          # 期望 PRODUCTION ACCEPTANCE PASS
 ```
 
 ## 4. 验证清单
@@ -85,7 +88,7 @@ scripts/deploy_local.sh --smoke
 ## 5. 运维要点
 
 - **升级**：`git pull` → 先 `docker compose build api web worker migrate` → `up -d --no-deps migrate` → `up -d api worker web nginx`（migrate 先于应用）
-- **备份**：每日 `scripts/backup_db.sh` + 加密文件**复制离主机**（DR 要求）；轮换保留 7 份
+- **备份**：每日 `scripts/backup_db.sh` + 加密文件**复制离主机**（DR 要求）；轮换保留 7 份；`scripts/install_backup_cron.sh` 可安装每日 02:00 cron（passphrase 存 `.agora/backup.pass` 0600）
 - **磁盘**：定期 `docker builder prune -af` 与 `docker image prune -f`；监控 `/var/lib/docker` 容量
 - **监控**：Prometheus `http://<IP>:9091`；告警规则已加载 4 条；Alertmanager 接收人按环境配置
 - **日志**：`docker compose logs -f api worker web`
