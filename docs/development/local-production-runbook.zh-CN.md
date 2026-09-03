@@ -168,3 +168,11 @@ docker-compose -f infra/docker-compose.yml logs -f api worker web
 - 结果：0 SQL 错误；`alembic_version=20260902_0018`；users=3 / projects=1 与源库一致；**恢复后 schema fingerprint 与 canonical 一致**（`ensure_schema` 可启动）。
 - 演练发现并修复：pg_dump/restore 会把部分唯一索引谓词改写为逐字面量加括号 `ARRAY[('OWNER')::text,...]` → 归一化新增单字面量去括号（`schema_manager`），回归单测 `test_normalized_predicate_unwraps_dump_wrapped_in_list_literals`。
 - 挂起：干净主机全量恢复 + RPO≤24h/RTO≤4h 实测（需真实环境）。
+
+## 12. 事故与端口冲突记录（2026-09-03 实测）
+
+- **磁盘耗尽事故**：colima VM `/var/lib/docker` 40G 写满 → docker 报 `input/output error`/`ENOSPC`、构建被 OOM（137）→ 处置：`colima stop` → `truncate -s 64G ~/.colima/_lima/_disks/colima/datadisk` → `colima start --cpu 4 --memory 6` → `docker builder prune -af` → 重建。教训：定期 `docker builder prune -af`、监控磁盘、部署前预留 ≥20GiB。
+- **构建缓存损坏**：ENOSPC 后 containerd 缺父层（`NotFound: parent snapshot ...`）→ 用 `docker-compose build --no-cache` 兜底。
+- **端口冲突（本机共存服务）**：宿主 `8000/8010`（见几/strategy）、`8000` 直连 api 被占 → 一律走 nginx `8443`；`9090`（Stash）→ prometheus 用 `9091`；`3000`（colima 转发 web）正常；`5432` 宿主 postgres 与容器共存 → 容器间用服务名。新服务器部署前用 §2.5 检查。
+- **nginx 502 after api restart**：nginx 缓存上游旧容器 IP → `docker-compose restart nginx`。
+- **重启恢复**：compose 已为常驻服务加 `restart: unless-stopped`（api/web/nginx/postgres/redis/prometheus/local-connector/worker），主机重启后 `docker compose up -d` 即可整体拉起（compose 不自动启动停止的容器，需 up -d；重启策略管崩溃恢复）。
