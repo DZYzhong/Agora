@@ -904,3 +904,33 @@ def test_pr5_nginx_and_api_security_headers_configured():
     assert "Permissions-Policy" in middleware
     main = Path("apps/api/main.py").read_text()
     assert "SecurityHeadersMiddleware" in main
+
+
+def test_ops_release_artifacts_are_present_and_pinned():
+    import yaml
+
+    compose = yaml.safe_load(Path("infra/docker-compose.yml").read_text())
+    services = compose["services"]
+    for name in ("api", "web", "nginx", "postgres", "redis", "prometheus", "local-connector", "worker", "migrate"):
+        assert name in services, name
+    for name in ("api", "web", "nginx", "postgres", "redis", "prometheus", "local-connector", "worker"):
+        assert services[name].get("restart") == "unless-stopped", name
+    assert services["prometheus"]["ports"] == ["9091:9090"]
+
+    monitoring = Path("infra/monitoring")
+    assert (monitoring / "prometheus.yml").exists()
+    assert (monitoring / "agora-alerts.yml").exists()
+    assert (monitoring / "alertmanager.yml").exists()
+    alerts = (monitoring / "agora-alerts.yml").read_text()
+    assert "AgoraNotReady" in alerts and "AgoraSchemaStale" in alerts
+
+    scripts = Path("scripts")
+    for name in ("deploy_local.sh", "verify_production.sh", "backup_db.sh", "install_backup_cron.sh", "perf_smoke.py"):
+        assert (scripts / name).exists(), name
+    assert (scripts / "deploy_local.sh").read_text().count("docker compose") >= 1
+
+    docs = Path("docs/development")
+    assert (docs / "deployment-manual.zh-CN.md").exists()
+    assert (docs / "local-production-runbook.zh-CN.md").exists()
+    manual = (docs / "deployment-manual.zh-CN.md").read_text()
+    assert "postgres:16" in manual and "nginx:1.27-alpine" in manual and "prom/prometheus:v2.54.1" in manual
