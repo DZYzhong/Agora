@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -278,6 +278,71 @@ class IdentityRepository:
             )
         )
         return list(self.session.scalars(statement).all())
+
+    # --- PR3 membership management ------------------------------------------
+
+    def list_org_members(self, org_id: str) -> list[tuple[UserModel, OrganizationMembershipModel]]:
+        statement = (
+            select(UserModel, OrganizationMembershipModel)
+            .join(
+                OrganizationMembershipModel,
+                OrganizationMembershipModel.user_id == UserModel.id,
+            )
+            .where(OrganizationMembershipModel.org_id == org_id)
+            .order_by(UserModel.username.asc())
+        )
+        return list(self.session.execute(statement).all())
+
+    def set_org_role(self, *, org_id: str, user_id: str, role: str) -> OrganizationMembershipModel:
+        membership = self.get_org_membership(org_id=org_id, user_id=user_id)
+        if membership is None:
+            return self.create_org_membership(org_id=org_id, user_id=user_id, role=role)
+        membership.role = role
+        self.session.flush()
+        self.session.refresh(membership)
+        return membership
+
+    def remove_org_membership(self, *, org_id: str, user_id: str) -> bool:
+        membership = self.get_org_membership(org_id=org_id, user_id=user_id)
+        if membership is None:
+            return False
+        self.session.delete(membership)
+        self.session.flush()
+        return True
+
+    def count_org_administrators(self, org_id: str) -> int:
+        return len(self.list_org_admins(org_id))
+
+    def list_project_members(self, project_id: str) -> list[tuple[UserModel, ProjectMembershipModel]]:
+        statement = (
+            select(UserModel, ProjectMembershipModel)
+            .join(
+                ProjectMembershipModel,
+                ProjectMembershipModel.user_id == UserModel.id,
+            )
+            .where(ProjectMembershipModel.project_id == project_id)
+            .order_by(UserModel.username.asc())
+        )
+        return list(self.session.execute(statement).all())
+
+    def remove_project_membership(self, *, project_id: str, user_id: str) -> bool:
+        membership = self.get_membership(project_id=project_id, user_id=user_id)
+        if membership is None:
+            return False
+        self.session.delete(membership)
+        self.session.flush()
+        return True
+
+    def count_project_managers(self, project_id: str) -> int:
+        statement = (
+            select(func.count())
+            .select_from(ProjectMembershipModel)
+            .where(
+                ProjectMembershipModel.project_id == project_id,
+                ProjectMembershipModel.role.in_(("owner", "admin")),
+            )
+        )
+        return int(self.session.scalar(statement) or 0)
 
 
 def _expired(expires_at: datetime, *, now: datetime) -> bool:

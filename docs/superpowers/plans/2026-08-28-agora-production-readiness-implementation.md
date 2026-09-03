@@ -135,7 +135,14 @@ Outcomes (2026-09-02 本机部署实测记录见 `docs/development/local-product
 
 ## Chunk 3: PR3 Team identity and authorization
 
-Separate implementation plan required after PR2 exit.
+Plan: `docs/superpowers/plans/2026-09-03-pr3-team-identity-authorization.md`
+
+Current execution state (2026-09-03): kickoff plan committed (f89448f); B0
+inventory recorded (e16eed7); **B1 membership management implemented** —
+organization/project membership add/list/role/remove API with controlled role
+sets (ORG_ROLES / PROJECT_ROLES), owner-reserved and last-admin guards, and
+audit on every mutation (`tests/integration/api/test_memberships_api.py`).
+PR3 exit gate (PR3-RBAC-* matrix, real-identity black-box) remains open.
 
 Outcomes:
 

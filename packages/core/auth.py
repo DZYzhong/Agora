@@ -9,6 +9,11 @@ from packages.core.uow import SqlAlchemyUnitOfWork
 
 LOCAL_BOOTSTRAP_ORG_ID = "local-org"
 PROJECT_APPROVAL_ROLES = {"owner", "admin", "reviewer"}
+ORG_ROLES = {"owner", "admin", "member"}
+# Product roles per project; PROJECT_APPROVAL_ROLES must stay a subset.
+PROJECT_ROLES = {"owner", "admin", "reviewer", "pm", "quality", "developer", "viewer"}
+# Roles allowed to manage project membership.
+PROJECT_MANAGER_ROLES = {"owner", "admin"}
 
 
 class BootstrapAuthError(RuntimeError):
