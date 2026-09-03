@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { apiGet } from "../../../../../../lib/api";
+import { currentLang } from "../../../../../../lib/i18n";
+import { relativeTime } from "../../../../../../lib/format";
+import { Badge, Card, EmptyState, Page, PageHeader, Table } from "../../../../../../components/ui";
 
 type Stream = {
   id: string;
@@ -27,6 +30,9 @@ export default async function StreamRevisionsPage({
   params: Promise<{ projectId: string; streamId: string }>;
 }) {
   const { projectId, streamId } = await params;
+  const lang = await currentLang();
+  const zh = lang === "zh";
+
   let data: { stream: Stream; revisions: Revision[] } | null = null;
   try {
     data = await apiGet(`/projects/${projectId}/context/streams/${streamId}/revisions`);
@@ -36,87 +42,141 @@ export default async function StreamRevisionsPage({
 
   if (!data) {
     return (
-      <main className="page">
-        <h1>Revision history</h1>
-        <p className="alert">Unable to load revision history.</p>
-      </main>
+      <Page>
+        <PageHeader title={zh ? "修订历史" : "Revision history"} />
+        <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {zh ? "无法加载修订历史。" : "Unable to load revision history."}
+        </div>
+      </Page>
     );
   }
 
   const { stream, revisions } = data;
-  const ordered = [...revisions].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at) ?? "") || a.id.localeCompare(b.id));
+  const ordered = [...revisions].sort(
+    (a, b) =>
+      String(a.created_at).localeCompare(String(b.created_at) ?? "") || a.id.localeCompare(b.id)
+  );
   const serial = new Map(ordered.map((revision, index) => [revision.id, index + 1]));
 
   return (
-    <main className="page">
-      <h1>Context revision history</h1>
-      <p className="muted">
-        <Link href={`/projects/${projectId}/context`}>Context</Link> · {stream.name} · {stream.branch}
-      </p>
+    <Page>
+      <PageHeader
+        title={zh ? "上下文修订历史" : "Context revision history"}
+        subtitle={
+          <span className="text-sm text-slate-500">
+            <Link href={`/projects/${projectId}/context`} className="text-blue-600 hover:underline">
+              {zh ? "上下文" : "Context"}
+            </Link>{" "}
+            · {stream.name} · <span className="font-mono">{stream.branch}</span>
+          </span>
+        }
+      />
 
-      <section className="panel">
-        <div className="session-header">
-          <div>
-            <p className="eyebrow">Stream</p>
-            <h2>{stream.name} · {stream.branch}</h2>
+      <Card className="mt-6 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{zh ? "流" : "Stream"}</p>
+            <h2 className="mt-0.5 text-lg font-semibold text-slate-900">
+              {stream.name} · <span className="font-mono text-base">{stream.branch}</span>
+            </h2>
           </div>
-          <span className="asset-type">{stream.status}</span>
+          <Badge tone={stream.status === "active" ? "green" : "slate"}>{stream.status}</Badge>
         </div>
-        <p className="muted">
-          Head revision: {stream.head_revision_id ? `#${serial.get(stream.head_revision_id) ?? stream.head_revision_id}` : "None"}
+        <p className="mt-2 text-sm text-slate-500">
+          {zh ? "Head 修订：" : "Head revision:"}{" "}
+          <span className="font-mono text-xs">
+            {stream.head_revision_id
+              ? `#${serial.get(stream.head_revision_id) ?? stream.head_revision_id}`
+              : zh
+                ? "无"
+                : "None"}
+          </span>
         </p>
-      </section>
-
-      <section className="panel">
-        <h2>Versions</h2>
-        {ordered.length ? (
-          <div className="history-list">
-            <div className="history-row history-header">
-              <span>Version</span>
-              <span>Commit</span>
-              <span>Anchors</span>
-              <span>Created</span>
-              <span>Head</span>
-            </div>
-            {ordered.map((revision) => (
-              <div className="history-row" key={revision.id}>
-                <span>
-                  <strong>#{serial.get(revision.id)}</strong>
-                  <p className="asset-uri">{revision.id.slice(0, 8)} · {revision.schema_version}</p>
-                </span>
-                <span>{revision.commit_sha ?? "None"}</span>
-                <span>{revision.source_anchors.length}</span>
-                <span>{revision.created_at ? new Date(revision.created_at).toLocaleString() : "Unknown"}</span>
-                <span>{revision.is_head ? "✓" : ""}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="muted">No accepted revisions yet for this stream.</p>
-        )}
-      </section>
+      </Card>
 
       {ordered.length ? (
-        <section className="panel">
-          <h2>Content by version</h2>
-          {ordered.map((revision) => (
-            <details className="event-row" key={`content-${revision.id}`}>
-              <summary>
-                #{serial.get(revision.id)} · {revision.schema_version}
-                {revision.is_head ? " · current head" : ""}
-              </summary>
-              <div className="writeback-content">
-                <pre>{JSON.stringify(revision.content, null, 2)}</pre>
-                {revision.source_anchors.length ? (
-                  <p className="muted">
-                    Anchors: {revision.source_anchors.map((anchor) => anchor.path).join(", ")}
-                  </p>
-                ) : null}
-              </div>
-            </details>
-          ))}
-        </section>
+        <Card className="mt-6">
+          <Table
+            headers={[
+              zh ? "版本" : "Version",
+              zh ? "提交" : "Commit",
+              zh ? "锚点" : "Anchors",
+              zh ? "创建" : "Created",
+              zh ? "Head" : "Head",
+            ]}
+          >
+            {ordered.map((revision) => (
+              <tr key={revision.id} className="transition hover:bg-slate-50">
+                <td className="px-5 py-3">
+                  <span className="font-semibold text-slate-900">#{serial.get(revision.id)}</span>
+                  <span className="mt-0.5 block font-mono text-xs text-slate-400">
+                    {revision.id.slice(0, 8)} · {revision.schema_version}
+                  </span>
+                </td>
+                <td className="px-5 py-3 font-mono text-xs text-slate-600">
+                  {revision.commit_sha ?? "—"}
+                </td>
+                <td className="px-5 py-3 text-slate-700">{revision.source_anchors.length}</td>
+                <td className="px-5 py-3 text-sm text-slate-400">
+                  {revision.created_at ? relativeTime(revision.created_at, lang) : "—"}
+                </td>
+                <td className="px-5 py-3">
+                  {revision.is_head ? (
+                    <Badge tone="green" dot={false}>
+                      ✓ {zh ? "当前 head" : "head"}
+                    </Badge>
+                  ) : (
+                    <span className="text-slate-200">—</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </Table>
+        </Card>
+      ) : (
+        <EmptyState
+          title={zh ? "此流还没有已接受的修订" : "No accepted revisions yet for this stream"}
+        />
+      )}
+
+      {ordered.length ? (
+        <Card className="mt-6">
+          <div className="border-b border-slate-100 px-5 py-3.5">
+            <h2 className="text-sm font-semibold text-slate-900">
+              {zh ? "各版本内容" : "Content by version"}
+            </h2>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {ordered.map((revision) => (
+              <details key={`content-${revision.id}`} className="group px-5">
+                <summary className="flex cursor-pointer list-none items-center gap-2 py-3 text-sm font-medium text-slate-800 hover:text-blue-700">
+                  <span className="text-slate-400 transition group-open:rotate-90">›</span>
+                  #{serial.get(revision.id)} · {revision.schema_version}
+                  {revision.is_head ? (
+                    <Badge tone="green" dot={false}>
+                      {zh ? "当前 head" : "head"}
+                    </Badge>
+                  ) : null}
+                </summary>
+                <div className="pb-4">
+                  <pre className="max-h-96 overflow-auto rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+                    {JSON.stringify(revision.content, null, 2)}
+                  </pre>
+                  {revision.source_anchors.length ? (
+                    <p className="mt-2 text-xs text-slate-400">
+                      {zh ? "锚点" : "Anchors"}:{" "}
+                      {revision.source_anchors
+                        .map((anchor) => anchor.path)
+                        .filter(Boolean)
+                        .join(", ")}
+                    </p>
+                  ) : null}
+                </div>
+              </details>
+            ))}
+          </div>
+        </Card>
       ) : null}
-    </main>
+    </Page>
   );
 }
