@@ -33,3 +33,11 @@
 ## 4. 挂起（用户/真实环境）
 
 真实 AI 黑盒；DR 干净主机 + RPO≤24h/RTO≤4h；运维 TLS 证书；PR6 多角色 + 签字；push origin。
+
+## 5. 黑盒 A1 前置修复（2026-09-03 追加）
+
+- 现象：Cursor agent 经 Agora MCP 调 `agora_start_work` 反复报 `404 Not Found`，误判 "Local Connector 未运行"。
+- 根因 1（环境）：本机部署栈 DB 在运维重建后只剩归档的 Smoke Demo，无任何绑定仓库的活动项目 → start-work 命中协议 404 `PROJECT_UNRESOLVED`（agent 看不到 body）。
+- 根因 2（产品缺陷，已修复 `3c3d59c`）：stdio 客户端 `raise_for_status()` 把带 `code`/`message`/`next_actions` 的协议结构化 4xx 压成一句 "404 Not Found"；修复后协议结构化非 2xx 作为正常工具结果返回（含 `http_status`），其余 4xx/5xx 错误文本带响应体；`agora_start_work` 工具描述补充 next_actions 指引。mcp 单测 39 passed。
+- 环境重建（本机栈）：项目 `agora-bb-demo`（slug `agora-bb-demo`，remote `github.com/dzyzhong/agora-bb-demo`，default main，active）；agent 用户（Local Bootstrap User）owner 成员（201）。
+- 复验（真实 MCP dispatch，agent token）：`agora_start_work` 200 → `session_id`/AG-200 work item；`agora_prepare_context` 200（level empty——项目尚无 assets，属预期）；`agora_close_work` 200（探针 session 已关闭）。
