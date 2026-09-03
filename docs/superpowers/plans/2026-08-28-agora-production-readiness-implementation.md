@@ -145,8 +145,11 @@ audit on every mutation (`tests/integration/api/test_memberships_api.py`);
 **B2 API token lifecycle implemented** — issue (human/agent/ci, label,
 expires_at), list (plaintext never returned), rotate (revoke old + issue new),
 audit (`tests/integration/api/test_credentials_api.py`, migration 0018 adds
-credentials.label). PR3 exit gate (PR3-RBAC-* matrix, real-identity
-black-box, disable-propagation hardening) remains open.
+credentials.label); **B3 disable propagation hardening implemented** —
+disabling a user now revokes credentials, web sessions and all unconsumed
+approval grants with an audited reason (`tests/integration/api/
+test_disable_propagation.py`). PR3 exit gate (PR3-RBAC-* matrix,
+real-identity black-box) remains open.
 
 Outcomes:
 

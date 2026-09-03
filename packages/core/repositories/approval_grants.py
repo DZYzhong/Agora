@@ -52,6 +52,18 @@ class ApprovalGrantRepository:
         grant.consumed_at = at
         self.session.flush()
 
+    def revoke_user_grants(self, user_id: str, *, at: datetime) -> int:
+        """Invalidate every unconsumed grant of a user (disable propagation)."""
+        statement = select(ApprovalGrantModel).where(
+            ApprovalGrantModel.user_id == user_id,
+            ApprovalGrantModel.consumed_at.is_(None),
+        )
+        grants = list(self.session.scalars(statement).all())
+        for grant in grants:
+            grant.consumed_at = at
+        self.session.flush()
+        return len(grants)
+
     def list_by_user(self, user_id: str, *, limit: int = 50) -> list[ApprovalGrantModel]:
         statement = (
             select(ApprovalGrantModel)

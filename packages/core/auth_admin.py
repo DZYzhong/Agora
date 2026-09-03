@@ -22,8 +22,10 @@ from sqlalchemy.orm import Session
 from packages.core.auth import Principal, hash_token, token_diagnostic_prefix
 from packages.core.models import CredentialModel, UserModel, utc_now
 from packages.core.passwords import hash_password
+from packages.core.repositories.approval_grants import ApprovalGrantRepository
 from packages.core.repositories.identities import IdentityRepository
 from packages.core.repositories.security import SecurityRepository
+from packages.core.repositories.sessions_auth import WebSessionRepository
 from packages.core.uow import SqlAlchemyUnitOfWork
 
 ACTIVATION_TOKEN_TTL_MINUTES = 30
@@ -272,7 +274,14 @@ def set_user_enabled(session: Session, *, actor: Principal, user_id: str, enable
             )
         else:
             repo.set_user_status(user, status="disabled")
+            now = utc_now()
             revoked = repo.revoke_user_credentials(user_id)
+            sessions_revoked = WebSessionRepository(session).revoke_user_sessions(
+                user_id, at=now
+            )
+            grants_revoked = ApprovalGrantRepository(session).revoke_user_grants(
+                user_id, at=now
+            )
             _audit(
                 session,
                 actor=actor,
@@ -281,7 +290,10 @@ def set_user_enabled(session: Session, *, actor: Principal, user_id: str, enable
                 target_type="user",
                 target_id=user.id,
                 decision="allow",
-                reason=f"{revoked} credentials revoked",
+                reason=(
+                    f"{revoked} credentials, {sessions_revoked} sessions, "
+                    f"{grants_revoked} approval grants revoked"
+                ),
             )
         uow.commit()
         return user
