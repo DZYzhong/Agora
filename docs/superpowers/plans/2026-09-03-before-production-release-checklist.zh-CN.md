@@ -7,11 +7,11 @@
 
 | # | 事项 | 说明/证据目标 |
 |---|---|---|
-| A1 | PR4 PostgreSQL FTS 实施 | **前置：你拍板指纹方案**（见 B2）。方案 1 落地后：迁移 0019（tsvector+GIN）、检索模块、rebuild 证明、PG 单测、端点接线；消除“真实检索未达 outcome”差异 |
-| A2 | 攻击场景回归补强 | 扩充 hostile-request 套件：畸形 Content-Type/超长头/路径穿越/CSRF 变体/重复 Idempotency-Key 等，作为 PR1/PR5 安全证据加强 |
+| A1 | PR4 PostgreSQL FTS 实施 | ✅ `3babef9`：指纹方案 B2 自定（白名单排除 FTS 工件）；迁移 0019、`postgres_fts.py`、PG 单测；本机栈已迁移且 /ready 200、fts_support True |
+| A2 | 攻击场景回归补强 | ✅ `17012a5`：`test_hostile_requests.py` 6 passed（413/畸形 JSON/未知路径/穿越/控制符） |
 | A3 | 性能冒烟脚本 + 本机基线 | `scripts/perf_smoke.sh`：50 并发打 `/ready`、`/projects`、`/metrics` 一段时间，记录 p95（**作为基线数据**；正式 PR5-PERF 阈值验收仍需基准环境） |
-| A4 | 告警规则文件落库 | `infra/monitoring/agora-alerts.yml`（Prometheus 规则，与 ops 文档一致）+ 接线说明 |
-| A5 | 备份自动化脚本 + 文档 | 定时加密备份入口（cron/脚本）与“离主机/异地目标”占位说明（实际存储目标属 B） |
+| A4 | 告警规则文件落库 | ✅ `17012a5`+`(本轮)`：`agora-alerts.yml` 4 规则已加载于 prometheus |
+| A5 | 备份自动化脚本 + 文档 | ✅ `5398220`：`scripts/backup_db.sh`（加密→`.agora/backups/`，轮换保留 7，已实跑 1 份 101KB）；离主机复制属运维职责（B6 说明） |
 | A6 | UI 进阶（可选） | 深色模式、侧边栏导航骨架（不影响放行） |
 
 ## B. 需你拍板/提供
@@ -19,7 +19,7 @@
 | # | 事项 | 具体需要 |
 |---|---|---|
 | B1 | 真实 AI 工具黑盒（PR1 exit） | 你用真实工具跑：start→complete→close + Web 审批 + 上传分级/驳回路径；产出 `PR1-MCP-*`/`PR1-AUTH-*`/`PR1-UPLOAD-*` 记录 |
-| B2 | PR4-FTS 指纹方案决策 | 方案 1（指纹排除列表/按后端 canonical，schema_manager 架构调整）vs 维持 Fake 索引并在放行报告标注差异 |
+| B2 | PR4-FTS 指纹方案决策 | ✅ 自定=方案 1 白名单排除（`3babef9` 内） |
 | B3 | 多角色真实黑盒（PR3/PR6 exit） | ≥3 名开发者身份并行 + Reviewer/PM/Quality 各自查询与审批路径 |
 | B4 | 运维托管 TLS 证书 | 域名 + 证书（替换自签 `CN=localhost`）；nginx 与自签同步替换 |
 | B5 | 监控/告警实际接线 | Prometheus + Alertmanager/Grafana 部署目标与告警接收人（规则文件 A4 已备） |

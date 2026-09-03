@@ -1,0 +1,15 @@
+# Alertmanager example (operator wiring: receivers are environment-specific).
+# Rules are already loaded into Prometheus (infra/monitoring/agora-alerts.yml).
+global:
+  resolve_timeout: 5m
+route:
+  receiver: "default"
+  group_by: ["alertname"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+receivers:
+  - name: "default"
+    # Replace with a real receiver (email/webhook) before production.
+    webhook_configs:
+      - url: "http://127.0.0.1:9093/example-placeholder"

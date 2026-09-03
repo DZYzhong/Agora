@@ -131,5 +131,20 @@ services:
     image: redis:7
     ports:
     - 6379:6379
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command:
+    - --config.file=/etc/prometheus/prometheus.yml
+    - --storage.tsdb.retention.time=30d
+    volumes:
+    - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    - ./monitoring/agora-alerts.yml:/etc/prometheus/agora-alerts.yml:ro
+    - agora-prometheus-data:/prometheus
+    ports:
+    - 9091:9090
+    depends_on:
+      api:
+        condition: service_healthy
 volumes:
   agora-postgres-data: null
+  agora-prometheus-data: null
