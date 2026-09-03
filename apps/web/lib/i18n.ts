@@ -37,6 +37,16 @@ export function makeT(section: string, lang: Lang) {
 // Dictionary (bilingual strings, grouped by page/section).
 // ---------------------------------------------------------------------------
 const DICTIONARY: Record<string, Dict> = {
+  reauth: {
+    title: { zh: "重新认证", en: "Reauthenticate" },
+    subtitle: {
+      zh: "审批与高风险操作需要最近一次密码确认。请输入密码继续。",
+      en: "Approval and high-risk actions require recent password confirmation. Enter your password to continue.",
+    },
+    password: { zh: "密码", en: "Password" },
+    confirm: { zh: "确认", en: "Confirm" },
+    invalid: { zh: "密码错误，请重试。", en: "Incorrect password. Try again." },
+  },
   common: {
     brandName: { zh: "Agora", en: "Agora" },
     brandTagline: { zh: "团队 AI 项目协作台", en: "Team AI Project Harness" },

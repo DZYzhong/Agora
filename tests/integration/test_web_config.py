@@ -721,10 +721,14 @@ def test_pr_web_approval_loop_uses_session_and_reauth():
 def test_pr_web_reauth_page_and_login_next_exist():
     reauth_page = Path("apps/web/app/reauth/page.tsx")
     reauth_submit = Path("apps/web/app/reauth/submit/route.ts")
+    content = reauth_page.read_text()
     assert reauth_page.exists()
-    assert "password" in reauth_page.read_text()
-    assert "Reauthenticate" in reauth_page.read_text()
+    assert "password" in content
+    assert "/reauth/submit" in content
     assert "/auth/reauth" in reauth_submit.read_text()
+    i18n = Path("apps/web/lib/i18n.ts").read_text()
+    assert "重新认证" in i18n
+    assert "Reauthenticate" in i18n
     assert "apiPostWithSession" in reauth_submit.read_text()
 
     login_submit = Path("apps/web/app/login/submit/route.ts").read_text()
