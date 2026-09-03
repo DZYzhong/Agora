@@ -56,3 +56,34 @@
 | 验证 | `/harness/get-project-status`（admin 视角） | delivery_readiness **ready**；quality **passing**；pending_approvals 0；evidence 可见 |
 
 用户试用指引：`docs/development/agora-usage-manual.zh-CN.md`（两端操作 + URL + 排查表 + 术语）。
+
+## 7. 自助黑盒续跑：A6/A7/B/C2/C3 PASS（2026-09-03，C4 运行中）
+
+统一走真实本机栈（nginx 8443 + api），探测项目 `security-matrix`(4f8b8419) 与 `multi-role`(6c957064)，演示项目 agora-bb-demo 保持干净供用户试用。
+
+### A6 上传分级 / 审批矩阵
+- 1.1MB 超限 body → **413**（nginx）
+- close-work development_update 含 AWS secret（`AKIA…`）→ **403 HIGH_RISK_UPLOAD_REQUIRES_GRANT**（reasons: source_or_document_excerpt, secret_rule_exception）
+- close-work changed_files 含绝对路径 `/etc/passwd` → **422** value error "changed file path must be POSIX relative"
+- complete-workflow-step 携带 artifacts → **400 PR1_UPLOAD_POLICY_REQUIRED**（PR1B 前摘要-only 边界）
+- approve 尝试：agent / CI / human(personal) Bearer → 均 **403 APPROVAL_CREDENTIAL_REQUIRED**（需 reauth 的 Web 人类会话或审批 grant）；成功支路 = admin reauth Web 批准 200（§6 复验）
+
+### A7 协议协商
+- `Agora-Connector-Version: 0.0.5`（<0.1.0）→ **426 UPGRADE_REQUIRED**，detail 含 supported [1.0,1.1]/current 1.1/minimum_connector 0.1.0 + next_actions upgrade_connector
+- `Agora-Protocol-Version: 1.0`（旧协议）→ 200 且响应携带 **deprecation** {legacy_protocol_version 1.0, current_protocol_version 1.1, remove_after PR1A}（明确升级提示）
+
+### B 多角色（multi-role 项目）
+- B1：建 3 个真实账号并激活：dev1(developer)/rev1(reviewer)/qa1(quality)，各自签发 agent 凭据；三人并行 start-work → 3 个不同 work item/session（intent 分别 analysis/implementation/test_generation）
+- B2：dev1(developer) Web reauth 批准 → **403 PROJECT_ROLE_REQUIRED**（required owner/admin/reviewer, actual developer）；rev1(reviewer) Web reauth 批准 → **200**（proposal 13feab22 approved）；qa1 查询项目状态 → 200
+- B3：改角色 dev1 developer→viewer 生效（members 列表可见）；rev1 token **rotate** 后旧 token 401/新 token 200；qa1 token **revoke** 后 401；qa1 **disable** 后 Web 登录 401 INVALID_CREDENTIALS
+
+### C2 加密备份→恢复
+- 安装每日 02:00 加密备份 cron（`scripts/install_backup_cron.sh`）→ RPO ≤24h
+- 计时备份 ~0.7s（209KB .enc，轮转保留）；删除线上标记 evidence → 计时恢复至临时库 ~0.7s → 标记在恢复库存在(1)、线上仍缺失(0)（无 resurrect）；**RTO 秒级 ≪ 4h**
+
+### C3 恢复演练
+- worker 停止期间批准提案 → outbox `context_head_changed` 滞留 pending(attempts 0)；worker 重启后 ~3s 内排空为 completed(attempts 1，无 last_error)
+- nginx/api/web 逐个重启：/ready 200、api healthy、web 响应正常；重启后 agent 鉴权调用 200
+
+### C4 PR5-PERF（运行中）
+- 50 并发 × 30 分钟直连 api:8000 /ready（绕开 nginx 20r/s 限流，perf_smoke 注释指定的正式做法）；结果待补（§8）。
