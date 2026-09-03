@@ -20,7 +20,7 @@
 | 批次 | 内容 | 验收 |
 |---|---|---|
 | B0（本批=kickoff） | 本盘点 + 计划 | 本文档 |
-| B1 | freshness/冲突主链路**审计与补测**：逐条列出 PR4-FRESH-*/CONFLICT-* 场景 → 缺的补自动化（乱序/重放/force-push/potentially_stale 迁移、并发 CAS 无静默覆盖、多分支多来源优先级） | 新增测试绿 + 场景对照表入档 |
+| B1（进行中）| freshness/冲突主链路**审计与补测**：CONFLICT-2（接受后旧 baseline 第二提案 409 needs_rebase 不静默覆盖）已补并通过（11 passed）；待补：FRESH 迁移矩阵、重放/force-push 显式用例、多来源优先级 | 逐条核销入档 |
 | B2 | PostgreSQL FTS 适配层设计 + 迁移（tsvector 列 + GIN）与 rebuild-from-assets 的 PG 路径 | 迁移 0019 + PG 检索单测（SQLite 回退保持测试绿） |
 | B3 | 检索端点切换到 PG 路径（keyword/context 查询） | tsc/build/pytest + PG 冒烟 |
 | B4 | 加密离线队列评估（需真实形态，可能挂起） | 决策记录 |

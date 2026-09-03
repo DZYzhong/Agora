@@ -576,3 +576,61 @@ def test_stream_revisions_endpoint_rejects_unknown_stream(monkeypatch):
             headers=_headers(HUMAN_TOKEN),
         )
         assert response.status_code == 404
+
+
+def test_conflicting_second_proposal_on_stale_baseline_is_not_silently_overwritten(monkeypatch):
+    """PR4-CONFLICT-2: after an accept advances the stream head, a second
+    proposal approving against the old baseline must be marked needs_rebase
+    (409) — never silently overwrite the accepted revision."""
+    _production_auth(monkeypatch)
+    with _session_client() as client:
+        project = _create_project(client)
+        approver = _web_approver(client, project_id=project["id"])
+
+        first = client.post(
+            f"/projects/{project['id']}/context/proposals",
+            headers=_headers(AGENT_TOKEN),
+            json=_proposal_payload(),
+        ).json()
+        accepted = client.post(
+            f"/projects/{project['id']}/context/proposals/{first['id']}/approve",
+            headers=_csrf_headers(approver),
+            json={
+                "expected_head_revision_id": None,
+                "comment": "接受第一个提案。",
+                "revision_signal": {
+                    "target_branch": "main",
+                    "observed_head_sha": "abc123",
+                    "contains_to_commit": True,
+                },
+            },
+        )
+        assert accepted.status_code == 200
+        head = accepted.json()["revision"]["id"]
+
+        second = client.post(
+            f"/projects/{project['id']}/context/proposals",
+            headers=_headers(AGENT_TOKEN),
+            json=_proposal_payload(expected_head_revision_id=None),
+        ).json()
+        conflict = client.post(
+            f"/projects/{project['id']}/context/proposals/{second['id']}/approve",
+            headers=_csrf_headers(approver),
+            json={
+                "expected_head_revision_id": None,
+                "comment": "基于旧 baseline 审批。",
+                "revision_signal": {
+                    "target_branch": "main",
+                    "observed_head_sha": "def456",
+                    "contains_to_commit": True,
+                },
+            },
+        )
+        assert conflict.status_code == 409
+        assert conflict.json()["proposal"]["status"] == "needs_rebase"
+
+        streams = client.get(
+            f"/projects/{project['id']}/context/streams",
+            headers=_headers(HUMAN_TOKEN),
+        ).json()
+        assert streams[0]["head_revision_id"] == head
