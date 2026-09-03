@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { apiGet } from "../../../../lib/api";
 import { currentLang } from "../../../../lib/i18n";
-import { Badge, Card, EmptyState, Page, PageHeader, Table } from "../../../../components/ui";
+import { Badge, Card, Page, PageHeader, Table } from "../../../../components/ui";
 
 type Proposal = {
   id: string;

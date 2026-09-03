@@ -2,7 +2,7 @@ import Link from "next/link";
 import { apiGet } from "../../../../lib/api";
 import { currentLang } from "../../../../lib/i18n";
 import { relativeTime } from "../../../../lib/format";
-import { Badge, Card, EmptyState, Page, PageHeader, SectionLabel } from "../../../../components/ui";
+import { Badge, Card, Page, PageHeader, SectionLabel } from "../../../../components/ui";
 
 type Project = { id: string; name: string; slug: string };
 

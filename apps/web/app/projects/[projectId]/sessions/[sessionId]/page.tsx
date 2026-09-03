@@ -79,7 +79,6 @@ type SessionAudit = {
 };
 
 const dt = "text-xs text-ink-3";
-const dd = "text-ink";
 
 function StatusPill({ children, tone }: { children: string; tone?: "green" | "red" | "amber" | "slate" | "blue" }) {
   return <Badge tone={tone ?? "slate"}>{children}</Badge>;
