@@ -65,3 +65,9 @@ docker-compose -f infra/docker-compose.yml exec api python -m scripts.agora_admi
 ## 4. 未达项（诚实）
 
 - Alertmanager/Grafana 实际接线、PR5-PERF（50 并发 30 分钟 p95）需生产环境/基准后做。
+
+## 5. 性能冒烟基线（2026-09-03，`scripts/perf_smoke.py`）
+
+- 目标：`https://127.0.0.1:8443/ready`，8 并发 × 32 请求（nginx 限流 20r/s+burst40 内）
+- 结果：ok=32/32，errors=0；p50=217ms，p95=458ms，p99=491ms（含 TLS 握手与 /ready DB 探测）
+- 说明：nginx `location /` 对 API 施加 20r/s+burst40 限流（设计行为）；正式 PR5-PERF（50 并发 30 分钟、§8.1 p95）需固定基准且绕过限流或调高阈值。
