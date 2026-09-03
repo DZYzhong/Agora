@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { Nav } from "../components/Nav";
 import { currentLang } from "../lib/i18n";
 import "./theme.css";
-import "./styles.css";
 
 export const metadata = {
   title: "Agora",

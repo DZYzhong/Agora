@@ -229,10 +229,11 @@ def test_project_page_has_no_server_local_repository_or_initialization_ui():
     assert "In-flight sessions" in i18n
     assert not initialize_route.exists()
     assert not retry_route.exists()
-
-    styles = Path("apps/web/app/styles.css").read_text()
-    # Legacy initialization row styles may remain until the UI redesign pass.
-    assert "grid-template-columns: 120px 100px 100px minmax(180px, 1fr);" in styles
+    # The legacy stylesheet was retired by the UI redesign; the layout loads
+    # the Tailwind theme only.
+    layout = Path("apps/web/app/layout.tsx").read_text()
+    assert "theme.css" in layout
+    assert "styles.css" not in layout
 
 
 def test_context_proposal_review_pages_are_available():
