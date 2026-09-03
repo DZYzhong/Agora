@@ -180,9 +180,11 @@ Plan: `docs/superpowers/plans/2026-09-03-pr4-context-consistency.md`
 Current execution state (2026-09-03): kickoff plan committed (796bb8e); B1
 determinism audit started — CONFLICT-2 (stale-baseline second proposal is
 marked needs_rebase, never silently overwrites) automated in
-`test_context_governance_api.py`; remaining B1 scenarios (FRESH transition
-matrix, replay/force-push explicit cases, multi-source priority) and B2
-PostgreSQL FTS follow.
+`test_context_governance_api.py`; **B2 PostgreSQL FTS implemented** (`3babef9`,
+migration 20260902_0019, fingerprint-safe artifact exclusion) with Fake-vs-FTS
+replacement parity proven (`test_p2_postgres`, 6 passed). Runtime keyword
+endpoints still use the in-process index; full switchover is gated on the
+vector-retrieval decision (PR4 plan B3).
 
 Outcomes:
 

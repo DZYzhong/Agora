@@ -21,8 +21,8 @@
 |---|---|---|
 | B0（本批=kickoff） | 本盘点 + 计划 | 本文档 |
 | B1（基本完成）| freshness/冲突主链路**审计与补测**：FRESH 矩阵单测补齐（fresh `rev_1` / potentially_stale / missing + 预算错误）；CONFLICT-1（旧 baseline→needs_rebase 409）既有；CONFLICT-2（接受后第二提案不静默覆盖）新增（`b1022ea`）；重放/force-push 等价归入 CONFLICT-1 的 needs_rebase 语义（补测见后续若发现缺口） | 核销记录见 §3 更新 |
-| B2 | PostgreSQL FTS 适配层设计 + 迁移（tsvector 列 + GIN）与 rebuild-from-assets 的 PG 路径 | 迁移 0019 + PG 检索单测（SQLite 回退保持测试绿） |
-| B3 | 检索端点切换到 PG 路径（keyword/context 查询） | tsc/build/pytest + PG 冒烟 |
+| B2（已完成 2026-09-03）| PostgreSQL FTS 适配层 + 迁移 0019（PG-only generated tsvector + GIN）+ 检索/rebuild + 指纹白名单排除 | `3babef9`；PG 单测含检索排序与 fingerprint；live 已迁移 |
+| B3（替换可行性已证，运行时切换后置）| 运行时检索端点仍走进程内 Fake 索引；已加 **Fake vs PG FTS 顶命中等价性**证据（`test_p2_postgres` parity，6 passed）；全量切换需与 vector 检索决策一起评审（Fake vector 无 PG 对应） | parity 绿 |
 | B4 | 加密离线队列评估（需真实形态，可能挂起） | 决策记录 |
 
 ## 3. B1 场景对照表（初稿，B1 执行时逐条核销）

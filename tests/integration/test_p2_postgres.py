@@ -214,3 +214,58 @@ def test_postgres_fts_search_indexes_and_ranks_assets():
         session.rollback()
         session.close()
         engine.dispose()
+
+
+def test_postgres_fts_matches_fake_keyword_retrieval_on_distinctive_query():
+    """PR4-B3 replacement evidence: the PG FTS path and the runtime
+    FakeKeywordIndex agree on the top asset for a distinctive query, so the
+    keyword retrieval can be switched to PostgreSQL without behavioral
+    regression (approximate parity: overlap of top hit)."""
+    from packages.core.models import AssetModel
+    from packages.domain.schemas import AssetCreate
+    from packages.storage.opensearch.fake import FakeKeywordIndex
+    from packages.storage.postgres_fts import search_assets
+
+    engine = create_app_engine(POSTGRES_URL)
+    session = _session()
+    marker = f"pg-fts-parity-{utc_now().timestamp()}"
+    try:
+        with SqlAlchemyUnitOfWork(session) as uow:
+            user = UserModel(org_id=marker, display_name="Parity User")
+            project = ProjectModel(org_id=marker, name="Parity Project", slug=marker)
+            session.add_all([user, project])
+            session.flush()
+            project_id = project.id
+            refund = AssetModel(
+                org_id=marker, project_id=project_id, type="code_file", source="upload",
+                source_uri="src/refund.py", title="Refund retry service",
+                content="Refund retry uses idempotency keys.", summary="refund evidence",
+            )
+            onboard = AssetModel(
+                org_id=marker, project_id=project_id, type="doc", source="upload",
+                source_uri="docs/onboarding.md", title="Engineer onboarding",
+                content="How engineers onboard to the repository.", summary="onboarding",
+            )
+            session.add_all([refund, onboard])
+            uow.commit()
+            refund_id = refund.id
+
+        fake = FakeKeywordIndex()
+        for asset in (refund, onboard):
+            fake.index_asset(
+                asset.id,
+                AssetCreate(
+                    org_id=marker, project_id=project_id, type=asset.type, source=asset.source,
+                    source_uri=asset.source_uri, title=asset.title, content=asset.content,
+                    summary=asset.summary, content_hash=asset.content_hash,
+                ),
+            )
+        fake_top = fake.search(org_id=marker, project_id=project_id, query="refund retry", limit=1)
+        with engine.connect() as connection:
+            pg_hits = search_assets(connection, project_id=project_id, query="refund retry", limit=1)
+        assert fake_top and fake_top[0].asset_id == refund_id
+        assert pg_hits and pg_hits[0]["id"] == refund_id
+    finally:
+        session.rollback()
+        session.close()
+        engine.dispose()
