@@ -1,0 +1,34 @@
+groups:
+  - name: agora
+    rules:
+      - alert: AgoraNotReady
+        expr: agora_ready == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Agora /ready 失败（数据库/schema/配置）"
+          description: "agora_ready=0 持续 2 分钟；检查 api 日志与 postgres。"
+      - alert: AgoraSchemaStale
+        expr: agora_schema_revision_info{status!="SCHEMA_CURRENT"} == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "schema 与迁移 head 不一致"
+          description: "先运行迁移任务再滚动替换 api。"
+      - alert: AgoraOutboxBacklog
+        expr: agora_outbox_retryable_total > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "outbox 出现可重试积压"
+          description: "检查 worker 进程与 outbox 日志。"
+      - alert: AgoraApiDown
+        expr: up{job="agora-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "api 抓取目标不可达"
