@@ -100,7 +100,7 @@
 2. 填写：
    - 名称：如 `我的试用项目`
    - 标识 slug：如 `my-trial`（小写短横线）
-   - **Git 远端**：填 `git@github.com:DZYzhong/agora-bb-demo.git`（要与你的工作仓库 origin 一致；解析只做字符串归一化匹配，仓库不需真实可达）
+   - **Git 远端**：填**纯 URL**（如 `git@github.com:DZYzhong/agora-bb-demo.git` 或 `http://user@host:8080/a/b/repo.git`），**不要**把 `git clone ...` 整条命令粘进去；要与你的工作仓库 origin 一致（解析只做字符串归一化匹配）
    - 默认分支：`main`
 3. 创建 → 回到项目列表能看到它（active）。
 
@@ -108,7 +108,7 @@
 
 ### 4.2 把 agent 通道身份加进项目（必须，否则 AI start-work 报 404 "Project not found"）
 
-- 进入你的项目 → **成员** → 添加成员：用户选 **Local Bootstrap User**（Cursor MCP 通道背后的身份），角色选 `reviewer`（或 owner）→ 添加。
+- 进入你的项目 → **成员** → 添加成员。注意：agent 通道身份 **Local Bootstrap User 没有用户名**，所以 **username 框必须留空**，在 **user_id 框**填 `dbaf726f1d37405fafecdb9858d3b156`，角色选 `reviewer`（或 owner）→ 添加。（若填 username 会报 `add_failed`）
 
 ### 4.3 可选：体验账号管理
 
