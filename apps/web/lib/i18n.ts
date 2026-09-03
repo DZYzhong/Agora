@@ -122,6 +122,8 @@ const DICTIONARY: Record<string, Dict> = {
     securityHint: { zh: "敏感治理审批、拒绝与主体。", en: "Inspect sensitive governance approvals, denials, and actors." },
     writebacks: { zh: "写回草稿", en: "Writebacks" },
     writebacksHint: { zh: "审阅 AI 生成的知识草稿。", en: "Review generated knowledge drafts." },
+    members: { zh: "成员", en: "Members" },
+    membersHint: { zh: "管理项目成员与角色。", en: "Manage project members and roles." },
     agent: { zh: "Agent", en: "Agent" },
     intent: { zh: "意图", en: "Intent" },
     workItem: { zh: "工作项", en: "Work item" },

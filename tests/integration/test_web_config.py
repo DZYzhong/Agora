@@ -853,3 +853,41 @@ def test_pr_compose_excludes_unused_search_containers():
     assert "opensearch" not in services
     assert "neo4j" not in services
     assert "api" in services and "worker" in services and "nginx" in services
+
+
+def test_pr3_web_credential_management_ui_exists():
+    page = Path("apps/web/app/users/[userId]/credentials/page.tsx")
+    assert page.exists()
+    content = page.read_text()
+    assert "/users/${userId}/credentials" in content
+    assert "credentials/issue" in content
+    assert "credentials/${credential.id}/rotate" in content
+    assert "credentials/${credential.id}/revoke" in content
+    issue = Path("apps/web/app/users/[userId]/credentials/issue/route.ts").read_text()
+    assert "apiPostWithSession" in issue
+    assert "token=" in issue
+
+
+def test_pr3_web_org_and_project_member_management_ui_exist():
+    org_page = Path("apps/web/app/members/page.tsx").read_text()
+    assert "/organizations/local-org/members" in org_page
+    assert "/members/add" in org_page
+    assert "/members/${member.user.id}/role" in org_page
+
+    proj_page = Path("apps/web/app/projects/[projectId]/members/page.tsx").read_text()
+    assert "/projects/${projectId}/members" in proj_page
+    assert "PROJECT_ROLES" in proj_page
+
+    home = Path("apps/web/app/projects/[projectId]/page.tsx").read_text()
+    assert "/members" in home
+    i18n = Path("apps/web/lib/i18n.ts").read_text()
+    assert "membersHint" in i18n
+    assert "项目成员与角色" in i18n
+
+
+def test_pr3_web_patch_and_delete_session_helpers_exist():
+    api = Path("apps/web/lib/api.ts").read_text()
+    assert "apiPatchWithSession" in api
+    assert "apiDeleteWithSession" in api
+    assert 'method: "PATCH"' in api
+    assert 'method: "DELETE"' in api

@@ -65,6 +65,14 @@ export default async function UsersPage({
             {users.length}
           </span>
         }
+        actions={
+          <Link
+            href="/members"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            {zh ? "组织成员" : "Organization members"} →
+          </Link>
+        }
       />
 
       {sessionError && (
@@ -155,6 +163,12 @@ export default async function UsersPage({
               </div>
               <p className="mt-1 font-mono text-[11px] text-slate-300">{user.id}</p>
               <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                <Link
+                  href={`/users/${user.id}/credentials`}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50"
+                >
+                  {zh ? "凭据" : "Credentials"}
+                </Link>
                 {user.status === "active" ? (
                   <form action="/users/disable" method="post">
                     <input type="hidden" name="user_id" value={user.id} />

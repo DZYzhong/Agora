@@ -151,6 +151,39 @@ export async function apiPostWithSession<T>(path: string, body: unknown, request
   return response.json() as Promise<T>;
 }
 
+export async function apiPatchWithSession<T>(path: string, body: unknown, request: Request): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json",
+      ...sessionCookieHeader(request),
+      ...csrfHeader(request),
+      ...originHeader(),
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw await apiError(response);
+  }
+  return response.json() as Promise<T>;
+}
+
+export async function apiDeleteWithSession<T>(path: string, request: Request): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "DELETE",
+    headers: {
+      ...sessionCookieHeader(request),
+      ...csrfHeader(request),
+      ...originHeader(),
+    },
+  });
+  if (!response.ok) {
+    throw await apiError(response);
+  }
+  const text = await response.text();
+  return (text ? JSON.parse(text) : {}) as T;
+}
+
 async function apiError(response: Response): Promise<AgoraApiError> {
   let message = `Agora API request failed: ${response.status}`;
   let code: string | null = null;

@@ -39,6 +39,7 @@ const NAV_TILES: Array<{
   { href: "/sessions", key: "sessions", mono: "SE", tint: "bg-slate-100 text-slate-600" },
   { href: "/security", key: "security", mono: "SC", tint: "bg-rose-50 text-rose-600" },
   { href: "/writebacks", key: "writebacks", mono: "WB", tint: "bg-slate-100 text-slate-600" },
+  { href: "/members", key: "members", mono: "MB", tint: "bg-indigo-50 text-indigo-600" },
 ];
 
 export default async function ProjectDetailPage({
