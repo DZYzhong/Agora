@@ -141,8 +141,12 @@ Current execution state (2026-09-03): kickoff plan committed (f89448f); B0
 inventory recorded (e16eed7); **B1 membership management implemented** —
 organization/project membership add/list/role/remove API with controlled role
 sets (ORG_ROLES / PROJECT_ROLES), owner-reserved and last-admin guards, and
-audit on every mutation (`tests/integration/api/test_memberships_api.py`).
-PR3 exit gate (PR3-RBAC-* matrix, real-identity black-box) remains open.
+audit on every mutation (`tests/integration/api/test_memberships_api.py`);
+**B2 API token lifecycle implemented** — issue (human/agent/ci, label,
+expires_at), list (plaintext never returned), rotate (revoke old + issue new),
+audit (`tests/integration/api/test_credentials_api.py`, migration 0018 adds
+credentials.label). PR3 exit gate (PR3-RBAC-* matrix, real-identity
+black-box, disable-propagation hardening) remains open.
 
 Outcomes:
 

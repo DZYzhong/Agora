@@ -193,6 +193,7 @@ class CredentialModel(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     kind: Mapped[str] = mapped_column(String, index=True)
+    label: Mapped[str | None] = mapped_column(String, nullable=True)
     token_hash: Mapped[str] = mapped_column(String)
     token_prefix: Mapped[str] = mapped_column(String)
     status: Mapped[str] = mapped_column(String, default="active", index=True)

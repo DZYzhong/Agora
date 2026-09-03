@@ -24,7 +24,7 @@
 |---|---|---|
 | B0（本批=起步） | 差距清单 + 角色矩阵规格 + 现状测试盘点（disable 传播路径、revoke 语义、审计缺口） | 本计划文档 + 盘点结论记录 |
 | B1 | 项目/组织成员管理 API（加成员/改角色/移除）+ 角色枚举迁移 | pytest 绿 + RBAC 单测 |
-| B2 | 凭据签发/scope/过期/轮换 API + 审计 | pytest 绿 |
+| B2（已完成 2026-09-03）| API token 生命周期：签发（human/agent/ci + label + expires_at）/列出（隐藏明文）/轮换（吊销旧+发新）+ 审计 | `tests/integration/api/test_credentials_api.py` 5 passed + 迁移 0018（credentials.label）|
 | B3 | disable/enable 全链失效（web session、credentials、approval grants）+ 回归 | pytest 绿 |
 | B4 | 用户/成员管理 UI（与 Web UI 重设计批次协同） | tsc/build + web-config 契约 |
 | B5 | principal×action 矩阵自动化 + docs: record + roadmap | PR3-RBAC-* 绿 |

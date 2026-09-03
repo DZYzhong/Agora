@@ -202,6 +202,31 @@ class IdentityRepository:
         self.session.refresh(credential)
         return credential
 
+    def create_api_credential(
+        self,
+        *,
+        user_id: str,
+        kind: str,
+        token_hash: str,
+        token_prefix: str,
+        label: str | None = None,
+        expires_at: datetime | None = None,
+    ) -> CredentialModel:
+        credential = CredentialModel(
+            user_id=user_id,
+            kind=kind,
+            label=label,
+            token_hash=token_hash,
+            token_prefix=token_prefix,
+            status="active",
+            expires_at=expires_at,
+            single_use=False,
+        )
+        self.session.add(credential)
+        self.session.flush()
+        self.session.refresh(credential)
+        return credential
+
     def get_active_single_use_credential_by_hash(
         self, token_hash: str, *, now: datetime
     ) -> CredentialModel | None:
