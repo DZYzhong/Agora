@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { apiGet } from "../../../../lib/api";
+import { currentLang } from "../../../../lib/i18n";
+import { relativeTime } from "../../../../lib/format";
+import { Badge, EmptyState, Page, PageHeader, Table } from "../../../../components/ui";
 
 type ContextState = {
   session_id: string;
@@ -11,10 +14,7 @@ type ContextState = {
     recommended_action?: string;
     observed_commit_sha?: string | null;
   };
-  budget: {
-    estimated_tokens?: number;
-    token_budget?: number;
-  } | null;
+  budget: { estimated_tokens?: number; token_budget?: number } | null;
   created_at: string;
 };
 
@@ -36,20 +36,22 @@ type WorkItem = {
   };
 };
 
-function contextLabel(state: ContextState | null): string {
-  if (!state) return "No context";
-  const coverage = state.freshness.context_coverage ?? "unknown";
-  return state.provisional ? `Provisional · ${coverage}` : coverage;
+function statusTone(status: string) {
+  if (status === "completed" || status === "accepted") return "green" as const;
+  if (status === "failed" || status === "blocked") return "red" as const;
+  if (status === "in_progress" || status === "started") return "blue" as const;
+  return "slate" as const;
 }
 
-function participantLabel(participants: string[]): string {
-  if (participants.length === 0) return "None";
-  if (participants.length === 1) return "1 participant";
-  return `${participants.length} participants`;
-}
-
-export default async function WorkItemsPage({ params }: { params: Promise<{ projectId: string }> }) {
+export default async function WorkItemsPage({
+  params,
+}: {
+  params: Promise<{ projectId: string }>;
+}) {
   const { projectId } = await params;
+  const lang = await currentLang();
+  const zh = lang === "zh";
+
   let workItems: WorkItem[] = [];
   try {
     workItems = await apiGet<WorkItem[]>(`/projects/${projectId}/work-items`);
@@ -58,51 +60,110 @@ export default async function WorkItemsPage({ params }: { params: Promise<{ proj
   }
 
   return (
-    <main className="page">
-      <div className="page-header">
-        <div>
-          <h1>Work items</h1>
-          <p className="muted">Team tasks detected from AI tool sessions and project workflow activity.</p>
-        </div>
-        <Link className="button-link secondary-link" href={`/projects/${projectId}`}>
-          Back to project
-        </Link>
-      </div>
-
-      <section className="work-table" aria-label="Work item state">
-        <div className="work-row work-header">
-          <span>Task</span>
-          <span>Status</span>
-          <span>Sessions</span>
-          <span>Context</span>
-          <span>Participants</span>
-        </div>
-        {workItems.map((item) => (
-          <Link className="work-row" href={`/projects/${projectId}/work-items/${item.id}`} key={item.id}>
-            <span>
-              <strong>{item.external_key ? `${item.external_key} · ${item.title}` : item.title}</strong>
-              <small>{item.description ?? item.source}</small>
-            </span>
-            <span>
-              <span className="asset-type">{item.status}</span>
-              <small>{item.stage}</small>
-            </span>
-            <span>{item.session_count}</span>
-            <span>
-              <strong>{contextLabel(item.latest_context_state)}</strong>
-              <small>{item.latest_context_state ? new Date(item.latest_context_state.created_at).toLocaleString() : "AI tool has not uploaded context yet"}</small>
-            </span>
-            <span>{participantLabel(item.participants)}</span>
+    <Page>
+      <PageHeader
+        title={zh ? "工作项" : "Work items"}
+        subtitle={
+          zh
+            ? "从 AI 工具会话与工作流活动中识别的团队任务"
+            : "Team tasks detected from AI tool sessions and project workflow activity."
+        }
+        meta={
+          <span className="rounded-full bg-white px-3 py-1 text-sm text-slate-500 ring-1 ring-inset ring-slate-200">
+            {workItems.length}
+          </span>
+        }
+        actions={
+          <Link href={`/projects/${projectId}`} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+            ← {zh ? "返回项目" : "Back to project"}
           </Link>
-        ))}
-      </section>
+        }
+      />
 
       {workItems.length === 0 ? (
-        <section className="panel">
-          <h2>No work items</h2>
-          <p className="muted">When an AI tool starts work for this project, Agora will identify the task and show it here.</p>
+        <EmptyState
+          title={zh ? "还没有工作项" : "No work items yet"}
+          hint={
+            zh
+              ? "当 AI 工具开始为该项目的任务工作时，Agora 会识别并展示在这里。"
+              : "When an AI tool starts work for this project, Agora will identify the task and show it here."
+          }
+        />
+      ) : (
+        <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <Table
+            headers={[
+              zh ? "任务" : "Task",
+              zh ? "状态" : "Status",
+              zh ? "会话" : "Sessions",
+              zh ? "上下文" : "Context",
+              zh ? "参与者" : "Participants",
+            ]}
+          >
+            {workItems.map((item) => {
+              const state = item.latest_context_state;
+              return (
+                <tr
+                  key={item.id}
+                  className="cursor-pointer transition hover:bg-slate-50"
+                  onClick={undefined}
+                >
+                  <td className="px-5 py-3.5">
+                    <Link
+                      href={`/projects/${projectId}/work-items/${item.id}`}
+                      className="block"
+                    >
+                      <span className="font-medium text-slate-900 hover:text-blue-700">
+                        {item.external_key ? `${item.external_key} · ${item.title}` : item.title}
+                      </span>
+                      <span className="mt-0.5 block max-w-xl truncate text-xs text-slate-400">
+                        {item.description ?? item.source}
+                      </span>
+                    </Link>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <Badge tone={statusTone(item.status)}>{item.status}</Badge>
+                    <span className="mt-0.5 block text-xs text-slate-400">{item.stage}</span>
+                  </td>
+                  <td className="px-5 py-3.5 text-slate-700">{item.session_count}</td>
+                  <td className="px-5 py-3.5">
+                    <Link
+                      href={`/projects/${projectId}/work-items/${item.id}`}
+                      className="block max-w-xs"
+                    >
+                      <span className="font-medium text-slate-700">
+                        {state
+                          ? `${state.provisional ? (zh ? "临时" : "Provisional") + " · " : ""}${
+                              state.freshness.context_coverage ?? "unknown"
+                            }`
+                          : zh
+                            ? "无上下文"
+                            : "No context"}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-slate-400">
+                        {state
+                          ? relativeTime(state.created_at, lang)
+                          : zh
+                            ? "AI 工具尚未上传上下文"
+                            : "AI tool has not uploaded context yet"}
+                      </span>
+                    </Link>
+                  </td>
+                  <td className="px-5 py-3.5 text-slate-600">
+                    {item.participants.length === 0
+                      ? zh
+                        ? "无"
+                        : "None"
+                      : item.participants.length === 1
+                        ? "1"
+                        : String(item.participants.length)}
+                  </td>
+                </tr>
+              );
+            })}
+          </Table>
         </section>
-      ) : null}
-    </main>
+      )}
+    </Page>
   );
 }
