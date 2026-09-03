@@ -12,8 +12,8 @@ export async function POST(request: Request) {
       {},
       request
     );
-    redirect(`/users/${userId}/credentials?revoked=1`);
   } catch {
     redirect(`/users/${userId}/credentials?error=revoke_failed`);
   }
+    redirect(`/users/${userId}/credentials?revoked=1`);
 }

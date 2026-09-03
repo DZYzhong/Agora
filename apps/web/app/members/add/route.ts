@@ -13,8 +13,8 @@ export async function POST(request: Request) {
 
   try {
     await apiPostWithSession("/organizations/local-org/members", body, request);
-    redirect("/members?ok=added");
   } catch {
     redirect("/members?error=add_failed");
   }
+    redirect("/members?ok=added");
 }

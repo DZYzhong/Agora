@@ -13,6 +13,14 @@ export class AgoraApiError extends Error {
   }
 }
 
+export function apiErrorCode(error: unknown): string | null {
+  return error instanceof AgoraApiError ? error.code : null;
+}
+
+export function apiErrorMessage(error: unknown): string | null {
+  return error instanceof AgoraApiError ? error.message : null;
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     cache: "no-store",

@@ -1,5 +1,9 @@
 import { redirect } from "next/navigation";
-import { apiPatchWithSession } from "../../../../../../lib/api";
+import {
+  apiErrorCode,
+  apiErrorMessage,
+  apiPatchWithSession,
+} from "../../../../../../lib/api";
 
 export async function POST(request: Request) {
   const { pathname } = new URL(request.url);
@@ -13,8 +17,11 @@ export async function POST(request: Request) {
       { role },
       request
     );
-    redirect(`/projects/${projectId}/members?ok=role_updated`);
-  } catch {
-    redirect(`/projects/${projectId}/members?error=role_failed`);
+  } catch (error) {
+    const code = apiErrorCode(error) ?? "role_failed";
+    const message = apiErrorMessage(error) ?? "";
+    const msg = message && message !== code ? `&msg=${encodeURIComponent(message)}` : "";
+    redirect(`/projects/${projectId}/members?error=${encodeURIComponent(code)}${msg}`);
   }
+  redirect(`/projects/${projectId}/members?ok=role_updated`);
 }

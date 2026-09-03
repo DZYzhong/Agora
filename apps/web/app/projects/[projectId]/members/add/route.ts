@@ -1,5 +1,9 @@
 import { redirect } from "next/navigation";
-import { apiPostWithSession } from "../../../../../lib/api";
+import {
+  apiErrorCode,
+  apiErrorMessage,
+  apiPostWithSession,
+} from "../../../../../lib/api";
 
 export async function POST(request: Request) {
   const { pathname } = new URL(request.url);
@@ -13,8 +17,11 @@ export async function POST(request: Request) {
   if (username) body.username = username;
   try {
     await apiPostWithSession(`/projects/${projectId}/members`, body, request);
-    redirect(`/projects/${projectId}/members?ok=added`);
-  } catch {
-    redirect(`/projects/${projectId}/members?error=add_failed`);
+  } catch (error) {
+    const code = apiErrorCode(error) ?? "add_failed";
+    const message = apiErrorMessage(error) ?? "";
+    const msg = message && message !== code ? `&msg=${encodeURIComponent(message)}` : "";
+    redirect(`/projects/${projectId}/members?error=${encodeURIComponent(code)}${msg}`);
   }
+  redirect(`/projects/${projectId}/members?ok=added`);
 }

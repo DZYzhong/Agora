@@ -6,8 +6,8 @@ export async function POST(request: Request) {
   const userId = pathname.split("/")[2];
   try {
     await apiDeleteWithSession(`/organizations/local-org/members/${userId}`, request);
-    redirect("/members?ok=removed");
   } catch {
     redirect("/members?error=remove_failed");
   }
+    redirect("/members?ok=removed");
 }

@@ -12,8 +12,8 @@ export async function POST(request: Request) {
       { role },
       request
     );
-    redirect("/members?ok=role_updated");
   } catch {
     redirect("/members?error=role_failed");
   }
+    redirect("/members?ok=role_updated");
 }

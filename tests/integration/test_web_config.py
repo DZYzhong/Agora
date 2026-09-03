@@ -885,6 +885,45 @@ def test_pr3_web_org_and_project_member_management_ui_exist():
     assert "项目成员与角色" in i18n
 
 
+def test_pr3_web_member_errors_are_surfaced_and_no_username_users_are_selectable():
+    """Add-member failures must surface the server code/message instead of a
+    generic 'add_failed', and users without a username (e.g. the bootstrap
+    agent identity) must be discoverable via a directory picker + id column."""
+    add_route = Path("apps/web/app/projects/[projectId]/members/add/route.ts").read_text()
+    assert "apiErrorCode" in add_route
+    assert "apiErrorMessage" in add_route
+    role_route = Path("apps/web/app/projects/[projectId]/members/[userId]/role/route.ts").read_text()
+    assert "apiErrorCode" in role_route
+    remove_route = Path("apps/web/app/projects/[projectId]/members/[userId]/remove/route.ts").read_text()
+    assert "apiErrorCode" in remove_route
+
+    page = Path("apps/web/app/projects/[projectId]/members/page.tsx").read_text()
+    assert "memberErrorText" in page
+    assert "USER_NOT_FOUND" in page
+    assert '"/users"' in page          # org user directory for the picker
+    assert "no username" in page        # fallback label for username-less users
+    assert "member.user.id" in page     # user id shown so ids are discoverable
+
+    api = Path("apps/web/lib/api.ts").read_text()
+    assert "export function apiErrorCode" in api
+    assert "export function apiErrorMessage" in api
+
+
+def test_web_route_success_redirects_are_not_swallowed_by_catch():
+    """next/navigation redirect() throws; a redirect inside try{} would be
+    caught and turned into the error branch, so every successful redirect
+    must live AFTER the try/catch. Regression for the members add/role/remove
+    'add_failed on success' bug found during black-box."""
+    import glob
+
+    for route in glob.glob("apps/web/app/**/route.ts", recursive=True):
+        content = Path(route).read_text()
+        if "redirect(" not in content or "try {" not in content or "} catch" not in content:
+            continue
+        try_block = content.split("try {", 1)[1].split("} catch", 1)[0]
+        assert "redirect(" not in try_block, f"{route} redirects inside try"
+
+
 def test_pr3_web_patch_and_delete_session_helpers_exist():
     api = Path("apps/web/lib/api.ts").read_text()
     assert "apiPatchWithSession" in api
