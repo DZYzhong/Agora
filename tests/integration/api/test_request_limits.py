@@ -102,3 +102,18 @@ def test_cors_never_uses_wildcard():
     )
     allowed = response.headers.get("access-control-allow-origin", "")
     assert allowed != "*"
+
+
+def test_security_response_headers_present():
+    from fastapi.testclient import TestClient
+
+    from apps.api.main import app
+
+    client = TestClient(app)
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert "geolocation=()" in response.headers["permissions-policy"]

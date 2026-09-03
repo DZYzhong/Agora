@@ -9,6 +9,7 @@ from apps.api.middleware import (
     CsrfProtectionMiddleware,
     HideProductionLocalInitializationMiddleware,
     RequestIdMiddleware,
+    SecurityHeadersMiddleware,
 )
 from apps.api.routers.harness import router as harness_router
 from apps.api.routers.health import router as health_router
@@ -85,6 +86,7 @@ app.add_middleware(HideProductionLocalInitializationMiddleware)
 app.add_middleware(BodyLimitMiddleware)
 app.add_middleware(CsrfProtectionMiddleware)
 app.add_middleware(RequestIdMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 _configure_cors(app)
 

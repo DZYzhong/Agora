@@ -891,3 +891,16 @@ def test_pr3_web_patch_and_delete_session_helpers_exist():
     assert "apiDeleteWithSession" in api
     assert 'method: "PATCH"' in api
     assert 'method: "DELETE"' in api
+
+
+def test_pr5_nginx_and_api_security_headers_configured():
+    nginx = Path("infra/nginx/agora.conf").read_text()
+    assert "X-Content-Type-Options nosniff" in nginx
+    assert "X-Frame-Options DENY" in nginx
+    assert "frame-ancestors 'none'" in nginx
+
+    middleware = Path("apps/api/middleware.py").read_text()
+    assert "class SecurityHeadersMiddleware" in middleware
+    assert "Permissions-Policy" in middleware
+    main = Path("apps/api/main.py").read_text()
+    assert "SecurityHeadersMiddleware" in main

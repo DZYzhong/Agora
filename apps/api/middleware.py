@@ -16,6 +16,26 @@ CSRF_HEADER = "X-CSRF-Token"
 STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "X-XSS-Protection": "0",
+}
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Baseline defense-in-depth response headers for every API response."""
+
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        for name, value in SECURITY_HEADERS.items():
+            response.headers.setdefault(name, value)
+        return response
+
+
 class RequestIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         request_id = request.headers.get(REQUEST_ID_HEADER) or uuid4().hex
