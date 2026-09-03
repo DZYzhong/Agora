@@ -68,8 +68,16 @@ case "${1:-}" in
       --org-id local-org --admin-username "$2" --admin-password "$3"
     ;;
   --smoke)
-    curl -sk -m 5 "$API_HTTPS/ready" && echo
-    curl -s -m 5 -o /dev/null -w "web /login -> %{http_code}\n" "$WEB_URL/login"
+    fail=0
+    code=$(curl -sk -m 5 -o /dev/null -w '%{http_code}' "$API_HTTPS/ready")
+    echo "api /ready            -> $code"; [[ "$code" == "200" ]] || fail=1
+    code=$(curl -s -m 5 -o /dev/null -w '%{http_code}' "$WEB_URL/login")
+    echo "web /login            -> $code"; [[ "$code" == "200" ]] || fail=1
+    headers=$(curl -sk -m 5 -D - -o /dev/null "$API_HTTPS/health" 2>/dev/null | tr -d '\r')
+    for h in "x-content-type-options: nosniff" "x-frame-options: DENY" "content-security-policy"; do
+      if echo "$headers" | grep -qi "$h"; then echo "security header OK     -> $h"; else echo "security header MISSING -> $h"; fail=1; fi
+    done
+    if [[ "$fail" -eq 0 ]]; then echo "SMOKE PASS"; else echo "SMOKE FAIL"; exit 1; fi
     ;;
   "")
     ensure_secrets
