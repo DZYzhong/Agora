@@ -154,7 +154,10 @@ test_disable_propagation.py`); **B5 RBAC matrix automation implemented** —
 adding two hardening rules it surfaced (identity management is human-only:
 agent/CI tokens denied with HUMAN_CREDENTIAL_REQUIRED; the project owner role
 is reserved to the project owner or an org admin) (`tests/integration/
-test_rbac_matrix.py`). PR3-RBAC-* matrix is now automated; the real-identity
+test_rbac_matrix.py`). PR3-RBAC-* matrix is now automated; **B4 identity
+management UI implemented** — credential issue/list/rotate/revoke page,
+organization and project membership management pages over the B1/B2 APIs
+(`1477ab8`, web-config contracts + full suite 537 passed). The real-identity
 black-box remains open.
 
 Outcomes:

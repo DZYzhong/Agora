@@ -26,7 +26,7 @@
 | B1 | 项目/组织成员管理 API（加成员/改角色/移除）+ 角色枚举迁移 | pytest 绿 + RBAC 单测 |
 | B2（已完成 2026-09-03）| API token 生命周期：签发（human/agent/ci + label + expires_at）/列出（隐藏明文）/轮换（吊销旧+发新）+ 审计 | `tests/integration/api/test_credentials_api.py` 5 passed + 迁移 0018（credentials.label）|
 | B3（已完成 2026-09-03）| disable 全链传播：credentials + web sessions + unconsumed approval grants 全部失效，user.disable 审计含三类计数 | `tests/integration/api/test_disable_propagation.py` |
-| B4 | 用户/成员管理 UI（与 Web UI 重设计批次协同） | tsc/build + web-config 契约 |
+| B4（已完成 2026-09-03）| 身份管理 UI：凭据列/签发/轮换/吊销页、组织成员页、项目成员页（产品角色集）+ 首页成员瓦片；server-only 表单路由；双语 | web-config 契约 3 项 + 全量 537 passed |
 | B5（已完成 2026-09-03）| principal×action RBAC 矩阵自动化：成员/凭据管理 41 行矩阵（含 agent/ci 禁用身份管理、项目 owner 保留、跨 org 拒绝）；补 owner-reserved 项目规则与 human-only 门 | `tests/integration/test_rbac_matrix.py` 41 passed |
 
 ## 4. 依赖与顺序
