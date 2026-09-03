@@ -2,6 +2,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
+import logging
 import os
 from typing import Callable
 
@@ -14,6 +15,7 @@ from packages.core.schema_manager import ensure_schema
 from packages.core.settings import RuntimePolicy, validate_runtime_policy
 from packages.knowledge.index_rebuilder import rebuild_indexes_from_assets
 from packages.storage.opensearch.fake import FakeKeywordIndex
+from packages.storage.postgres_fts import has_fts_support
 from packages.storage.qdrant.fake import FakeVectorIndex
 
 
@@ -125,6 +127,9 @@ def auth_bypass_enabled() -> bool:
     return get_runtime_policy().auth_bypass
 
 
+logger = logging.getLogger(__name__)
+
+
 def _postgres_keyword_index_enabled() -> bool:
     """True when the configured database is PostgreSQL and carries the FTS
     column. Probes with an independent engine to avoid recursion through
@@ -138,11 +143,14 @@ def _postgres_keyword_index_enabled() -> bool:
             return has_fts_support(engine)
         finally:
             engine.dispose()
-    except Exception:
+    except Exception as exc:
+        logger.warning("keyword index probe failed, using Fake: %s", exc)
         return False
 
 
-_PG_KEYWORD_INDEX_ENABLED = _postgres_keyword_index_enabled()
+@lru_cache
+def _postgres_keyword_index_enabled_cached() -> bool:
+    return _postgres_keyword_index_enabled()
 
 
 @lru_cache
@@ -150,7 +158,7 @@ def get_keyword_index():
     """Runtime keyword retrieval: PostgreSQL FTS on PG, in-memory Fake on
     SQLite (tests/CI). Fake was rebuilt per request and never shared across
     requests; the PG path queries committed assets directly."""
-    if _PG_KEYWORD_INDEX_ENABLED:
+    if _postgres_keyword_index_enabled_cached():
         from packages.storage.postgres_fts import PostgresKeywordIndex
 
         return PostgresKeywordIndex(get_runtime_policy().database_url)
