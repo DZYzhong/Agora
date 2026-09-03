@@ -119,7 +119,7 @@ PR2 exit gate:
 
 Plan: `docs/superpowers/plans/2026-09-02-production-ready-web-deploy.md`
 
-Current execution state (2026-09-02): A1/A2/B1-B6/C2/D1-D3 完成并自动验证；D1 真实 `docker compose up` 全栈健康（api/worker/web/nginx/postgres/redis），引导、登录/reauth、建项目、成员激活、审批拒绝矩阵均在本机部署栈实测通过（`~483 passed, 2 skipped`（SQLite）+ `4 passed` PostgreSQL 专属回归；`tsc --noEmit`、`next build`、`pip check`、依赖审计 0 High/Critical）。部署实测抓出并修复两个 SQLite 掩盖的 PostgreSQL-only 缺陷（audit 多态 actor 外键 `20260902_0017`；跨后端 schema fingerprint 归一化），并堵住 compose 注入占位 token 的环境安全问题。C1（移除服务端本地初始化残留）按保守决策**挂起**：代码保留但在 production 下 404 隐藏，清理列入后续。
+Current execution state (2026-09-02): A1/A2/B1-B6/C2/D1-D3 完成并自动验证；D1 真实 `docker compose up` 全栈健康（api/worker/web/nginx/postgres/redis），引导、登录/reauth、建项目、成员激活、审批拒绝矩阵均在本机部署栈实测通过（`~483 passed, 2 skipped`（SQLite）+ `4 passed` PostgreSQL 专属回归；`tsc --noEmit`、`next build`、`pip check`、依赖审计 0 High/Critical）。部署实测抓出并修复两个 SQLite 掩盖的 PostgreSQL-only 缺陷（audit 多态 actor 外键 `20260902_0017`；跨后端 schema fingerprint 归一化），并堵住 compose 注入占位 token 的环境安全问题。C1（移除服务端本地初始化残留）已执行（2026-09-03）：Web 初始化 UI 全部删除；API 保留为 dev/test seeding（production 下 404 + openapi 隐藏，属有意生产门，见 `docs/superpowers/plans/2026-09-03-c1-server-init-cleanup.md` v3）；本地脚本已标注仅测试用。
 
 Outcomes (2026-09-02 本机部署实测记录见 `docs/development/local-production-runbook.zh-CN.md` §10)：
 

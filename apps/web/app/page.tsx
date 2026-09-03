@@ -6,7 +6,7 @@ export default function Home() {
       <section className="grid">
         <div className="panel">
           <h2>Project Memory</h2>
-          <p className="muted">Create projects, sync assets, and inspect initialization results.</p>
+          <p className="muted">Create projects and review what team AI tools have produced.</p>
         </div>
         <div className="panel">
           <h2>Harness Sessions</h2>

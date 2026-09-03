@@ -1,3 +1,6 @@
+"""
+NOTE: local black-box driver ONLY — dev/test use; not part of the product.
+"""
 from __future__ import annotations
 
 import argparse

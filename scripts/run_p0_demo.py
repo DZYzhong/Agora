@@ -1,3 +1,6 @@
+"""
+NOTE: dev/test seeding helper ONLY — not part of the product API or UI.
+"""
 from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import uuid4

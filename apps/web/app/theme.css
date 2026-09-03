@@ -1,0 +1,18 @@
+/* Agora UI theme (Tailwind CSS v4, light SaaS design system).
+ * Loaded before the legacy styles.css during the preview phase; the legacy
+ * sheet is retired page-by-page as the redesign rolls out.
+ */
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}

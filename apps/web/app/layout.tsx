@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { Nav } from "../components/Nav";
+import { currentLang } from "../lib/i18n";
+import "./theme.css";
 import "./styles.css";
 
 export const metadata = {
@@ -7,9 +9,10 @@ export const metadata = {
   description: "Team AI Project Harness",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const lang = await currentLang();
   return (
-    <html lang="en">
+    <html lang={lang}>
       <body>
         <Nav />
         {children}

@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { apiGet } from "../../../lib/api";
+import { currentLang, makeT } from "../../../lib/i18n";
+import { relativeTime } from "../../../lib/format";
 
 type LiveSession = {
   id: string;
@@ -17,28 +19,37 @@ type Project = {
   name: string;
   slug: string;
   git_remotes: string[];
+  status: string;
 };
 
-type InitializationJob = {
-  id: string;
-  git_remote: string | null;
-  status: "running" | "completed" | "failed" | string;
-  asset_count: number;
-  error: string | { code: string; message: string } | null;
-  warnings: Array<string | { code: string; message: string }>;
-  started_at: string | null;
-  completed_at: string | null;
-};
+const NAV_TILES: Array<{
+  href: string;
+  key: string;
+  mono: string;
+  tint: string;
+}> = [
+  { href: "/work-items", key: "workItems", mono: "WI", tint: "bg-blue-50 text-blue-600" },
+  { href: "/status", key: "status", mono: "ST", tint: "bg-emerald-50 text-emerald-600" },
+  { href: "/pending", key: "pending", mono: "PD", tint: "bg-amber-50 text-amber-600" },
+  { href: "/operations", key: "ops", mono: "OP", tint: "bg-indigo-50 text-indigo-600" },
+  { href: "/assets", key: "assets", mono: "AS", tint: "bg-violet-50 text-violet-600" },
+  { href: "/skills", key: "skills", mono: "SK", tint: "bg-cyan-50 text-cyan-600" },
+  { href: "/knowledge", key: "knowledge", mono: "KN", tint: "bg-teal-50 text-teal-600" },
+  { href: "/context", key: "context", mono: "CT", tint: "bg-sky-50 text-sky-600" },
+  { href: "/sessions", key: "sessions", mono: "SE", tint: "bg-slate-100 text-slate-600" },
+  { href: "/security", key: "security", mono: "SC", tint: "bg-rose-50 text-rose-600" },
+  { href: "/writebacks", key: "writebacks", mono: "WB", tint: "bg-slate-100 text-slate-600" },
+];
 
 export default async function ProjectDetailPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ init_error?: string }>;
 }) {
   const { projectId } = await params;
-  await searchParams;
+  const lang = await currentLang();
+  const t = makeT("projectHome", lang);
+
   const project = await apiGet<Project>(`/projects/${projectId}`);
   let liveSessions: LiveSession[] = [];
   try {
@@ -50,183 +61,135 @@ export default async function ProjectDetailPage({
     .filter((session) => session.status !== "closed")
     .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at) ?? ""))
     .slice(0, 5);
-  let initializationJobs: InitializationJob[] = [];
-  try {
-    initializationJobs = await apiGet<InitializationJob[]>(`/projects/${projectId}/initialization-jobs`);
-  } catch {
-    initializationJobs = [];
-  }
-  const latestInitializationJob = initializationJobs[0];
+
+  const active = project.status !== "archived";
 
   return (
-    <main className="page">
-      <h1>{project.name}</h1>
-      <p className="muted">{project.slug}</p>
-      <section className="panel status-panel">
-        <div>
-          <p className="eyebrow">Initialization</p>
-          {latestInitializationJob ? (
-            <>
-              <h2 className="status-title">
-                <span className={`status-dot status-${latestInitializationJob.status}`} aria-hidden="true" />
-                {latestInitializationJob.status}
-              </h2>
-              <p className="muted">Context assets are supplied by authorized AI tools.</p>
-            </>
-          ) : (
-            <>
-              <h2 className="status-title">
-                <span className="status-dot status-empty" aria-hidden="true" />
-                Not initialized
-              </h2>
-              <p className="muted">Context will arrive from an authorized AI tool.</p>
-            </>
-          )}
+    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <nav className="mb-4 flex items-center gap-1.5 text-sm text-slate-400" aria-label="Breadcrumb">
+        <Link href="/projects" className="hover:text-slate-600">
+          {lang === "zh" ? "项目" : "Projects"}
+        </Link>
+        <span aria-hidden="true">/</span>
+        <span className="truncate font-mono text-xs text-slate-500">{project.slug}</span>
+      </nav>
+
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            <h1 className="truncate text-2xl font-semibold tracking-tight text-slate-900">
+              {project.name}
+            </h1>
+            <span
+              className={
+                active
+                  ? "inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20"
+                  : "inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500 ring-1 ring-inset ring-slate-500/10"
+              }
+            >
+              <span
+                className={
+                  active ? "h-1.5 w-1.5 rounded-full bg-emerald-500" : "h-1.5 w-1.5 rounded-full bg-slate-400"
+                }
+              />
+              {active
+                ? lang === "zh"
+                  ? "进行中"
+                  : "Active"
+                : lang === "zh"
+                  ? "已归档"
+                  : "Archived"}
+            </span>
+          </div>
+          <p className="mt-1 font-mono text-xs text-slate-400">{project.slug}</p>
         </div>
-        {latestInitializationJob ? (
-          <dl className="status-metrics">
-            <div>
-              <dt>Assets</dt>
-              <dd>{latestInitializationJob.asset_count}</dd>
-            </div>
-            <div>
-              <dt>Remote</dt>
-              <dd>{latestInitializationJob.git_remote ?? "Not set"}</dd>
-            </div>
-            <div>
-              <dt>Completed</dt>
-              <dd>{latestInitializationJob.completed_at ? new Date(latestInitializationJob.completed_at).toLocaleString() : "In progress"}</dd>
-            </div>
-          </dl>
-        ) : null}
-        {latestInitializationJob?.error ? (
-          <p className="alert">
-            {typeof latestInitializationJob.error === "string"
-              ? latestInitializationJob.error
-              : latestInitializationJob.error.message}
-          </p>
-        ) : null}
-        {latestInitializationJob?.warnings?.length ? (
-          <div className="warning-list">
-            <h3>Warnings</h3>
-            <ul>
-              {latestInitializationJob.warnings.map((warning) => (
-                <li key={typeof warning === "string" ? warning : warning.code}>
-                  {typeof warning === "string" ? warning : warning.message}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        {latestInitializationJob?.status === "completed" ? (
-          <Link className="button-link" href={`/projects/${project.id}/assets`}>
-            View assets
-          </Link>
-        ) : null}
-      </section>
-      {initializationJobs.length ? (
-        <section className="panel">
-          <h2>Initialization history</h2>
-          <div className="history-list">
-            <div className="history-row initialization-history-row history-header">
-              <span>Status</span>
-              <span>Assets</span>
-              <span>Warnings</span>
-              <span>Completed</span>
-            </div>
-            {initializationJobs.map((job) => (
-              <div className="history-row initialization-history-row" key={job.id}>
-                <span>{job.status}</span>
-                <span>{job.asset_count}</span>
-                <span>{job.warnings.length}</span>
-                <span>{job.completed_at ? new Date(job.completed_at).toLocaleString() : "In progress"}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
+        <Link
+          href={`/projects/${project.id}/sessions`}
+          className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+        >
+          {t("sessions")} →
+        </Link>
+      </div>
+
       {inFlight.length ? (
-        <section className="panel">
-          <div className="session-header">
-            <div>
-              <h2>In-flight sessions</h2>
-              <p className="muted">AI tool sessions currently working on this project.</p>
+        <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
+            <div className="flex items-center gap-2.5">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+              </span>
+              <h2 className="text-sm font-semibold text-slate-900">{t("inFlight")}</h2>
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                {inFlight.length}
+              </span>
             </div>
-            <Link className="button-link secondary-link" href={`/projects/${project.id}/sessions`}>
-              All sessions
+            <Link
+              href={`/projects/${project.id}/sessions`}
+              className="text-sm font-medium text-blue-600 hover:text-blue-700"
+            >
+              {t("allSessions")} →
             </Link>
           </div>
-          <div className="history-list">
-            <div className="history-row history-header">
-              <span>Agent</span>
-              <span>Intent</span>
-              <span>Work item</span>
-              <span>Started</span>
-            </div>
+          <div className="divide-y divide-slate-100">
             {inFlight.map((session) => (
-              <div className="history-row" key={session.id}>
-                <span>{session.agent_type}</span>
-                <span>{session.intent}</span>
-                <span>
-                  <Link href={`/projects/${project.id}/sessions/${session.id}`}>
-                    {session.work_item
-                      ? session.work_item.external_key
-                        ? `${session.work_item.external_key} · ${session.work_item.title}`
-                        : session.work_item.title
-                      : "No work item"}
-                  </Link>
+              <div key={session.id} className="flex flex-wrap items-center gap-x-6 gap-y-1 px-5 py-3 text-sm">
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                  {session.agent_type}
                 </span>
-                <span>{new Date(session.created_at).toLocaleString()}</span>
+                <span className="min-w-0 flex-1 truncate text-slate-600">{session.intent}</span>
+                <span className="w-56 truncate text-slate-400">
+                  {session.work_item ? (
+                    <Link
+                      href={`/projects/${project.id}/sessions/${session.id}`}
+                      className="text-slate-600 hover:text-blue-700"
+                    >
+                      {session.work_item.external_key
+                        ? `${session.work_item.external_key} · ${session.work_item.title}`
+                        : session.work_item.title}
+                    </Link>
+                  ) : (
+                    t("noWorkItem")
+                  )}
+                </span>
+                <span className="w-24 text-right text-xs text-slate-400">
+                  {relativeTime(session.created_at, lang)}
+                </span>
               </div>
             ))}
           </div>
         </section>
-      ) : null}
-      <section className="grid">
-        <Link className="panel" href={`/projects/${project.id}/work-items`}>
-          <h2>Work items</h2>
-          <p className="muted">Track AI-assisted tasks, sessions, context state, and review flow.</p>
-        </Link>
-        <Link className="panel" href={`/projects/${project.id}/status`}>
-          <h2>Project status</h2>
-          <p className="muted">Review work item progress, quality evidence, and pending approvals.</p>
-        </Link>
-        <Link className="panel" href={`/projects/${project.id}/pending`}>
-          <h2>Pending</h2>
-          <p className="muted">Approve context proposals and skill candidates waiting on you.</p>
-        </Link>
-        <Link className="panel" href={`/projects/${project.id}/operations`}>
-          <h2>Operations summary</h2>
-          <p className="muted">Review project governance, delivery, context, quality, and integration signal counts.</p>
-        </Link>
-        <Link className="panel" href={`/projects/${project.id}/assets`}>
-          <h2>Assets</h2>
-          <p className="muted">Browse normalized project assets.</p>
-        </Link>
-        <Link className="panel" href={`/projects/${project.id}/skills`}>
-          <h2>Skills</h2>
-          <p className="muted">Inspect built-in and project skills.</p>
-        </Link>
-        <Link className="panel" href={`/projects/${project.id}/knowledge`}>
-          <h2>Knowledge</h2>
-          <p className="muted">See the team knowledge accumulated in this project.</p>
-        </Link>
-        <Link className="panel" href={`/projects/${project.id}/context`}>
-          <h2>Context</h2>
-          <p className="muted">Inspect uploaded context state and provisional P1 material.</p>
-        </Link>
-        <Link className="panel" href={`/projects/${project.id}/sessions`}>
-          <h2>Sessions</h2>
-          <p className="muted">Trace AI agent work sessions.</p>
-        </Link>
-        <Link className="panel" href={`/projects/${project.id}/security`}>
-          <h2>Security audit</h2>
-          <p className="muted">Inspect sensitive governance approvals, denials, actors, and reasons.</p>
-        </Link>
-        <Link className="panel" href={`/projects/${project.id}/writebacks`}>
-          <h2>Writebacks</h2>
-          <p className="muted">Review generated knowledge drafts.</p>
-        </Link>
+      ) : (
+        <section className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-white/60 px-5 py-4 text-sm text-slate-400">
+          {lang === "zh"
+            ? "暂无进行中的 AI 会话。"
+            : "No AI tool sessions are running right now."}
+        </section>
+      )}
+
+      <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {NAV_TILES.map((tile) => (
+          <Link
+            key={tile.href}
+            href={`/projects/${project.id}${tile.href}`}
+            className="group flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-px hover:border-blue-200 hover:shadow"
+          >
+            <span
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${tile.tint}`}
+            >
+              {tile.mono}
+            </span>
+            <span className="min-w-0">
+              <span className="flex items-center gap-1 text-[15px] font-semibold text-slate-900 group-hover:text-blue-700">
+                {t(tile.key)}
+                <span className="opacity-0 transition group-hover:opacity-100">→</span>
+              </span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-slate-400">
+                {t(`${tile.key}Hint`)}
+              </span>
+            </span>
+          </Link>
+        ))}
       </section>
     </main>
   );

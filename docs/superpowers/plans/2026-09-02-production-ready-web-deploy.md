@@ -80,9 +80,11 @@
 
 > **决策（2026-09-02，保守挂起）**：`initialize-local` / `initialization-jobs` 代码保留但 production 下已被中间件 404 隐藏（服务端本地仓库扫描在生产不可用），运行手册已注明。删除/清理列入后续批次；不阻塞本机生产能力。
 
-- [ ] C1.1 删除 `initialize-local` / `initialization-jobs` API 与 web 关联代码路径（保留运行时策略拒绝即可的，直接删干净）；迁移相关测试
-- [ ] C1.2 删除 `prepare_p2_blackbox.py` 等仅本地路径依赖脚本或标注仅测试用
-- [ ] 提交：`refactor: remove server-local initialization remnants`
+> **执行（2026-09-03）**：Web 初始化 UI 已删除（首页无任何本地初始化面板/历史）；API 保留为 dev/test seeding（生产三重隐藏：端点依赖 404 + 中间件方法无关 404 + openapi 裁剪，属有意生产门，详见 C1 执行计划 v3）；脚本已标注仅测试用；样式残留随 UI 重设计清理。
+
+- [x] C1.1 删除 `initialize-local` / `initialization-jobs` **web 关联代码路径**（首页初始化状态/历史/错误展示）；API 保留 dev/test seeding + 生产隐藏（执行决策见计划 v3）
+- [x] C1.2 `prepare_p2_blackbox.py` / `run_p0_demo.py` 标注仅本地开发/测试用
+- [x] 提交：`refactor: remove server-local initialization remnants from the web ui`
 
 ### C2. Compose 精简与真实化
 

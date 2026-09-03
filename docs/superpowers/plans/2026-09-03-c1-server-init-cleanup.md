@@ -41,3 +41,13 @@
 
 - harness legacy 分支仍引用 `_validate_local_initialization_path`：保留该校验函数（生产=拒绝），仅删 HTTP 端点与中间件。
 - e2e loops 依赖 seeding：helper 必须覆盖"建 job → 扫描 → 资产入库 → 状态回写"原行为，先写 helper 单测再迁移调用方。
+
+## 6. 执行结果（2026-09-03，v3 决策）
+
+深入代码后对原 §3 设计决策作如下修订（**最合理路径**，理由记录如下）：
+
+- **Web 面（真正面向用户的残留）已删除**：项目首页不再抓取/渲染 `initialization-jobs`（状态面板、历史、初始化失败/告警展示、`View assets` 入口一并移除）；首页不再是任何本地初始化 UI 的宿主。契约测试 `test_project_page_has_no_server_local_repository_or_initialization_ui` 已更新为断言其不存在。
+- **API 面保留为 dev/test seeding，生产隐藏机制不动**：原因——(1) e2e/黑盒/演示与 15 个测试文件以 `initialize-local` 作 seeding，且测试共享进程内同一 `app` 实例（import 期建路由），删除端点需整体重构测试架构；(2) 现生产三重隐藏（端点依赖 404 + 中间件方法无关 404 + openapi 裁剪）是**有意设计**：测试断言非 POST 方法也返回 404（与 missing route 一致）。因此该层不是"残留"而是生产门，保留并在运行手册注明。
+- **脚本标注**：`prepare_p2_blackbox.py`、`run_p0_demo.py` 文件头标注"仅本地开发/测试用"（C1.2）。
+- **表保留**：`ProjectInitializationJobModel` 由 dev/test seeding 继续写入（无删表迁移，避免破坏既有数据与 e2e 断言）。
+- 后续：styles.css 中遗留的 `.initialization-history-row` 等样式随 UI 重设计批次清理。

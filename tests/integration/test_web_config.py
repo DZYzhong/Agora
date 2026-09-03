@@ -199,7 +199,7 @@ def test_product_context_page_is_read_only_audit_view():
     assert "/harness/start-work" not in context_page
 
 
-def test_project_page_has_no_server_local_repository_controls():
+def test_project_page_has_no_server_local_repository_or_initialization_ui():
     page_path = Path("apps/web/app/projects/[projectId]/page.tsx")
     initialize_route = Path("apps/web/app/projects/[projectId]/initialize/route.ts")
     retry_route = Path(
@@ -215,16 +215,23 @@ def test_project_page_has_no_server_local_repository_controls():
     assert "/initialize" not in page
     assert "/retry" not in page
     assert "Retry" not in page
-    assert "authorized AI tool" in page
-    assert "string | { code: string; message: string }" in page
-    assert "typeof warning === \"string\"" in page
-    assert "<li key={warning}>{warning}</li>" not in page
-    assert "initialization-history-row" in page
+    # C1: the project home no longer surfaces server-local initialization
+    # state (jobs/status/history) to web users.
+    assert "initialization-jobs" not in page
+    assert "Initialization" not in page
+    assert "initialization-history-row" not in page
+    assert "latestInitializationJob" not in page
+    # Redesigned home resolves labels through the bilingual i18n dictionary.
+    i18n = Path("apps/web/lib/i18n.ts").read_text()
+    assert "inFlight" in page
+    assert "session.status !== \"closed\"" in page
+    assert "进行中的会话" in i18n
+    assert "In-flight sessions" in i18n
     assert not initialize_route.exists()
     assert not retry_route.exists()
 
     styles = Path("apps/web/app/styles.css").read_text()
-    assert ".initialization-history-row" in styles
+    # Legacy initialization row styles may remain until the UI redesign pass.
     assert "grid-template-columns: 120px 100px 100px minmax(180px, 1fr);" in styles
 
 
@@ -604,7 +611,9 @@ def test_pr1b_web_login_page_and_session_routes_exist():
     content = login_page.read_text()
     assert "username" in content
     assert "password" in content
-    assert "Sign in" in content
+    # Bilingual login: labels resolve through i18n; /login/submit handles auth.
+    assert "makeT" in content
+    assert "/login/submit" in content
 
     login_handler = login_route.read_text()
     assert "/auth/login" in login_handler
@@ -728,9 +737,14 @@ def test_pr_web_nav_shows_sign_in_out_and_middleware_guards_production():
     nav = Path("apps/web/components/Nav.tsx").read_text()
     assert 'cookies()' in nav or 'cookieStore' in nav
     assert "agora_session" in nav
-    assert "Sign out" in nav
-    assert "Sign in" in nav
+    # Bilingual nav: sign-in/out labels resolve through the i18n dictionary;
+    # both languages must be defined and the logout action present.
+    assert "signOut" in nav
+    assert "signIn" in nav
+    assert "退出登录" in Path("apps/web/lib/i18n.ts").read_text()
+    assert "Sign out" in Path("apps/web/lib/i18n.ts").read_text()
     assert '/logout' in nav
+    assert 'agora_lang' in nav or 'lang?' in nav
 
     middleware = Path("apps/web/middleware.ts").read_text()
     assert "AGORA_ENV" in middleware
@@ -822,9 +836,12 @@ def test_pr_web_asset_content_view_and_filters_exist():
 
 def test_pr_web_inflight_sessions_shown_on_project_home():
     home = Path("apps/web/app/projects/[projectId]/page.tsx").read_text()
-    assert "In-flight sessions" in home
+    assert "inFlight" in home
     assert "status !== \"closed\"" in home
     assert "sessions/${session.id}" in home
+    i18n = Path("apps/web/lib/i18n.ts").read_text()
+    assert "In-flight sessions" in i18n
+    assert "进行中的会话" in i18n
 
 
 def test_pr_compose_excludes_unused_search_containers():
