@@ -269,3 +269,45 @@ def test_postgres_fts_matches_fake_keyword_retrieval_on_distinctive_query():
         session.rollback()
         session.close()
         engine.dispose()
+
+
+def test_context_engine_retrieves_assets_through_postgres_keyword_index():
+    """PR4-B3 runtime path: ContextEngine with the PG-backed keyword index
+    returns the matching asset as a keyword candidate (per-request Fake would
+    be empty; PG queries committed assets)."""
+    from packages.core.models import AssetModel
+    from packages.knowledge.context_engine import ContextEngine
+    from packages.storage.postgres_fts import PostgresKeywordIndex
+    from packages.storage.qdrant.fake import FakeVectorIndex
+
+    engine = create_app_engine(POSTGRES_URL)
+    session = _session()
+    marker = f"pg-engine-{utc_now().timestamp()}"
+    try:
+        with SqlAlchemyUnitOfWork(session) as uow:
+            user = UserModel(org_id=marker, display_name="Engine User")
+            project = ProjectModel(org_id=marker, name="Engine Project", slug=marker)
+            session.add_all([user, project])
+            session.flush()
+            project_id = project.id
+            session.add(
+                AssetModel(
+                    org_id=marker, project_id=project_id, type="code_file", source="upload",
+                    source_uri="src/payments/refund.py", title="Refund retry service",
+                    content="Refund retry uses idempotency keys and rollback evidence.",
+                    summary="refund evidence",
+                )
+            )
+            uow.commit()
+
+        index = PostgresKeywordIndex(POSTGRES_URL)
+        engine_ctx = ContextEngine(keyword_index=index, vector_index=FakeVectorIndex())
+        plan = engine_ctx.plan_context(
+            org_id=marker, project_id=project_id, intent="implementation", query="refund retry"
+        )
+        assert plan.source_refs, "expected a source ref from the PG keyword index"
+        assert "Refund retry service" in plan.summary
+    finally:
+        session.rollback()
+        session.close()
+        engine.dispose()

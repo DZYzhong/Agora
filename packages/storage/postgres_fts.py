@@ -12,9 +12,10 @@ Search is scoped by project (and optionally org/type) and ranked by ts_rank.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Connection, Engine
 
 
@@ -70,3 +71,74 @@ def rebuild_signal(engine: Engine) -> dict[str, Any]:
             text("SELECT count(*) FROM assets WHERE search_tsv IS NOT NULL")
         ).scalar()
         return {"total_assets": int(total or 0), "fts_indexed": int(nonempty or 0)}
+
+
+@dataclass(frozen=True)
+class PGSearchResult:
+    """Duck-typed RawSearchResult for the retrieval merge (Protocol)."""
+
+    asset_id: str
+    asset_type: str
+    title: str
+    content: str
+    source_uri: str
+    score: float
+
+
+class PostgresKeywordIndex:
+    """Runtime keyword index backed by the PostgreSQL FTS column.
+
+    index_asset is a no-op: assets are the source of truth and the generated
+    tsvector column is backfilled by PostgreSQL. Search/list query the
+    database directly, so every request sees committed assets (unlike the
+    per-request empty Fake index). Falls back never — construction is gated
+    by has_fts_support.
+    """
+
+    def __init__(self, database_url: str):
+        # Own engine on purpose: construction must never enter the app
+        # dependency graph (get_engine rebuilds indexes, which would recurse).
+        self._engine = create_engine(database_url)
+
+    def index_asset(self, asset_id: str, asset: Any) -> None:
+        return None
+
+    def _rows(self, statement: str, params: dict[str, Any]) -> list[PGSearchResult]:
+        with self._engine.connect() as connection:
+            rows = connection.execute(text(statement), params).mappings().all()
+        return [
+            PGSearchResult(
+                asset_id=row["id"],
+                asset_type=row["type"],
+                title=row["title"],
+                content=row["content"],
+                source_uri=row["source_uri"],
+                score=float(row["rank"] or 0),
+            )
+            for row in rows
+        ]
+
+    def search(
+        self, *, org_id: str, project_id: str, query: str, limit: int = 10
+    ) -> list[PGSearchResult]:
+        # Match the Fake boost for project_overview assets so ranking parity
+        # holds, then rank by ts_rank.
+        statement = (
+            "SELECT id, type, title, content, source_uri, "
+            "(ts_rank(search_tsv, plainto_tsquery('simple', :query)) "
+            " + CASE WHEN type = 'project_overview' THEN 1.0 ELSE 0 END) AS rank "
+            "FROM assets "
+            "WHERE org_id = :org_id AND project_id = :project_id "
+            "AND search_tsv @@ plainto_tsquery('simple', :query) "
+            "ORDER BY rank DESC, id ASC LIMIT :limit"
+        )
+        return self._rows(statement, {"org_id": org_id, "project_id": project_id, "query": query, "limit": limit})
+
+    def list_assets(self, *, org_id: str, project_id: str, limit: int = 20) -> list[PGSearchResult]:
+        statement = (
+            "SELECT id, type, title, content, source_uri, "
+            "CASE WHEN type = 'project_overview' THEN 1.0 ELSE 0.1 END AS rank "
+            "FROM assets WHERE org_id = :org_id AND project_id = :project_id "
+            "ORDER BY rank DESC, title ASC LIMIT :limit"
+        )
+        return self._rows(statement, {"org_id": org_id, "project_id": project_id, "limit": limit})

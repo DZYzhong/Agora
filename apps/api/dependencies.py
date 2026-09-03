@@ -125,8 +125,37 @@ def auth_bypass_enabled() -> bool:
     return get_runtime_policy().auth_bypass
 
 
+def _postgres_keyword_index_enabled() -> bool:
+    """True when the configured database is PostgreSQL and carries the FTS
+    column. Probes with an independent engine to avoid recursion through
+    get_engine() (which itself rebuilds indexes)."""
+    try:
+        policy = get_runtime_policy()
+        if make_url(policy.database_url).get_backend_name() != "postgresql":
+            return False
+        engine = create_app_engine(policy.database_url)
+        try:
+            return has_fts_support(engine)
+        finally:
+            engine.dispose()
+    except Exception:
+        return False
+
+
+_PG_KEYWORD_INDEX_ENABLED = _postgres_keyword_index_enabled()
+
+
 @lru_cache
-def get_keyword_index() -> FakeKeywordIndex:
+def get_keyword_index():
+    """Runtime keyword retrieval: PostgreSQL FTS on PG, in-memory Fake on
+    SQLite (tests/CI). Fake was rebuilt per request and never shared across
+    requests; the PG path queries committed assets directly."""
+    if _PG_KEYWORD_INDEX_ENABLED:
+        from packages.storage.postgres_fts import PostgresKeywordIndex
+
+        return PostgresKeywordIndex(get_runtime_policy().database_url)
+    from packages.storage.opensearch.fake import FakeKeywordIndex
+
     return FakeKeywordIndex()
 
 
