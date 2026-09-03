@@ -28,6 +28,7 @@ def test_stdio_mcp_server_lists_agora_tools():
         "agora_record_evidence",
         "agora_get_quality_status",
         "agora_get_project_status",
+        "agora_lookup_project_context",
         "agora_get_protocol_manifest",
         "agora_close_work",
     }
@@ -580,6 +581,7 @@ MINIMAL_DISPATCH_ARGUMENTS = {
     "agora_record_evidence": {"session_id": "sess_1", "evidence_type": "local_test", "source": "ai_tool", "status": "passed", "conclusion": "c", "idempotency_key": "key-evidence"},
     "agora_get_quality_status": {"session_id": "sess_1"},
     "agora_get_project_status": {"project_id": "project_1"},
+    "agora_lookup_project_context": {"project_id": "project_1", "query": "q"},
     "agora_close_work": {"session_id": "sess_1", "idempotency_key": "key-close"},
     "agora_plan_context": {"session_id": "sess_1"},
     "agora_record_event": {"session_id": "sess_1", "event_type": "e", "payload": {}},

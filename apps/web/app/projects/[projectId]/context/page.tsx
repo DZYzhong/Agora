@@ -159,6 +159,19 @@ export default async function ContextStatePage({
         </dl>
       </Card>
 
+      {!latest && streams.length === 0 && proposals.length === 0 ? (
+        <Card className="mt-4 border-amber-200 bg-amber-50/70 p-5">
+          <h3 className="text-[15px] font-semibold text-ink">
+            {zh ? "本项目还没有 Agora 上下文" : "This project has no Agora context yet"}
+          </h3>
+          <p className="mt-2 text-sm text-ink-2">
+            {zh
+              ? "在仓库的 AI 对话里，先让 AI 调用 agora_lookup_project_context（或 agora_start_work + agora_prepare_context）查询本项目知识。若返回 recommended_action=generate_context，说明没有可复用上下文——请让 AI 分析本地代码后用 agora_submit_context_proposal 生成；提案提交后会出现在下方“上下文提案”，你在此批准后即成为本项目可检索的知识（后续对话可查回并在开发中持续更新）。"
+              : "In the repository's AI conversation, first ask the AI to call agora_lookup_project_context (or agora_start_work + agora_prepare_context). If it returns recommended_action=generate_context, no reusable context exists — have the AI analyze the local code and submit a ContextProposal; it will appear below under “Context proposals”, and once you approve it here it becomes retrievable project knowledge for later conversations."}
+          </p>
+        </Card>
+      ) : null}
+
       {workItems.length ? (
         <>
           <SectionLabel>{zh ? "按工作项查看上下文" : "Context state by work item"}</SectionLabel>

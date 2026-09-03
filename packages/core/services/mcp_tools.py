@@ -188,6 +188,15 @@ def _get_project_status_payload(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 @_adapter
+def _lookup_project_context_payload(arguments: dict[str, Any]) -> dict[str, Any]:
+    payload: dict[str, Any] = {"query": "", "token_budget": 4000}
+    for key in ("project_id", "repo_remote", "user_message", "query", "token_budget"):
+        if arguments.get(key) is not None:
+            payload[key] = arguments[key]
+    return payload
+
+
+@_adapter
 def _close_work_payload(arguments: dict[str, Any]) -> dict[str, Any]:
     return {
         "session_id": arguments["session_id"],
@@ -370,6 +379,20 @@ TOOL_DEFINITIONS: tuple[McpToolDefinition, ...] = (
         required=("project_id",),
         api_path="/harness/get-project-status",
         adapter=_get_project_status_payload,
+    ),
+    McpToolDefinition(
+        name="agora_lookup_project_context",
+        description="Read-only, session-free lookup of what Agora already knows about a project: accepted context head, retrievable knowledge, and applicable skills (with instructions). Use this at the START of an engineering conversation to decide whether to reuse existing context or tell the user it must be generated. Resolve the project with repo_remote (your origin), project_id, or a user_message that names the project. If the result has has_accepted_context=false and recommended_action=generate_context, tell the user the project has no Agora context yet and that generating one is required before deep changes; then start work, analyze the local repository, and submit a ContextProposal.",
+        properties=(
+            _str("repo_remote", "Optional git origin remote of the project to look up."),
+            _str("project_id", "Optional explicit project id."),
+            _str("user_message", "Optional query; may name the project (name or slug) when repo_remote is absent."),
+            _str("query", default="", description="What you are looking for (architecture, conventions, decisions...)."),
+            _int("token_budget", default=4000),
+        ),
+        required=(),
+        api_path="/harness/lookup-project-context",
+        adapter=_lookup_project_context_payload,
     ),
     McpToolDefinition(
         name="agora_get_protocol_manifest",

@@ -19,6 +19,7 @@ from packages.core.repositories.workflows import WorkflowStepError
 from packages.core.services.protocol import LEGACY_PROTOCOL_VERSION
 from packages.core.services.runtime import CoreRuntime
 from packages.domain.local_workspace import LocalWorkspaceObservation
+from packages.harness.context_bundle import serialize_skill_version
 from packages.harness.context_planner import ContextPlanner
 from packages.harness.development_capture import capture_development_change
 from packages.harness.project_resolver import ProjectResolver
@@ -235,6 +236,102 @@ class HarnessService:
             next_action="plan_context",
             workflow_version_id=workflow_version_id,
         )
+
+    def lookup_project_context(
+        self,
+        *,
+        project_id: str | None = None,
+        repo_remote: str | None = None,
+        user_message: str | None = None,
+        query: str = "",
+        token_budget: int = 4000,
+        principal: Principal | None = None,
+    ) -> dict:
+        """Read-only project knowledge + skill lookup (no session/work item).
+
+        Resolves the project the same way start_work does, then reports
+        whether an accepted context head exists, what knowledge is
+        retrievable right now, which skills apply (with instructions), and
+        the recommended next action:
+          - use_accepted_context / use_provisional_context / generate_context
+        """
+        if principal is None:
+            raise ValueError("HarnessService.lookup_project_context requires an authenticated Principal")
+        project = None
+        clarification = None
+        if project_id and hasattr(self.core, "get_project"):
+            project = self.core.get_project(project_id)
+        if project is None:
+            resolution = self.project_resolver.resolve(
+                repo_remote=repo_remote,
+                user_message=user_message,
+                local_observation=None,
+            )
+            project = resolution.project
+            clarification = resolution.clarification
+        if project is None:
+            return {
+                "project": None,
+                "resolved": False,
+                "clarification": clarification,
+                "recommended_action": "clarify_project",
+                "next_actions": [{"type": "clarify", "reason": clarification or "project unresolved"}],
+            }
+
+        head = (
+            self.core.get_head_context_revision_for_project(project_id=project.id)
+            if hasattr(self.core, "get_head_context_revision_for_project")
+            else None
+        )
+        skill_versions = (
+            self.core.list_applicable_skill_versions(project_id=project.id, query=query, limit=5)
+            if hasattr(self.core, "list_applicable_skill_versions")
+            else []
+        )
+        plan = self.context_engine.plan_context(
+            org_id=project.org_id,
+            project_id=project.id,
+            intent="context_lookup",
+            query=query,
+            token_budget=token_budget,
+        )
+        has_accepted = head is not None
+        has_knowledge = bool(plan.source_refs)
+        if has_accepted:
+            recommended_action = "use_accepted_context"
+        elif has_knowledge:
+            recommended_action = "use_provisional_context"
+        else:
+            recommended_action = "generate_context"
+        return {
+            "project": {
+                "id": project.id,
+                "name": project.name,
+                "slug": project.slug,
+            },
+            "resolved": True,
+            "has_accepted_context": has_accepted,
+            "head_revision_id": head.id if head is not None else None,
+            "accepted_commit_sha": head.commit_sha if head is not None else None,
+            "context_level": plan.level,
+            "summary": plan.summary,
+            "key_facts": list(plan.key_facts),
+            "knowledge_source_refs": list(plan.source_refs),
+            "applicable_skills": [serialize_skill_version(version) for version in skill_versions],
+            "recommended_action": recommended_action,
+            "next_actions": [
+                {
+                    "type": "fetch_context_ref" if has_knowledge else "generate_context",
+                    "reason": (
+                        "Use the accepted team context."
+                        if has_accepted
+                        else "Use retrievable project knowledge pending an accepted ContextRevision."
+                        if has_knowledge
+                        else "No Agora context exists for this project yet: tell the user it must be generated, then analyze the local repository and submit a ContextProposal."
+                    ),
+                }
+            ],
+        }
 
     def plan_context(
         self,

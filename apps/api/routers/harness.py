@@ -157,6 +157,18 @@ class GetProjectStatusRequest(BaseModel):
     project_id: str
 
 
+class LookupProjectContextRequest(BaseModel):
+    """Read-only project knowledge + skill lookup (no session/work item)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    project_id: str | None = None
+    repo_remote: str | None = None
+    user_message: str | None = None
+    query: str = ""
+    token_budget: int = 4000
+
+
 DEVELOPMENT_STATUSES = ("added", "modified", "deleted", "renamed")
 MAX_CHANGED_FILES = 500
 MAX_PATH_BYTES = 512
@@ -746,6 +758,37 @@ def get_project_status(
         _apply_protocol_metadata(response_dict, protocol)
         uow.commit()
     return response_dict
+
+
+@router.post("/lookup-project-context")
+def lookup_project_context(
+    payload: LookupProjectContextRequest,
+    protocol: ProtocolContext = Depends(_protocol_context),
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_db_session),
+    keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
+    vector_index: FakeVectorIndex = Depends(get_vector_index),
+):
+    """Read-only project knowledge + applicable-skills lookup.
+
+    Lets an engineering conversation check what Agora already knows about a
+    project (accepted context head + retrievable knowledge + skills) BEFORE
+    starting formal work, and tells the caller when the project has no
+    context yet (recommended_action=generate_context). No session/work item
+    is created.
+    """
+    with SqlAlchemyUnitOfWork(session) as uow:
+        result = _harness(session, keyword_index, vector_index).lookup_project_context(
+            **payload.model_dump(),
+            principal=principal,
+        )
+        if result.get("project") is not None:
+            require_project_member(session, principal, project_id=result["project"]["id"])
+        response = result
+        response["request_id"] = None
+        _apply_protocol_metadata(response, protocol)
+        uow.commit()
+    return response
 
 
 @router.post("/close-work")

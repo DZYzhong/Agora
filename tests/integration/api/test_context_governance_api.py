@@ -634,3 +634,74 @@ def test_conflicting_second_proposal_on_stale_baseline_is_not_silently_overwritt
             headers=_headers(HUMAN_TOKEN),
         ).json()
         assert streams[0]["head_revision_id"] == head
+
+
+def test_lookup_project_context_empty_then_accepted_and_knowledge_asset(monkeypatch):
+    """Context-first loop: a fresh project reports no context (generate_context),
+    and once a proposal is approved the accepted head is persisted as a
+    retrievable knowledge asset that agora_lookup_project_context sees."""
+    _production_auth(monkeypatch)
+    with _session_client() as client:
+        project = _create_project(client)
+        pid = project["id"]
+
+        def sessions_count() -> int:
+            return len(client.get(f"/projects/{pid}/sessions", headers=_headers(AGENT_TOKEN)).json())
+
+        before = sessions_count()
+
+        empty = client.post(
+            "/harness/lookup-project-context",
+            headers=_headers(AGENT_TOKEN),
+            json={"project_id": pid, "query": "支付状态流转", "token_budget": 1500},
+        )
+        assert empty.status_code == 200, empty.text
+        body = empty.json()
+        assert body["resolved"] is True
+        assert body["has_accepted_context"] is False
+        assert body["recommended_action"] == "generate_context"
+        assert body["project"]["id"] == pid
+        assert body["knowledge_source_refs"] == []
+
+        approver = _web_approver(client, project_id=pid)
+        proposal = client.post(
+            f"/projects/{pid}/context/proposals",
+            headers=_headers(AGENT_TOKEN),
+            json=_proposal_payload(),
+        ).json()
+        accepted = client.post(
+            f"/projects/{pid}/context/proposals/{proposal['id']}/approve",
+            headers=_csrf_headers(approver),
+            json={
+                "expected_head_revision_id": None,
+                "revision_signal": {
+                    "target_branch": "main",
+                    "observed_head_sha": "abc123",
+                    "contains_to_commit": True,
+                },
+            },
+        ).json()
+        revision_id = accepted["revision"]["id"]
+
+        assets = client.get(f"/projects/{pid}/assets", headers=_headers(AGENT_TOKEN)).json()
+        head_assets = [asset for asset in assets if asset["type"] == "context_revision"]
+        assert len(head_assets) == 1
+        assert head_assets[0]["source_uri"].endswith("/head")
+        one = client.get(
+            f"/projects/{pid}/assets/{head_assets[0]['id']}",
+            headers=_headers(AGENT_TOKEN),
+        ).json()
+        assert "支付状态机" in one["content"]
+
+        after = client.post(
+            "/harness/lookup-project-context",
+            headers=_headers(AGENT_TOKEN),
+            json={"project_id": pid, "query": "支付状态机", "token_budget": 1500},
+        ).json()
+        assert after["has_accepted_context"] is True
+        assert after["head_revision_id"] == revision_id
+        assert after["recommended_action"] == "use_accepted_context"
+        assert len(after["knowledge_source_refs"]) >= 1
+
+        # lookup is read-only: no sessions/work items were created
+        assert sessions_count() == before == 0

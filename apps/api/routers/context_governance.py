@@ -1,4 +1,6 @@
-from __future__ import annotations
+
+import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -7,12 +9,18 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apps.api.auth import get_current_principal, require_human, require_project_approver, require_project_member
-from apps.api.dependencies import get_db_session
+from apps.api.dependencies import get_db_session, get_keyword_index, get_vector_index
 from packages.core.auth import Principal
+from packages.core.repositories.assets import AssetRepository
 from packages.core.repositories.projects import ProjectRepository
 from packages.core.services.approval_grants import ApprovalDeniedError, approval_payload_digest, require_approval_capability
 from packages.core.services.runtime import CoreRuntime
 from packages.core.uow import SqlAlchemyUnitOfWork
+from packages.domain.schemas import AssetCreate
+from packages.storage.opensearch.fake import FakeKeywordIndex
+from packages.storage.qdrant.fake import FakeVectorIndex
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/projects/{project_id}/context", tags=["context-governance"])
 
@@ -147,6 +155,8 @@ def approve_context_proposal(
     payload: ContextProposalApprove,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_db_session),
+    keyword_index: FakeKeywordIndex = Depends(get_keyword_index),
+    vector_index: FakeVectorIndex = Depends(get_vector_index),
 ):
     with SqlAlchemyUnitOfWork(session) as uow:
         require_project_member(session, principal, project_id=project_id)
@@ -259,6 +269,57 @@ def approve_context_proposal(
         proposal.reviewed_by_user_id = principal.user_id
         proposal.review_comment = payload.comment
         proposal.accepted_revision_id = revision.id
+        # Persist the accepted head as a retrievable knowledge asset so later
+        # prepare_context / agora_lookup_project_context can search and fetch
+        # the human-approved context (assets.search_tsv is a generated column,
+        # so the row is immediately full-text searchable on PostgreSQL).
+        asset_row = AssetRepository(session).upsert_by_source_uri(
+            org_id=proposal.org_id,
+            project_id=proposal.project_id,
+            type="context_revision",
+            source="context_stream",
+            source_uri=f"agora://context/{stream.id}/head",
+            title=f"Accepted context head ({stream.branch})",
+            content=json.dumps(
+                {
+                    "schema_version": revision.schema_version,
+                    "summary": proposal.summary,
+                    "content": revision.content,
+                    "source_anchors": revision.source_anchors,
+                    "provenance": revision.provenance,
+                    "commit_sha": revision.commit_sha,
+                    "accepted_revision_id": revision.id,
+                    "proposal_id": proposal.id,
+                },
+                ensure_ascii=False,
+                default=str,
+            ),
+            summary=proposal.summary,
+            metadata={
+                "revision_id": revision.id,
+                "stream_id": stream.id,
+                "proposal_id": proposal.id,
+                "branch": stream.branch,
+                "kind": "accepted_context_head",
+            },
+        )
+        asset_create = AssetCreate(
+            org_id=proposal.org_id,
+            project_id=proposal.project_id,
+            type=asset_row.type,
+            source=asset_row.source,
+            source_uri=asset_row.source_uri,
+            title=asset_row.title,
+            content=asset_row.content,
+            summary=asset_row.summary,
+            metadata=asset_row.asset_metadata,
+            content_hash=asset_row.content_hash,
+        )
+        for index_name, index in (("keyword", keyword_index), ("vector", vector_index)):
+            try:
+                index.index_asset(asset_row.id, asset_create)
+            except Exception as exc:  # pragmatic: search index refresh must not block acceptance
+                logger.exception("Post-approval %s index refresh failed: %s", index_name, exc)
         decision = runtime.create_approval_decision(
             org_id=proposal.org_id,
             project_id=proposal.project_id,

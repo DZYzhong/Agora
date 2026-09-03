@@ -51,7 +51,7 @@ def build_context_bundle(
             "skill_version_id": skill_version_ids[0] if skill_version_ids else None,
             "skill_version_ids": skill_version_ids,
         },
-        "skills": [_serialize_skill_version(version) for version in applicable_skill_versions],
+        "skills": [serialize_skill_version(version) for version in applicable_skill_versions],
         "summary": context_pack.summary,
         "key_facts": list(context_pack.key_facts),
         "source_refs": list(context_pack.source_refs),
@@ -70,7 +70,7 @@ def build_context_bundle(
     return trim_payload_to_budget(payload, budget_limit=token_budget)
 
 
-def _serialize_skill_version(version: SkillVersionModel) -> dict[str, Any]:
+def serialize_skill_version(version: SkillVersionModel) -> dict[str, Any]:
     definition = version.definition or {}
     return {
         "skill_version_id": version.id,

@@ -110,7 +110,21 @@ agora_submit_context_proposal：
 ```
 
 - 修改 connector 代码（如 `apps/mcp/server.py`）后，需**重启 Cursor 窗口**让 stdio server 重新加载。
-- 12 个 canonical 工具：`agora_start_work`、`agora_prepare_context`、`agora_fetch_context_ref`、`agora_submit_context_proposal`、`agora_complete_workflow_step`、`agora_submit_skill_candidate`、`agora_suggest_skills`、`agora_record_evidence`、`agora_get_quality_status`、`agora_get_project_status`、`agora_get_protocol_manifest`、`agora_close_work`。协议当前 1.1，**所有变更类调用都要带 `idempotency_key`**。
+- 13 个 canonical 工具：`agora_start_work`、`agora_prepare_context`、`agora_fetch_context_ref`、`agora_submit_context_proposal`、`agora_complete_workflow_step`、`agora_submit_skill_candidate`、`agora_suggest_skills`、`agora_record_evidence`、`agora_get_quality_status`、`agora_get_project_status`、`agora_lookup_project_context`、`agora_get_protocol_manifest`、`agora_close_work`。协议当前 1.1，**所有变更类调用都要带 `idempotency_key`**（只读查询如 lookup/get-status 不需要）。
+
+## 4.5 知识引导式工程对话（标准循环）
+
+正常用法不是"上来就起会话"，而是**先查再用、用完反哺**：
+
+1. **查**：工程对话开头调 `agora_lookup_project_context`（repo_remote/项目名 + query，**不建会话**）。返回：`has_accepted_context`、head revision、可检索知识（`knowledge_source_refs`）、适用 skill（含 instructions）、`recommended_action`。
+2. **判断**：
+   - `use_accepted_context` → 用 `agora_fetch_context_ref` 取已批准知识，在对话里复用；
+   - `generate_context` → **告诉用户"本项目还没有 Agora 上下文，需要先生成"**，然后走第 3 步；
+   - `use_provisional_context` → 有临时资产未批准，按需继续。
+3. **生成并反哺**：`agora_start_work` → 分析本地仓库 → `agora_submit_context_proposal`（initial/refresh/task_update）→ 你在 Web 批准 → 该 head 成为**可检索知识资产**，后续 lookup/prepare 都能查回。
+4. **开发中更新**：后续任务先 lookup 复用；改动大时以 `task_update`/`refresh` 提案补充并批准更新。
+
+> 语义：**批准后的已接受上下文才是项目知识**（被检索并返回给 AI）；未批准提案只处于"待审"。Web 上下文页在项目无上下文时会显示引导 CTA。
 
 ## 5. Web 页面地图（URL 模板）
 
