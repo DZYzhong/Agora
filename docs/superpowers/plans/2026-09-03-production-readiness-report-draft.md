@@ -3,11 +3,13 @@
 > 生成：2026-09-03（本机部署栈，证据版）。最终 PR6 报告需真实 AI 工具黑盒与多角色场景后定稿（§8 待办）。
 > 仓库：`codex/agora-p0` @ `8614aa4`（分支领先 origin 212，未 push）
 
-## 1. 发布基线（本机）
+## 1. 发布基线（本机，2026-09-03 终版）
 
-- 镜像 digest（本地构建）：api `cf40af07c423`、web `22de6f467449`、worker `057854c420ba`、local-connector `98240b7b8ba3`
-- Schema revision：`20260902_0018`（PostgreSQL）；PG↔SQLite fingerprint 一致
-- 测试基线：全量 pytest（SQLite）540+、PG 专属 4、web-config 53；`tsc`/`next build`/依赖审计 0
+- 提交：`codex/agora-p0` @ `90e0cc8`（远端已同步）
+- 镜像 ID（本地构建）：api `39aeca153c1f`、web `22de6f467449`、worker `4c0c0e5e24e5`、local-connector `98240b7b8ba3`；运行镜像 postgres `f1c3376c26f2`、redis `71da9275c5f3`、nginx `65645c7bb6a0`、prometheus `f6639335d34a`
+- Schema revision：`20260902_0019`（PostgreSQL；PG↔SQLite fingerprint 一致；FTS 工件白名单排除）
+- 测试基线：全量 pytest（SQLite）**548 passed**（曾 1 次偶发 1 failed，两次重跑未复现）、PG 专属 7、web-config 54；`tsc`/`next build`/依赖审计 0
+- 验收：`scripts/verify_production.sh` → **PRODUCTION ACCEPTANCE PASS**（7/7）；备份快照 `agora-20260903T093041Z.enc`（101,536B，保留 2 份）
 
 ## 2. 验收证据矩阵（对应 §13，逐项状态）
 
