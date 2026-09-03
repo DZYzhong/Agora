@@ -94,3 +94,9 @@
 - 时延：p50 **1106.7ms** / p95 **1402.1ms** / p99 **1672.4ms** / max 4328.1ms
 - 稳定性：p95 前半程 1376.9ms → 后半程 1419.5ms（+3%，无劣化趋势）
 - 测量条件说明：urllib 每请求新建连接（无 keep-alive 复用）、/ready 含 DB 探测、colima VM(6GB) 持续饱和负载；nginx 基线（8×32）p95 458ms 供参考。**PASS（稳定性/零错误门）**；绝对 p95 数值目标需正式基准环境（固定数据集 + 干净主机，对应 C1）后定稿 §8.1。
+
+## 9. C1 干净主机部署 PASS（2026-09-03）
+
+- 主机：172.29.30.128（CentOS7，非手册首选 Ubuntu——按"等价 Linux"处理并记录全部差异）；代码基线 `a1b6de7`；schema 0019
+- 结果：`deploy_local.sh` → 栈全 up；`--bootstrap-admin` → SMOKE PASS；`verify_production.sh` → **PRODUCTION ACCEPTANCE PASS（7/7）**；外部视角 /ready 200 + IP 证书 SAN + admin 登录成功；主机加密备份已复制离主机
+- 全程操作记录（含网络适配/端口 8000 冲突改映射 8001/openssl 1.0.2 extfile 证书/compose v2.29.7 安装/镜像 digest）：`docs/development/c1-clean-host-2026-09-03.zh-CN.md`
