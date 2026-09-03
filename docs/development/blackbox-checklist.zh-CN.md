@@ -34,4 +34,4 @@
 
 ## E. 结束
 - [x] E1 把结果回填到 readiness 报告证据矩阵
-- [ ] E2 汇总未关闭 Critical/High（期望 0）
+- [x] E2 汇总未关闭 Critical/High（期望 0）
