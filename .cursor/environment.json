@@ -1,0 +1,19 @@
+{
+  "name": "Agora",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "api",
+      "command": "bash .cursor/run-api.sh"
+    },
+    {
+      "name": "web",
+      "command": "bash .cursor/run-web.sh"
+    }
+  ],
+  "ports": [
+    { "name": "api", "port": 8000 },
+    { "name": "web", "port": 3000 }
+  ]
+}
